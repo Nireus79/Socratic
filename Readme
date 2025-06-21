@@ -1,0 +1,94 @@
+Socratic
+
+A Retrieval-Augmented Generation (RAG) system that uses Socratic questioning methodology to guide software developers
+through project planning and development.
+The system acts as an intelligent counselor, helping users discover solutions
+through guided questioning rather than providing direct answers.
+
+## Features
+
+- **Socratic Methodology**: Uses targeted questions to help users think through problems
+- **Context-Aware**: Builds and maintains project context throughout conversations
+- **Phase-Based Guidance**: Progresses through discovery, analysis, design, and implementation phases
+- **Knowledge Base**: Maintains a searchable knowledge base of software development best practices
+- **Multilingual Support**: Adapts to user language preferences and team structures
+- **Persistent Memory**: Saves conversation history and project context
+
+## Prerequisites
+
+- Python 3.8+
+- Claude API key from Anthropic
+- Internet connection for model downloads
+
+## Installation
+
+1. **Clone or download the project files**
+
+2. **Install required packages:**
+```bash
+pip install anthropic sentence-transformers numpy scikit-learn
+```
+
+3. **Set up your Claude API key:**
+   - Get an API key from [Anthropic Console](https://console.anthropic.com/)
+   - Set it as an environment variable:
+     ```bash
+     # Windows
+     set CLAUDE_API_KEY=your_api_key_here
+
+     # Mac/Linux
+     export CLAUDE_API_KEY=your_api_key_here
+     ```
+   - Or modify the code directly (line 408):
+     ```python
+     api_key = "your_api_key_here"
+     ```
+
+## Quick Start
+
+1. **Run the program:**
+```bash
+python main.py
+```
+
+2. **Start chatting with the Socratic counselor:**
+   - Answer the initial question about your project
+   - Respond to follow-up questions to build context
+   - Type `summary` to see your project overview
+   - Type `quit`, `exit`, or `end` to finish
+
+## System Architecture
+
+### Core Components
+
+- **ProjectContext**: Stores project goals, requirements, tech stack, and preferences
+- **KnowledgeEntry**: Individual entries in the knowledge base with embeddings
+- **SocraticRAG**: Main class orchestrating the questioning and guidance
+
+### Development Phases
+
+1. **Discovery**: Understanding project goals and requirements
+2. **Analysis**: Examining challenges and technical considerations
+3. **Design**: Planning architecture and implementation approach
+4. **Implementation**: Guidance on execution and deployment
+
+### Context Categories
+
+The system tracks:
+- **Goals & Requirements**: What you want to achieve
+- **Technical Stack**: Technologies and tools
+- **Constraints**: Limitations and restrictions
+- **Team Structure**: Individual vs. team development
+- **Language Preferences**: Code language and documentation
+- **Deployment Target**: Where the system will run
+- **Code Style**: Documentation and commenting preferences
+
+## Usage Examples
+
+### Basic Conversation Flow
+```
+🤖 Socratic Counselor for Project Development
+==================================================
+Assistant: What exactly do you want to achieve with this project?
+
+You: I want to build a web application for task management
