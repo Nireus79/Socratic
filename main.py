@@ -7,8 +7,7 @@ import anthropic
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
-
-claude_api_key = os.getenv("API_KEY_CLAUDE")
+claude_api_key = os.environ["API_KEY_CLAUDE"]
 print(claude_api_key)
 os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
 
