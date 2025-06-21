@@ -3,12 +3,13 @@ import pickle
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-
 import anthropic
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
+claude_api_key = os.getenv("API_KEY_CLAUDE")
+print(claude_api_key)
 os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
 
 
@@ -437,8 +438,7 @@ IMPORTANT: Based on their language preference ({self.project_context.language_pr
 def main():
     """Example usage"""
     # Initialize (needs Claude API key)
-    api_key = os.getenv("CLAUDE_API_KEY",
-                        "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")
+    api_key = os.getenv("CLAUDE_API_KEY", claude_api_key)
     rag = SocraticRAG(api_key)
 
     print("🤖 Socratic Counselor for Project Development")
