@@ -81,7 +81,7 @@ class ConversationMessage:
 class DatabaseManager:
     """Handles all database operations for persistent storage"""
 
-    def __init__(self, db_path: str = "socratic_rag.db"):
+    def __init__(self, db_path: str = "socratic_rag2.db"):
         self.db_path = db_path
         self.lock = threading.Lock()
         self.init_database()
