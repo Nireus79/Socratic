@@ -81,7 +81,7 @@ class ConversationMessage:
 class DatabaseManager:
     """Handles all database operations for persistent storage"""
 
-    def __init__(self, db_path: str = "socratic_rag2.db"):
+    def __init__(self, db_path: str = "socratic_rag.db"):
         self.db_path = db_path
         self.lock = threading.Lock()
         self.init_database()
@@ -803,7 +803,7 @@ class MultiUserSocraticRAG:
         try:
             # Generate response using Claude
             response = self.client.messages.create(
-                model="claude-3-sonnet-20240229",
+                model="claude-sonnet-4-20250514",
                 max_tokens=2000,
                 temperature=0.7,
                 messages=[{"role": "user", "content": prompt}]
