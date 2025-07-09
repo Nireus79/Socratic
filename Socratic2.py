@@ -595,7 +595,8 @@ class MultiUserSocraticRAG:
                 "architecture", ["mvc", "design-patterns", "architecture"]),
 
             (
-                "RESTful API design follows principles: stateless communication, uniform interface, cacheable responses."
+                "RESTful API design follows principles: stateless communication, uniform interface, cacheable "
+                "responses."
                 "Uses HTTP methods (GET, POST, PUT, DELETE) and status codes.",
                 "api-design", ["rest", "api", "web-development"]),
 
@@ -731,11 +732,13 @@ class MultiUserSocraticRAG:
         context_questions = {
             "deployment_target": "Where do you plan to deploy this - cloud platforms, local servers, or mobile devices?",
             "team_size": "Will you be working on this alone, with a small team, or as part of a larger organization?",
-            "code_style": "Do you prefer minimal code with fewer comments, or comprehensive documentation and detailed comments?",
+            "code_style": "Do you prefer minimal code with fewer comments, or comprehensive documentation and "
+                          "detailed comments?",
             "goals": "What are the main goals you want to achieve with this project?",
             "tech_stack": "What technologies or programming languages are you considering for this project?",
             "internationalization": "Do you need this system to work in multiple languages/regions?",
-            "maintenance_requirements": "How long do you expect to maintain this project - short-term prototype or long-term production system?"
+            "maintenance_requirements": "How long do you expect to maintain this project - short-term prototype or "
+                                        "long-term production system?"
         }
 
         return context_questions.get(missing_item, "Can you tell me more about your project requirements?")
@@ -1030,7 +1033,7 @@ def main():
     rag = MultiUserSocraticRAG(claude_api_key=api_key)
 
     print("🧠 Multi-User Socratic RAG System Initialized")
-    print("Ουδέν οίδα ούτε διδάσκω τι, αλλά διαπορώ μόνον.")
+    print("Ουδέν οίδα, ούτε διδάσκω τι, αλλά διαπορώ μόνον.")
     print(
         "Commands: create_user, switch_user, new_project, switch_project, chat, summary, users, projects, stats, "
         "export, reset, help, quit")

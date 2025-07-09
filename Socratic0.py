@@ -383,7 +383,8 @@ class MultiUserSocraticRAG:
                 "architecture", ["mvc", "design-patterns", "architecture"]),
 
             (
-                "RESTful API design follows principles: stateless communication, uniform interface, cacheable responses."
+                "RESTful API design follows principles: stateless communication, uniform interface, cacheable "
+                "responses."
                 "Uses HTTP methods (GET, POST, PUT, DELETE) and status codes.",
                 "api-design", ["rest", "api", "web-development"]),
 
@@ -710,7 +711,7 @@ def main():
 
     # Simulate multiple users or single user session
     while True:
-        print("Ουδέν οίδα ούτε διδάσκω τι, αλλά διαπορώ μόνον.")
+        print("Ουδέν οίδα, ούτε διδάσκω τι, αλλά διαπορώ μόνον.")
         print("\nCommands:")
         print("1. Start/continue conversation (enter user ID)")
         print("2. 'users' - Show active users")
