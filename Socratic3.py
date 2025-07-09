@@ -515,7 +515,7 @@ Keep responses focused, insightful, and question-driven. Avoid giving direct ans
 
         try:
             response = self.client.messages.create(
-                model="claude-3-sonnet-20241022",
+                model="claude-sonnet-4-20250514",
                 max_tokens=1000,
                 messages=[{"role": "user", "content": prompt}]
             )
