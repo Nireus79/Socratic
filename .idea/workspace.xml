@@ -4,10 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="Socratic 2">
+    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="Socratic 2 db">
+      <change afterPath="$PROJECT_DIR$/Socratic3.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_rag.db" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_rag0.db" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/socratic_rag2.db" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_rag2.db" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -258,13 +258,22 @@
       <option name="project" value="LOCAL" />
       <updated>1750920471643</updated>
     </task>
-    <option name="localTasksCounter" value="14" />
+    <task id="LOCAL-00014" summary="Socratic 2 db">
+      <option name="closed" value="true" />
+      <created>1751964850020</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1751964850020</updated>
+    </task>
+    <option name="localTasksCounter" value="15" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <option name="ADD_EXTERNAL_FILES_SILENTLY" value="true" />
     <MESSAGE value="Socratic 0" />
     <MESSAGE value="Socratic 2" />
-    <option name="LAST_COMMIT_MESSAGE" value="Socratic 2" />
+    <MESSAGE value="Socratic 2 db" />
+    <option name="LAST_COMMIT_MESSAGE" value="Socratic 2 db" />
   </component>
 </project>
