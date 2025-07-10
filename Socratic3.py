@@ -76,7 +76,7 @@ class KnowledgeEntry:
 class DatabaseManager:
     """Handles all database operations for users, projects, and knowledge base"""
 
-    def __init__(self, db_path: str = "socratic_rag.db"):
+    def __init__(self, db_path: str = "socratic_rag3.db"):
         self.db_path = db_path
         self.init_database()
 
@@ -284,7 +284,7 @@ class DatabaseManager:
 class SocraticRAG:
     """Main RAG system with Socratic questioning methodology"""
 
-    def __init__(self, api_key: str, db_path: str = "socratic_rag.db"):
+    def __init__(self, api_key: str, db_path: str = "socratic_rag3.db"):
         self.client = anthropic.Anthropic(api_key=api_key)
         self.db_manager = DatabaseManager(db_path)
         self.encoder = SentenceTransformer('all-MiniLM-L6-v2')
