@@ -4,7 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="claude-sonnet-4-20250514">
+    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="Socratic 4">
+      <change afterPath="$PROJECT_DIR$/socratic_rag3.db" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -344,7 +345,15 @@
       <option name="project" value="LOCAL" />
       <updated>1752132592635</updated>
     </task>
-    <option name="localTasksCounter" value="22" />
+    <task id="LOCAL-00022" summary="Socratic 4">
+      <option name="closed" value="true" />
+      <created>1752133928889</created>
+      <option name="number" value="00022" />
+      <option name="presentableId" value="LOCAL-00022" />
+      <option name="project" value="LOCAL" />
+      <updated>1752133928889</updated>
+    </task>
+    <option name="localTasksCounter" value="23" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -355,6 +364,7 @@
     <MESSAGE value="collaborative_socratic" />
     <MESSAGE value="Socratic 3" />
     <MESSAGE value="claude-sonnet-4-20250514" />
-    <option name="LAST_COMMIT_MESSAGE" value="claude-sonnet-4-20250514" />
+    <MESSAGE value="Socratic 4" />
+    <option name="LAST_COMMIT_MESSAGE" value="Socratic 4" />
   </component>
 </project>
