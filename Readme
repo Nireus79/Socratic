@@ -1,94 +1,280 @@
-Socratic
+# Multi-Agent Socratic RAG System
 
-A Retrieval-Augmented Generation (RAG) system that uses Socratic questioning methodology to guide software developers
-through project planning and development.
-The system acts as an intelligent counselor, helping users discover solutions
-through guided questioning rather than providing direct answers.
+> *"Ουδέν οίδα, ούτε διδάσκω τι, αλλά διαπορώ μόνον."*  
+> *"I know nothing, nor do I teach anything, but I only inquire."*
 
-## Features
+A sophisticated AI-powered project development system that uses specialized agents to guide you through the entire software development lifecycle - from initial idea to production-ready code.
 
-- **Socratic Methodology**: Uses targeted questions to help users think through problems
-- **Context-Aware**: Builds and maintains project context throughout conversations
-- **Phase-Based Guidance**: Progresses through discovery, analysis, design, and implementation phases
-- **Knowledge Base**: Maintains a searchable knowledge base of software development best practices
-- **Multilingual Support**: Adapts to user language preferences and team structures
-- **Persistent Memory**: Saves conversation history and project context
+## 🌟 Overview
 
-## Prerequisites
+The Multi-Agent Socratic RAG System employs the Socratic method of learning through questioning, using multiple specialized AI agents to collaboratively understand your project requirements and generate complete, production-ready applications.
 
-- Python 3.8+
-- Claude API key from Anthropic
-- Internet connection for model downloads
+### Key Features
 
-## Installation
+- **🤖 Multi-Agent Architecture**: Specialized agents for different aspects of development
+- **💡 Socratic Discovery**: Intelligent questioning to refine requirements
+- **🏗️ Complete Code Generation**: Produces full, functional applications
+- **✅ Automated Validation**: Quality assurance and code review
+- **📊 Context Tracking**: Maintains comprehensive project understanding
+- **🎯 Phase-based Development**: Structured approach from discovery to deployment
 
-1. **Clone or download the project files**
+## 🏛️ Architecture
 
-2. **Install required packages:**
-```bash
-pip install anthropic sentence-transformers numpy scikit-learn
-```
+### Specialized Agents
 
-3. **Set up your Claude API key:**
-   - Get an API key from [Anthropic Console](https://console.anthropic.com/)
-   - Set it as an environment variable:
-     ```bash
-     # Windows
-     set CLAUDE_API_KEY=your_api_key_here
-
-     # Mac/Linux
-     export CLAUDE_API_KEY=your_api_key_here
-     ```
-   - Or modify the code directly (line 408):
-     ```python
-     api_key = "your_api_key_here"
-     ```
-
-## Quick Start
-
-1. **Run the program:**
-```bash
-python main.py
-```
-
-2. **Start chatting with the Socratic counselor:**
-   - Answer the initial question about your project
-   - Respond to follow-up questions to build context
-   - Type `summary` to see your project overview
-   - Type `quit`, `exit`, or `end` to finish
-
-## System Architecture
-
-### Core Components
-
-- **ProjectContext**: Stores project goals, requirements, tech stack, and preferences
-- **KnowledgeEntry**: Individual entries in the knowledge base with embeddings
-- **SocraticRAG**: Main class orchestrating the questioning and guidance
+1. **Requirements Agent** - Gathers functional and non-functional requirements
+2. **Technical Agent** - Determines architecture and technology stack
+3. **UX Agent** - Focuses on user experience and interface design
+4. **Infrastructure Agent** - Handles deployment and scalability concerns
+5. **Planning Agent** - Creates detailed project specifications
+6. **Code Generation Agent** - Generates complete, production-ready code
+7. **Validation Agent** - Reviews code quality and identifies issues
 
 ### Development Phases
 
-1. **Discovery**: Understanding project goals and requirements
-2. **Analysis**: Examining challenges and technical considerations
-3. **Design**: Planning architecture and implementation approach
-4. **Implementation**: Guidance on execution and deployment
+1. **Discovery Phase** - Interactive requirement gathering
+2. **Planning Phase** - Detailed specification creation
+3. **Generation Phase** - Complete code generation
+4. **Validation Phase** - Quality assurance and review
+5. **Complete Phase** - Final deliverable ready
 
-### Context Categories
+## 🚀 Getting Started
 
-The system tracks:
-- **Goals & Requirements**: What you want to achieve
-- **Technical Stack**: Technologies and tools
-- **Constraints**: Limitations and restrictions
-- **Team Structure**: Individual vs. team development
-- **Language Preferences**: Code language and documentation
-- **Deployment Target**: Where the system will run
-- **Code Style**: Documentation and commenting preferences
+### Prerequisites
 
-## Usage Examples
+- Python 3.8+
+- Anthropic Claude API key
+- Required Python packages (see Installation)
 
-### Basic Conversation Flow
+### Installation
+
+1. Clone or download the `Socratic5.py` file
+2. Install required dependencies:
+
+```bash
+pip install anthropic asyncio logging dataclasses enum34
 ```
-🤖 Socratic Counselor for Project Development
-==================================================
-Assistant: What exactly do you want to achieve with this project?
 
-You: I want to build a web application for task management
+3. Set up your Anthropic API key:
+
+```bash
+export API_KEY_CLAUDE="your_api_key_here"
+```
+
+Or pass it directly when initializing the system.
+
+### Running the System
+
+```bash
+python Socratic5.py
+```
+
+## 💬 Usage
+
+### Basic Commands
+
+- **Regular conversation**: Describe your project, answer questions, refine requirements
+- **`generate` or `code`**: Generate complete project code
+- **`summary`**: View current project context and requirements
+- **`validate`**: Check context completeness and identify missing information
+- **`help`**: Display available commands and usage information
+- **`quit`, `exit`, `end`**: Exit the system (automatically saves context)
+
+### Example Interaction
+
+```
+💬 You: I want to build a task management web application
+
+🤖 System: Agent Analysis:
+**Requirements**: I can see you want to build a task management web application. 
+This suggests features like creating, updating, deleting, and organizing tasks.
+
+**Technical**: For a web application, we should consider the frontend framework, 
+backend technology, and database requirements.
+
+**UX**: Task management apps typically need intuitive interfaces for task creation, 
+organization, and tracking.
+
+Next Steps:
+1. What specific features do you want users to be able to do with tasks?
+2. Do you have any preferred technologies or frameworks?
+3. Who are your target users - individuals or teams?
+```
+
+### Sample Workflow
+
+1. **Start with a project idea**: "I want to build an e-commerce platform"
+2. **Answer agent questions**: The system will ask about features, users, technology preferences
+3. **Refine requirements**: Continue the conversation to clarify details
+4. **Monitor progress**: Use `summary` to see current context completeness
+5. **Generate code**: When ready (70%+ completeness), use `generate` to create your application
+
+## 📁 Generated Output
+
+The system generates complete project structures including:
+
+- **`main.py`** - Main application file with core functionality
+- **`models.py`** - Database models and schema
+- **`routes.py`** - API endpoints and route handlers
+- **`config.py`** - Configuration management
+- **`requirements.txt`** - Python dependencies
+- **`README.md`** - Project documentation
+
+## 🔧 Configuration
+
+### Environment Variables
+
+- `API_KEY_CLAUDE` - Your Anthropic Claude API key
+- `DEBUG` - Enable debug mode (default: False)
+
+### Context Persistence
+
+The system automatically saves project context to `project_context.json` when you exit. This allows you to resume your project development session later.
+
+## 📊 Project Context Tracking
+
+The system maintains comprehensive context across multiple dimensions:
+
+### Requirements
+- Goals and objectives
+- Functional requirements
+- Non-functional requirements
+
+### Technical Specifications
+- Technology stack
+- Architecture patterns
+- Database requirements
+- API specifications
+
+### User Experience
+- UI components
+- User personas
+- User flows and interactions
+
+### Infrastructure
+- Deployment targets
+- Scalability requirements
+- Security considerations
+
+### Quality Metrics
+- Agent confidence scores
+- Context completeness percentage
+- Validation results
+
+## 🧠 AI Agent Capabilities
+
+### Requirements Agent
+- Extracts functional and non-functional requirements
+- Identifies user stories and acceptance criteria
+- Suggests clarifying questions about business logic
+
+### Technical Agent
+- Recommends appropriate technology stacks
+- Suggests architectural patterns
+- Defines database and API requirements
+
+### UX Agent
+- Identifies UI components and design patterns
+- Develops user personas and use cases
+- Maps user flows and interactions
+
+### Infrastructure Agent
+- Assesses deployment and hosting needs
+- Evaluates scalability requirements
+- Identifies security considerations
+
+### Planning Agent
+- Creates comprehensive project specifications
+- Designs technical architecture
+- Develops implementation roadmaps
+
+### Code Generation Agent
+- Generates production-ready code
+- Implements best practices and patterns
+- Creates complete application structures
+
+### Validation Agent
+- Reviews generated code for quality
+- Identifies potential issues and improvements
+- Provides quality scores and recommendations
+
+## 🔍 Quality Assurance
+
+The system includes built-in quality assurance through:
+
+- **Syntax validation** - Checks for code errors
+- **Security review** - Identifies potential vulnerabilities
+- **Best practices compliance** - Ensures code follows conventions
+- **Documentation assessment** - Evaluates code documentation
+- **Architecture review** - Validates design patterns
+
+## 📈 Completeness Tracking
+
+The system tracks project completeness across multiple dimensions:
+
+- **Overall completeness score** (0-100%)
+- **Individual agent confidence scores**
+- **Missing requirement identification**
+- **Readiness assessment for code generation**
+
+## 🤝 Contributing
+
+This is a standalone system designed for individual project development. To extend functionality:
+
+1. Create new specialized agents by extending the `BaseAgent` class
+2. Add new context fields to the `ProjectContext` dataclass
+3. Implement additional validation rules in the `ValidationAgent`
+4. Extend the code generation capabilities for new frameworks
+
+## 📜 License
+
+This project is provided as-is for educational and development purposes. Please ensure you have proper licensing for the Anthropic Claude API.
+
+## 🔗 Dependencies
+
+- **anthropic** - Claude API client
+- **asyncio** - Asynchronous programming support
+- **logging** - Application logging
+- **dataclasses** - Data structure definitions
+- **enum** - Enumeration support
+- **json** - JSON serialization
+- **datetime** - Date and time handling
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+1. **API Key Error**: Ensure your Claude API key is properly set
+2. **Import Errors**: Install all required dependencies
+3. **Context Loading**: Check that `project_context.json` exists and is valid
+4. **Generation Failures**: Ensure context completeness is above 70%
+
+### Debug Mode
+
+Enable debug mode by setting the `DEBUG` environment variable to see detailed logging:
+
+```bash
+export DEBUG=true
+python Socratic5.py
+```
+
+## 🌟 Advanced Features
+
+### Context Persistence
+- Automatic context saving on exit
+- Manual save/load functionality
+- Session resumption capabilities
+
+### Multi-Agent Coordination
+- Parallel agent processing
+- Consensus building algorithms
+- Conflict resolution strategies
+
+### Adaptive Questioning
+- Dynamic question generation based on context
+- Confidence-weighted question prioritization
+- Contextual follow-up strategies
+
+---
+
+*Built with the philosophy that the best way to learn is through questioning, and the best way to build is through understanding.*
