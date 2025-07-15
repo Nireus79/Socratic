@@ -858,3 +858,303 @@ class MultiAgentSocraticRAG:
             response_parts.append("\n## 🤔 Next Steps:")
             for i, question in enumerate(next_questions, 1):
                 response_parts.append(f"{i}. {question}")
+
+        def _generate_context_summary(self) -> str:
+            """Generate a summary of the current project context"""
+            summary_parts = []
+
+            summary_parts.append("# 📋 Project Context Summary")
+
+            if self.context.goals_requirements:
+                summary_parts.append("\n## 🎯 Goals & Requirements:")
+                for goal in self.context.goals_requirements:
+                    summary_parts.append(f"- {goal}")
+
+            if self.context.functional_requirements:
+                summary_parts.append("\n## ⚙️ Functional Requirements:")
+                for req in self.context.functional_requirements:
+                    summary_parts.append(f"- {req}")
+
+            if self.context.non_functional_requirements:
+                summary_parts.append("\n## 🔧 Non-Functional Requirements:")
+                for req in self.context.non_functional_requirements:
+                    summary_parts.append(f"- {req}")
+
+            if self.context.technical_stack:
+                summary_parts.append("\n## 💻 Technical Stack:")
+                for tech in self.context.technical_stack:
+                    summary_parts.append(f"- {tech}")
+
+            if self.context.architecture_pattern:
+                summary_parts.append(f"\n## 🏗️ Architecture Pattern: {self.context.architecture_pattern}")
+
+            if self.context.database_requirements:
+                summary_parts.append("\n## 🗃️ Database Requirements:")
+                for req in self.context.database_requirements:
+                    summary_parts.append(f"- {req}")
+
+            if self.context.api_specifications:
+                summary_parts.append("\n## 🔌 API Specifications:")
+                for spec in self.context.api_specifications:
+                    summary_parts.append(f"- {spec}")
+
+            if self.context.ui_components:
+                summary_parts.append("\n## 🎨 UI Components:")
+                for component in self.context.ui_components:
+                    summary_parts.append(f"- {component}")
+
+            if self.context.user_personas:
+                summary_parts.append("\n## 👤 User Personas:")
+                for persona in self.context.user_personas:
+                    summary_parts.append(f"- {persona}")
+
+            if self.context.user_flows:
+                summary_parts.append("\n## 🔄 User Flows:")
+                for flow in self.context.user_flows:
+                    summary_parts.append(f"- {flow}")
+
+            if self.context.deployment_target:
+                summary_parts.append(f"\n## 🚀 Deployment Target: {self.context.deployment_target}")
+
+            if self.context.scalability_requirements:
+                summary_parts.append("\n## 📈 Scalability Requirements:")
+                for req in self.context.scalability_requirements:
+                    summary_parts.append(f"- {req}")
+
+            if self.context.security_requirements:
+                summary_parts.append("\n## 🔒 Security Requirements:")
+                for req in self.context.security_requirements:
+                    summary_parts.append(f"- {req}")
+
+            summary_parts.append(f"\n## 📊 Overall Completeness: {self.context.completeness_score:.1%}")
+
+            return "\n".join(summary_parts)
+
+        async def _validate_current_context(self) -> str:
+            """Validate the current project context"""
+            validation_results = []
+
+            validation_results.append("# 🔍 Context Validation")
+
+            # Check completeness of different areas
+            areas_to_check = [
+                ("Goals & Requirements", self.context.goals_requirements),
+                ("Functional Requirements", self.context.functional_requirements),
+                ("Technical Stack", self.context.technical_stack),
+                ("Architecture Pattern",
+                 [self.context.architecture_pattern] if self.context.architecture_pattern else []),
+                ("Database Requirements", self.context.database_requirements),
+                ("API Specifications", self.context.api_specifications),
+                ("UI Components", self.context.ui_components),
+                ("Deployment Target", [self.context.deployment_target] if self.context.deployment_target else [])
+            ]
+
+            validation_results.append("\n## ✅ Completeness Check:")
+            for area_name, area_data in areas_to_check:
+                status = "✅ Complete" if area_data else "❌ Missing"
+                count = len(area_data) if area_data else 0
+                validation_results.append(f"- {area_name}: {status} ({count} items)")
+
+            # Check for potential issues
+            issues = []
+
+            if not self.context.goals_requirements:
+                issues.append("No project goals defined")
+
+            if not self.context.technical_stack:
+                issues.append("No technology stack specified")
+
+            if not self.context.api_specifications and not self.context.ui_components:
+                issues.append("No API or UI specifications provided")
+
+            if not self.context.deployment_target:
+                issues.append("No deployment target specified")
+
+            if issues:
+                validation_results.append("\n## ⚠️ Issues Found:")
+                for issue in issues:
+                    validation_results.append(f"- {issue}")
+            else:
+                validation_results.append("\n## 🎉 No critical issues found!")
+
+            # Readiness assessment
+            if self.coordinator.is_ready_for_generation(self.context):
+                validation_results.append("\n## 🚀 Ready for Code Generation!")
+            else:
+                validation_results.append("\n## 📝 More information needed before code generation")
+
+            return "\n".join(validation_results)
+
+        async def _generate_project_code(self) -> str:
+            """Generate complete project code"""
+            if not self.coordinator.is_ready_for_generation(self.context):
+                return """
+    🚫 **Cannot generate code yet!**
+
+    Your project context needs more information. Please provide:
+    - Clear project goals
+    - Technical stack preferences
+    - API specifications or UI components
+    - Basic deployment requirements
+
+    Type 'validate' to see what's missing.
+    """
+
+            try:
+                # Update phase
+                self.current_phase = ProjectPhase.PLANNING
+
+                # Create detailed specification
+                specification = await self.coordinator.planning_agent.create_project_specification(self.context)
+
+                # Generate code
+                self.current_phase = ProjectPhase.GENERATION
+                generated_files = await self.coordinator.code_generation_agent.generate_code(specification)
+
+                # Validate generated code
+                self.current_phase = ProjectPhase.VALIDATION
+                validation_results = await self.coordinator.validation_agent.validate_code(generated_files)
+
+                # Update phase
+                self.current_phase = ProjectPhase.COMPLETE
+
+                # Format response
+                response_parts = []
+                response_parts.append("# 🎉 Project Generated Successfully!")
+                response_parts.append(f"\n**Project Name**: {specification.project_name}")
+                response_parts.append(f"**Description**: {specification.description}")
+
+                response_parts.append("\n## 📁 Generated Files:")
+                for filename in generated_files.keys():
+                    response_parts.append(f"- {filename}")
+
+                response_parts.append("\n## 📊 Validation Results:")
+                avg_quality = sum(result.get('quality_score', 0) for result in validation_results.values()) / len(
+                    validation_results)
+                response_parts.append(f"- Average Quality Score: {avg_quality:.1f}/10")
+
+                response_parts.append("\n## 🔍 File Contents:")
+                for filename, content in generated_files.items():
+                    response_parts.append(f"\n### {filename}")
+                    response_parts.append("```")
+                    response_parts.append(content)
+                    response_parts.append("```")
+
+                return "\n".join(response_parts)
+
+            except Exception as e:
+                logger.error(f"Error generating project code: {e}")
+                return f"❌ Error generating code: {str(e)}"
+
+        def save_context(self, filename: str = "project_context.json") -> str:
+            """Save current context to file"""
+            try:
+                context_dict = asdict(self.context)
+                with open(filename, 'w') as f:
+                    json.dump(context_dict, f, indent=2)
+                return f"✅ Context saved to {filename}"
+            except Exception as e:
+                return f"❌ Error saving context: {str(e)}"
+
+        def load_context(self, filename: str = "project_context.json") -> str:
+            """Load context from file"""
+            try:
+                with open(filename, 'r') as f:
+                    context_dict = json.load(f)
+                self.context = ProjectContext(**context_dict)
+                return f"✅ Context loaded from {filename}"
+            except Exception as e:
+                return f"❌ Error loading context: {str(e)}"
+
+        def get_help(self) -> str:
+            """Get help information"""
+            return """
+    # 🤖 Multi-Agent Socratic RAG System Help
+
+    ## Available Commands:
+    - **Regular conversation**: Ask questions about your project
+    - **'generate' or 'code'**: Generate complete project code
+    - **'summary'**: View current project context
+    - **'validate'**: Check context completeness
+    - **'quit', 'exit', 'end'**: Exit the system
+
+    ## How it works:
+    1. **Discovery Phase**: Multiple specialized agents analyze your input
+       - Requirements Agent: Gathers functional/non-functional requirements
+       - Technical Agent: Determines architecture and tech stack
+       - UX Agent: Focuses on user experience and interface design
+       - Infrastructure Agent: Handles deployment and scalability
+
+    2. **Planning Phase**: Creates detailed project specifications
+
+    3. **Generation Phase**: Generates complete, production-ready code
+
+    4. **Validation Phase**: Reviews generated code for quality
+
+    ## Tips:
+    - Be specific about your requirements
+    - Mention preferred technologies
+    - Describe your users and use cases
+    - Consider scalability and deployment needs
+    - The system will ask follow-up questions to clarify requirements
+
+    ## Current Phase: {phase}
+    ## Context Completeness: {completeness:.1%}
+    """.format(phase=self.current_phase.value, completeness=self.context.completeness_score)
+
+
+async def main():
+    """Main function to run the Multi-Agent Socratic RAG system"""
+    print("🚀 Multi-Agent Socratic RAG System")
+    print("=" * 50)
+
+    # Initialize system
+    system = MultiAgentSocraticRAG()
+
+    # Welcome message
+    print("""
+    Welcome to the Multi-Agent Socratic RAG System!
+
+    This system uses specialized AI agents to help you:
+    - Discover and refine project requirements
+    - Design technical architecture
+    - Generate complete, production-ready code
+
+    Just describe your project idea, and our agents will guide you through
+    the development process with intelligent questions and suggestions.
+
+    Type 'help' for available commands, or start describing your project!
+    """)
+
+    # Main conversation loop
+    while True:
+        try:
+            user_input = input("\n💬 You: ").strip()
+
+            if not user_input:
+                continue
+
+            if user_input.lower() == 'help':
+                print(system.get_help())
+                continue
+
+            if user_input.lower() in ['quit', 'exit', 'end']:
+                print("👋 Goodbye! Your project context has been saved.")
+                system.save_context()
+                break
+
+            # Process user input
+            response = await system.chat(user_input)
+            print(f"\n🤖 System: {response}")
+
+        except KeyboardInterrupt:
+            print("\n\n👋 Goodbye! Your project context has been saved.")
+            system.save_context()
+            break
+        except Exception as e:
+            print(f"❌ Error: {str(e)}")
+            logger.error(f"Error in main loop: {e}")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
