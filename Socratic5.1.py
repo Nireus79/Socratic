@@ -1517,7 +1517,8 @@ class SocraticRAGSystem:
 
     async def start_interactive_session(self):
         """Start enhanced interactive session"""
-        print("🚀 Welcome to the Optimized Multi-Agent Socratic RAG System!")
+        print("Ουδέν οίδα, ούτε διδάσκω τι, αλλά διαπορώ μόνον.")
+        print("Welcome to the Optimized Multi-Agent Socratic RAG System!")
         print("=" * 60)
         print("This system will help you discover, plan, and generate your software project.")
         print("Type 'help' for commands, 'status' for progress, or 'exit' to quit.")
@@ -1770,11 +1771,11 @@ async def main():
     import os
 
     # Get API key from environment
-    api_key = os.getenv("ANTHROPIC_API_KEY")
+    api_key = os.getenv("API_KEY_CLAUDE")
     if not api_key:
-        print("❌ Error: ANTHROPIC_API_KEY environment variable not set")
+        print("❌ Error: API_KEY_CLAUDE environment variable not set")
         print("   Please set your Anthropic API key:")
-        print("   export ANTHROPIC_API_KEY=your_api_key_here")
+        print("   export API_KEY_CLAUDE=your_api_key_here")
         return
 
     # Initialize system

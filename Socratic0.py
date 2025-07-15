@@ -765,15 +765,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-# Assistant: I understand you need to leave. When you return, I'd like to explore this key question:
-#
-# What specific metrics or characteristics would indicate that your synthetic data is sufficiently representative of
-# real market behavior for your validation purposes?
-#
-# This will help us evaluate your current validation approach and potentially identify additional validation methods.
-#
-# Let me know when you're ready to continue the discussion.
-#
-# Themis:
