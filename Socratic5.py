@@ -1113,6 +1113,8 @@ async def main():
 
     # Welcome message
     print("""
+    Ουδέν οίδα, ούτε διδάσκω τι, αλλά διαπορώ μόνον.
+    
     Welcome to the Multi-Agent Socratic RAG System!
 
     This system uses specialized AI agents to help you:
