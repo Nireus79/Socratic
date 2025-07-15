@@ -838,4 +838,23 @@ class MultiAgentSocraticRAG:
         insights = []
         for agent_name, response in agent_responses.items():
             if response and response.content:
-                insights.append(f"
+                insights.append(f"**{agent_name.title()}**: {response.content}")
+
+        if insights:
+            response_parts.append("## 📊 Agent Analysis:")
+            response_parts.extend(insights)
+
+        # Show context completeness
+        response_parts.append(f"\n## 🎯 Project Completeness: {self.context.completeness_score:.1%}")
+
+        # Show confidence scores
+        if self.context.confidence_scores:
+            response_parts.append("\n**Agent Confidence Scores:**")
+            for agent, score in self.context.confidence_scores.items():
+                response_parts.append(f"- {agent.title()}: {score:.1%}")
+
+        # Show next questions
+        if next_questions:
+            response_parts.append("\n## 🤔 Next Steps:")
+            for i, question in enumerate(next_questions, 1):
+                response_parts.append(f"{i}. {question}")
