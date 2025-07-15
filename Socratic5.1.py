@@ -1536,7 +1536,8 @@ class SocraticRAGSystem:
 
                 # Handle special commands
                 if user_input.lower() == 'exit':
-                    print("\n👋 Thank you for using the Socratic RAG System!")
+                    print("..τω Ασκληπιώ οφείλομεν αλετρυόνα, απόδοτε και μη αμελήσετε..")
+                    print("Thank you for using the Socratic RAG System!")
                     break
                 elif user_input.lower() == 'help':
                     self._show_help()
