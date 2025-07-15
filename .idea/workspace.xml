@@ -4,7 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="Socratic 5" />
+    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="Read me">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Socratic4.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic4.py" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -43,20 +46,20 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ASKED_ADD_EXTERNAL_FILES": "true",
-    "Python.Socratic0.executor": "Run",
-    "Python.Socratic2.executor": "Run",
-    "Python.Socratic3.executor": "Run",
-    "Python.Socratic5.executor": "Run",
-    "Python.main.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "git-widget-placeholder": "master",
-    "ignore.virus.scanning.warn.message": "true",
-    "last_opened_file_path": "C:/Users/themi/PycharmProjects/Socratic"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_ADD_EXTERNAL_FILES&quot;: &quot;true&quot;,
+    &quot;Python.Socratic0.executor&quot;: &quot;Run&quot;,
+    &quot;Python.Socratic2.executor&quot;: &quot;Run&quot;,
+    &quot;Python.Socratic3.executor&quot;: &quot;Run&quot;,
+    &quot;Python.Socratic5.executor&quot;: &quot;Run&quot;,
+    &quot;Python.main.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/themi/PycharmProjects/Socratic&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\themi\PycharmProjects\Socratic" />
@@ -414,7 +417,15 @@
       <option name="project" value="LOCAL" />
       <updated>1752557485647</updated>
     </task>
-    <option name="localTasksCounter" value="28" />
+    <task id="LOCAL-00028" summary="Read me">
+      <option name="closed" value="true" />
+      <created>1752557635516</created>
+      <option name="number" value="00028" />
+      <option name="presentableId" value="LOCAL-00028" />
+      <option name="project" value="LOCAL" />
+      <updated>1752557635516</updated>
+    </task>
+    <option name="localTasksCounter" value="29" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -427,6 +438,7 @@
     <MESSAGE value="claude-sonnet-4-20250514" />
     <MESSAGE value="Socratic 4" />
     <MESSAGE value="Socratic 5" />
-    <option name="LAST_COMMIT_MESSAGE" value="Socratic 5" />
+    <MESSAGE value="Read me" />
+    <option name="LAST_COMMIT_MESSAGE" value="Read me" />
   </component>
 </project>

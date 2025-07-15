@@ -452,7 +452,8 @@ class EnhancedSocraticRAG:
         # Check if ready for code generation
         if self._is_ready_for_code_generation():
             self.ready_for_code_generation = True
-            next_question += "\n\n🎯 Your project context looks complete! Type 'generate' or 'code' to create your project files."
+            next_question += ("\n\n🎯 Your project context looks complete! Type 'generate' or 'code' to create your "
+                              "project files.")
 
         return next_question
 

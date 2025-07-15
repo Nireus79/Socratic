@@ -1046,29 +1046,29 @@ class MultiAgentSocraticRAG:
                 logger.error(f"Error generating project code: {e}")
                 return f"❌ Error generating code: {str(e)}"
 
-        def save_context(self, filename: str = "project_context.json") -> str:
-            """Save current context to file"""
-            try:
-                context_dict = asdict(self.context)
-                with open(filename, 'w') as f:
-                    json.dump(context_dict, f, indent=2)
-                return f"✅ Context saved to {filename}"
-            except Exception as e:
-                return f"❌ Error saving context: {str(e)}"
+    def save_context(self, filename: str = "project_context.json") -> str:
+        """Save current context to file"""
+        try:
+            context_dict = asdict(self.context)
+            with open(filename, 'w') as f:
+                json.dump(context_dict, f, indent=2)
+            return f"✅ Context saved to {filename}"
+        except Exception as e:
+            return f"❌ Error saving context: {str(e)}"
 
-        def load_context(self, filename: str = "project_context.json") -> str:
-            """Load context from file"""
-            try:
-                with open(filename, 'r') as f:
-                    context_dict = json.load(f)
-                self.context = ProjectContext(**context_dict)
-                return f"✅ Context loaded from {filename}"
-            except Exception as e:
-                return f"❌ Error loading context: {str(e)}"
+    def load_context(self, filename: str = "project_context.json") -> str:
+        """Load context from file"""
+        try:
+            with open(filename, 'r') as f:
+                context_dict = json.load(f)
+            self.context = ProjectContext(**context_dict)
+            return f"✅ Context loaded from {filename}"
+        except Exception as e:
+            return f"❌ Error loading context: {str(e)}"
 
-        def get_help(self) -> str:
-            """Get help information"""
-            return """
+    def get_help(self) -> str:
+        """Get help information"""
+        return """
     # 🤖 Multi-Agent Socratic RAG System Help
 
     ## Available Commands:
