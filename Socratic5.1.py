@@ -1518,7 +1518,7 @@ class SocraticRAGSystem:
     async def start_interactive_session(self):
         """Start enhanced interactive session"""
         print("Ουδέν οίδα, ούτε διδάσκω τι, αλλά διαπορώ μόνον.")
-        print("Welcome to the Optimized Multi-Agent Socratic RAG System!")
+        print("Welcome to Multi-Agent Socratic RAG System!")
         print("=" * 60)
         print("This system will help you discover, plan, and generate your software project.")
         print("Type 'help' for commands, 'status' for progress, or 'exit' to quit.")

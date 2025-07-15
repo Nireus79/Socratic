@@ -1,0 +1,2 @@
+2025-07-15 13:35:29,631 - __main__ - ERROR - Session error: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte
+2025-07-15 13:37:13,769 - httpx - INFO - HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
