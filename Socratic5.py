@@ -1105,12 +1105,8 @@ class MultiAgentSocraticRAG:
 
 async def main():
     """Main function to run the Multi-Agent Socratic RAG system"""
-    print("🚀 Multi-Agent Socratic RAG System")
-    print("=" * 50)
-
     # Initialize system
     system = MultiAgentSocraticRAG()
-
     # Welcome message
     print("""
     Ουδέν οίδα, ούτε διδάσκω τι, αλλά διαπορώ μόνον.
