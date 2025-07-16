@@ -692,6 +692,46 @@ class EnhancedSocraticRAG:
             return True
         return False
 
+    # def remove_collaborator(self, project_id: str, user_id: str) -> None:
+    #     """Remove collaborator from project"""
+    #     conn = sqlite3.connect(self.db_name)
+    #     cursor = conn.cursor()
+    #
+    #     cursor.execute('''
+    #         DELETE FROM project_collaborators
+    #         WHERE project_id = ? AND user_id = ?
+    #     ''', (project_id, user_id))
+    #
+    #     conn.commit()
+    #     conn.close()
+    #
+    # def get_project_collaborators(self, project_id: str) -> List[Dict[str, Any]]:
+    #     """Get all collaborators for a project"""
+    #     conn = sqlite3.connect(self.db_name)
+    #     cursor = conn.cursor()
+    #
+    #     cursor.execute('''
+    #         SELECT u.user_id, u.username, u.email, pc.role, pc.joined_at
+    #         FROM project_collaborators pc
+    #         JOIN users u ON pc.user_id = u.user_id
+    #         WHERE pc.project_id = ?
+    #     ''', (project_id,))
+    #
+    #     results = cursor.fetchall()
+    #     conn.close()
+    #
+    #     collaborators = []
+    #     for result in results:
+    #         collaborators.append({
+    #             'user_id': result[0],
+    #             'username': result[1],
+    #             'email': result[2],
+    #             'role': result[3],
+    #             'joined_at': self._string_to_datetime(result[4])
+    #         })
+    #
+    #     return collaborators
+
     def get_relevant_context(self, query: str, limit: int = 5) -> List[str]:
         """Get relevant context from knowledge base"""
         if not self.knowledge_base:
