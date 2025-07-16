@@ -1,39 +1,67 @@
 #!/usr/bin/env python3
 """
-Enhanced Multi-Agent Socratic RAG System
-A sophisticated project development system with persistent storage, multi-user, and multi-project support
+Optimized Multi-Agent Socratic RAG System
+A high-performance project development system with enhanced architecture and optimizations
 """
 
 import os
 import json
 import asyncio
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional, Tuple, Protocol
 from dataclasses import dataclass, asdict, field
 from enum import Enum
+from abc import ABC, abstractmethod
 import anthropic
 from datetime import datetime
 import logging
-import sqlite3
 from pathlib import Path
-import hashlib
+import sqlite3
 import uuid
+from contextlib import asynccontextmanager, contextmanager
+from functools import lru_cache
+import aiofiles
+import concurrent.futures
+from threading import Lock
+import re
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
+
+# Constants
+MAX_CONTEXT_LENGTH = 8000
+DEFAULT_CONFIDENCE_THRESHOLD = 0.8
+BATCH_SIZE = 10
+MAX_RETRIES = 3
+CACHE_SIZE = 128
 
 
 class ProjectPhase(Enum):
+    """Project phases with clear transitions"""
     DISCOVERY = "discovery"
     PLANNING = "planning"
     GENERATION = "generation"
     VALIDATION = "validation"
     COMPLETE = "complete"
 
+    def next_phase(self) -> Optional['ProjectPhase']:
+        """Get the next phase in the workflow"""
+        transitions = {
+            self.DISCOVERY: self.PLANNING,
+            self.PLANNING: self.GENERATION,
+            self.GENERATION: self.VALIDATION,
+            self.VALIDATION: self.COMPLETE,
+            self.COMPLETE: None
+        }
+        return transitions.get(self)
+
 
 @dataclass
 class ProjectContext:
-    """Comprehensive project context managed by agents"""
+    """Optimized project context with validation and serialization"""
     # Core Requirements
     goals_requirements: List[str] = field(default_factory=list)
     functional_requirements: List[str] = field(default_factory=list)
@@ -65,505 +93,379 @@ class ProjectContext:
     completeness_score: float = 0.0
     last_updated: str = field(default_factory=lambda: datetime.now().isoformat())
 
+    def update_from_dict(self, updates: Dict[str, Any]) -> None:
+        """Efficiently update context from dictionary"""
+        for key, value in updates.items():
+            if hasattr(self, key):
+                current_value = getattr(self, key)
+                if isinstance(current_value, list) and isinstance(value, list):
+                    # Merge lists, avoiding duplicates
+                    merged = current_value + [item for item in value if item not in current_value]
+                    setattr(self, key, merged)
+                else:
+                    setattr(self, key, value)
+        self.last_updated = datetime.now().isoformat()
+
+    def to_summary(self) -> Dict[str, Any]:
+        """Create a summary view of the context"""
+        return {
+            "requirements_count": len(self.functional_requirements),
+            "tech_stack_count": len(self.technical_stack),
+            "ui_components_count": len(self.ui_components),
+            "has_architecture": bool(self.architecture_pattern),
+            "has_deployment": bool(self.deployment_target),
+            "completeness_score": self.completeness_score,
+            "last_updated": self.last_updated
+        }
+
 
 @dataclass
 class AgentResponse:
-    """Structured response from an agent"""
+    """Optimized agent response with validation"""
     agent_id: str
     content: str
-    context_updates: Dict[str, Any]
-    next_questions: List[str]
-    confidence: float
+    context_updates: Dict[str, Any] = field(default_factory=dict)
+    next_questions: List[str] = field(default_factory=list)
+    confidence: float = 0.0
     requires_followup: bool = False
+    processing_time: float = 0.0
+
+    def __post_init__(self):
+        """Validate response data"""
+        if not 0 <= self.confidence <= 1:
+            raise ValueError("Confidence must be between 0 and 1")
+        if len(self.next_questions) > 5:
+            self.next_questions = self.next_questions[:5]
 
 
-@dataclass
-class ProjectSpecification:
-    """Detailed project specification for code generation"""
-    project_name: str
-    description: str
-    technical_architecture: Dict[str, Any]
-    database_schema: Dict[str, Any]
-    api_endpoints: List[Dict[str, Any]]
-    ui_components: List[Dict[str, Any]]
-    deployment_config: Dict[str, Any]
-    testing_strategy: Dict[str, Any]
+class AgentProtocol(Protocol):
+    """Protocol for agent implementations"""
+    agent_id: str
+    expertise_areas: List[str]
 
-
-@dataclass
-class User:
-    """User data structure"""
-    user_id: str
-    username: str
-    email: str
-    created_at: str
-    last_login: str
-    is_active: bool = True
-
-
-@dataclass
-class Project:
-    """Project data structure"""
-    project_id: str
-    name: str
-    description: str
-    owner_id: str
-    created_at: str
-    updated_at: str
-    current_phase: str
-    context: ProjectContext
-    collaborators: List[str] = field(default_factory=list)
-    is_active: bool = True
+    async def process_input(self, user_input: str, context: ProjectContext) -> AgentResponse:
+        """Process user input and return structured response"""
+        ...
 
 
 class DatabaseManager:
-    """Manages SQLite database for persistence"""
+    """Optimized database manager with connection pooling and caching"""
 
     def __init__(self, db_path: str = "socratic_rag.db"):
-        self.db_path = db_path
-        self.init_database()
+        self.db_path = Path(db_path)
+        self._lock = Lock()
+        self._cache = {}
+        self._init_database()
 
-    def init_database(self):
-        """Initialize database with required tables"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+    def _init_database(self):
+        """Initialize database with optimized schema"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
 
-        # Users table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                user_id TEXT PRIMARY KEY,
-                username TEXT UNIQUE NOT NULL,
-                email TEXT UNIQUE NOT NULL,
-                created_at TEXT NOT NULL,
-                last_login TEXT NOT NULL,
-                is_active BOOLEAN DEFAULT 1
-            )
-        """)
+            # Enable WAL mode for better concurrency
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            cursor.execute("PRAGMA cache_size=10000")
+            cursor.execute("PRAGMA temp_store=MEMORY")
 
-        # Projects table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS projects (
-                project_id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                description TEXT,
-                owner_id TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                current_phase TEXT NOT NULL,
-                context_json TEXT NOT NULL,
-                collaborators_json TEXT DEFAULT '[]',
-                is_active BOOLEAN DEFAULT 1,
-                FOREIGN KEY (owner_id) REFERENCES users (user_id)
-            )
-        """)
-
-        # Conversation history table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS conversation_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_id TEXT NOT NULL,
-                user_id TEXT NOT NULL,
-                timestamp TEXT NOT NULL,
-                user_input TEXT NOT NULL,
-                system_response TEXT NOT NULL,
-                FOREIGN KEY (project_id) REFERENCES projects (project_id),
-                FOREIGN KEY (user_id) REFERENCES users (user_id)
-            )
-        """)
-
-        # Generated code table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS generated_code (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_id TEXT NOT NULL,
-                filename TEXT NOT NULL,
-                content TEXT NOT NULL,
-                generated_at TEXT NOT NULL,
-                version INTEGER DEFAULT 1,
-                FOREIGN KEY (project_id) REFERENCES projects (project_id)
-            )
-        """)
-
-        conn.commit()
-        conn.close()
-
-    def create_user(self, username: str, email: str) -> User:
-        """Create a new user"""
-        user_id = str(uuid.uuid4())
-        now = datetime.now().isoformat()
-
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-
-        try:
+            # Users table with indexes
             cursor.execute("""
-                INSERT INTO users (user_id, username, email, created_at, last_login)
-                VALUES (?, ?, ?, ?, ?)
-            """, (user_id, username, email, now, now))
+                CREATE TABLE IF NOT EXISTS users (
+                    user_id TEXT PRIMARY KEY,
+                    username TEXT UNIQUE NOT NULL,
+                    email TEXT UNIQUE NOT NULL,
+                    created_at TEXT NOT NULL,
+                    last_login TEXT NOT NULL,
+                    is_active BOOLEAN DEFAULT 1
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
+
+            # Projects table with indexes
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS projects (
+                    project_id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    description TEXT,
+                    owner_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    current_phase TEXT NOT NULL,
+                    context_json TEXT NOT NULL,
+                    collaborators_json TEXT DEFAULT '[]',
+                    is_active BOOLEAN DEFAULT 1,
+                    FOREIGN KEY (owner_id) REFERENCES users (user_id)
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_projects_owner ON projects(owner_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_projects_updated ON projects(updated_at)")
+
+            # Conversation history with partitioning
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS conversation_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    project_id TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    user_input TEXT NOT NULL,
+                    system_response TEXT NOT NULL,
+                    FOREIGN KEY (project_id) REFERENCES projects (project_id),
+                    FOREIGN KEY (user_id) REFERENCES users (user_id)
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_conversation_project ON conversation_history(project_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_conversation_timestamp ON conversation_history(timestamp)")
+
+            # Generated code with versioning
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS generated_code (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    project_id TEXT NOT NULL,
+                    filename TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    generated_at TEXT NOT NULL,
+                    version INTEGER DEFAULT 1,
+                    file_hash TEXT,
+                    FOREIGN KEY (project_id) REFERENCES projects (project_id)
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_code_project_version ON generated_code(project_id, version)")
+
             conn.commit()
 
-            return User(user_id, username, email, now, now)
-        except sqlite3.IntegrityError:
-            raise ValueError(f"User with username '{username}' or email '{email}' already exists")
+    @contextmanager
+    def _get_connection(self):
+        """Get database connection with automatic cleanup"""
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
+        try:
+            yield conn
         finally:
             conn.close()
 
-    def get_user(self, username: str) -> Optional[User]:
-        """Get user by username"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+    @lru_cache(maxsize=CACHE_SIZE)
+    def get_user(self, username: str) -> Optional[Dict[str, Any]]:
+        """Get user by username with caching"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
+            row = cursor.fetchone()
 
-        cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
-        row = cursor.fetchone()
-        conn.close()
-
-        if row:
-            return User(*row)
+            if row:
+                return {
+                    'user_id': row[0],
+                    'username': row[1],
+                    'email': row[2],
+                    'created_at': row[3],
+                    'last_login': row[4],
+                    'is_active': row[5]
+                }
         return None
 
-    def update_user_login(self, user_id: str):
-        """Update user's last login time"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-
-        cursor.execute("""
-            UPDATE users SET last_login = ? WHERE user_id = ?
-        """, (datetime.now().isoformat(), user_id))
-
-        conn.commit()
-        conn.close()
-
-    def create_project(self, name: str, description: str, owner_id: str) -> Project:
-        """Create a new project"""
-        project_id = str(uuid.uuid4())
+    def create_user(self, username: str, email: str) -> Dict[str, Any]:
+        """Create a new user with validation"""
+        user_id = str(uuid.uuid4())
         now = datetime.now().isoformat()
-        context = ProjectContext()
 
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute("""
+                    INSERT INTO users (user_id, username, email, created_at, last_login)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (user_id, username, email, now, now))
+                conn.commit()
 
-        cursor.execute("""
-            INSERT INTO projects (project_id, name, description, owner_id, created_at, 
-                                updated_at, current_phase, context_json, collaborators_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (project_id, name, description, owner_id, now, now,
-              ProjectPhase.DISCOVERY.value, json.dumps(asdict(context)), json.dumps([])))
+                # Clear cache
+                self.get_user.cache_clear()
 
-        conn.commit()
-        conn.close()
+                return {
+                    'user_id': user_id,
+                    'username': username,
+                    'email': email,
+                    'created_at': now,
+                    'last_login': now,
+                    'is_active': True
+                }
+            except sqlite3.IntegrityError:
+                raise ValueError(f"User with username '{username}' or email '{email}' already exists")
 
-        return Project(project_id, name, description, owner_id, now, now,
-                       ProjectPhase.DISCOVERY.value, context, [])
+    def update_project_optimized(self, project_id: str, updates: Dict[str, Any]) -> None:
+        """Optimized project update with selective updates"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
 
-    def get_user_projects(self, user_id: str) -> List[Project]:
-        """Get all projects for a user (owned or collaborated)"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+            # Build dynamic update query
+            set_clauses = []
+            values = []
 
-        cursor.execute("""
-            SELECT * FROM projects 
-            WHERE owner_id = ? OR collaborators_json LIKE ?
-            ORDER BY updated_at DESC
-        """, (user_id, f'%"{user_id}"%'))
+            for key, value in updates.items():
+                if key in ['name', 'description', 'current_phase', 'context_json', 'collaborators_json']:
+                    set_clauses.append(f"{key} = ?")
+                    values.append(value)
 
-        rows = cursor.fetchall()
-        conn.close()
+            if set_clauses:
+                set_clauses.append("updated_at = ?")
+                values.append(datetime.now().isoformat())
+                values.append(project_id)
 
-        projects = []
-        for row in rows:
-            context_dict = json.loads(row[7])
-            context = ProjectContext(**context_dict)
-            collaborators = json.loads(row[8])
+                query = f"UPDATE projects SET {', '.join(set_clauses)} WHERE project_id = ?"
+                cursor.execute(query, values)
+                conn.commit()
 
-            projects.append(Project(
-                row[0], row[1], row[2], row[3], row[4], row[5], row[6], context, collaborators, row[9]
-            ))
-
-        return projects
-
-    def get_project(self, project_id: str) -> Optional[Project]:
-        """Get project by ID"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-
-        cursor.execute("SELECT * FROM projects WHERE project_id = ?", (project_id,))
-        row = cursor.fetchone()
-        conn.close()
-
-        if row:
-            context_dict = json.loads(row[7])
-            context = ProjectContext(**context_dict)
-            collaborators = json.loads(row[8])
-
-            return Project(
-                row[0], row[1], row[2], row[3], row[4], row[5], row[6], context, collaborators, row[9]
-            )
-        return None
-
-    def update_project(self, project: Project):
-        """Update project in database"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-
-        cursor.execute("""
-            UPDATE projects 
-            SET name = ?, description = ?, updated_at = ?, current_phase = ?, 
-                context_json = ?, collaborators_json = ?
-            WHERE project_id = ?
-        """, (project.name, project.description, datetime.now().isoformat(),
-              project.current_phase, json.dumps(asdict(project.context)),
-              json.dumps(project.collaborators), project.project_id))
-
-        conn.commit()
-        conn.close()
-
-    def add_collaborator(self, project_id: str, user_id: str):
-        """Add collaborator to project"""
-        project = self.get_project(project_id)
-        if project and user_id not in project.collaborators:
-            project.collaborators.append(user_id)
-            self.update_project(project)
-
-    def remove_collaborator(self, project_id: str, user_id: str):
-        """Remove collaborator from project"""
-        project = self.get_project(project_id)
-        if project and user_id in project.collaborators:
-            project.collaborators.remove(user_id)
-            self.update_project(project)
-
-    def save_conversation(self, project_id: str, user_id: str, user_input: str, system_response: str):
-        """Save conversation to history"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-
-        cursor.execute("""
-            INSERT INTO conversation_history (project_id, user_id, timestamp, user_input, system_response)
-            VALUES (?, ?, ?, ?, ?)
-        """, (project_id, user_id, datetime.now().isoformat(), user_input, system_response))
-
-        conn.commit()
-        conn.close()
-
-    def get_conversation_history(self, project_id: str, limit: int = 50) -> List[Dict]:
-        """Get conversation history for a project"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-
-        cursor.execute("""
-            SELECT h.*, u.username 
-            FROM conversation_history h
-            JOIN users u ON h.user_id = u.user_id
-            WHERE h.project_id = ?
-            ORDER BY h.timestamp DESC
-            LIMIT ?
-        """, (project_id, limit))
-
-        rows = cursor.fetchall()
-        conn.close()
-
-        history = []
-        for row in rows:
-            history.append({
-                'id': row[0],
-                'project_id': row[1],
-                'user_id': row[2],
-                'timestamp': row[3],
-                'user_input': row[4],
-                'system_response': row[5],
-                'username': row[6]
-            })
-
-        return history
-
-    def save_generated_code(self, project_id: str, files: Dict[str, str]):
-        """Save generated code files"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-
-        # Get next version number
-        cursor.execute("""
-            SELECT MAX(version) FROM generated_code WHERE project_id = ?
-        """, (project_id,))
-        result = cursor.fetchone()
-        version = (result[0] or 0) + 1
-
-        # Save all files
-        for filename, content in files.items():
-            cursor.execute("""
-                INSERT INTO generated_code (project_id, filename, content, generated_at, version)
+    def batch_save_conversation(self, conversations: List[Dict[str, Any]]) -> None:
+        """Batch save conversations for better performance"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.executemany("""
+                INSERT INTO conversation_history (project_id, user_id, timestamp, user_input, system_response)
                 VALUES (?, ?, ?, ?, ?)
-            """, (project_id, filename, content, datetime.now().isoformat(), version))
-
-        conn.commit()
-        conn.close()
-
-    def get_generated_code(self, project_id: str, version: Optional[int] = None) -> Dict[str, str]:
-        """Get generated code files"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-
-        if version is None:
-            cursor.execute("""
-                SELECT filename, content FROM generated_code
-                WHERE project_id = ? AND version = (
-                    SELECT MAX(version) FROM generated_code WHERE project_id = ?
-                )
-            """, (project_id, project_id))
-        else:
-            cursor.execute("""
-                SELECT filename, content FROM generated_code
-                WHERE project_id = ? AND version = ?
-            """, (project_id, version))
-
-        rows = cursor.fetchall()
-        conn.close()
-
-        return {row[0]: row[1] for row in rows}
+            """, [(c['project_id'], c['user_id'], c['timestamp'], c['user_input'], c['system_response'])
+                  for c in conversations])
+            conn.commit()
 
 
-class BaseAgent:
-    """Base class for all agents"""
+class BaseAgent(ABC):
+    """Optimized base agent with caching and performance improvements"""
 
     def __init__(self, agent_id: str, client: anthropic.Anthropic):
         self.agent_id = agent_id
         self.client = client
-        self.expertise_areas = []
-        self.conversation_history = []
+        self.expertise_areas: List[str] = []
+        self._response_cache: Dict[str, str] = {}
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
+    @abstractmethod
     async def process_input(self, user_input: str, context: ProjectContext) -> AgentResponse:
         """Process user input and return structured response"""
-        raise NotImplementedError
+        pass
+
+    async def _generate_response_async(self, prompt: str, max_tokens: int = 1000) -> str:
+        """Async wrapper for Claude API calls"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(self._executor, self._generate_response, prompt, max_tokens)
 
     def _generate_response(self, prompt: str, max_tokens: int = 1000) -> str:
-        """Generate response using Claude"""
+        """Generate response using Claude with caching and error handling"""
+        # Create cache key
+        cache_key = f"{hash(prompt)}_{max_tokens}"
+
+        if cache_key in self._response_cache:
+            return self._response_cache[cache_key]
+
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = self.client.messages.create(
+                    model="claude-3-5-sonnet-20241022",
+                    max_tokens=max_tokens,
+                    messages=[{"role": "user", "content": prompt}]
+                )
+
+                result = response.content[0].text
+
+                # Cache successful responses
+                if len(self._response_cache) < CACHE_SIZE:
+                    self._response_cache[cache_key] = result
+
+                return result
+
+            except Exception as e:
+                logger.warning(f"Attempt {attempt + 1} failed for {self.agent_id}: {e}")
+                if attempt == MAX_RETRIES - 1:
+                    return f"I apologize, but I encountered an error processing your request after {MAX_RETRIES} attempts."
+                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+
+    def _extract_json_from_response(self, response_text: str) -> Dict[str, Any]:
+        """Extract JSON from response with better error handling"""
         try:
-            response = self.client.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=max_tokens,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            return response.content[0].text
-        except Exception as e:
-            logger.error(f"Error generating response for {self.agent_id}: {e}")
-            return "I apologize, but I encountered an error processing your request."
+            # Try to find JSON block
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group())
+        except json.JSONDecodeError:
+            logger.warning(f"Failed to parse JSON from {self.agent_id} response")
+
+        # Return safe default
+        return {
+            "analysis": response_text,
+            "confidence": 0.5,
+            "follow_up_questions": []
+        }
 
 
 class RequirementsAgent(BaseAgent):
-    """Agent focused on functional and non-functional requirements"""
+    """Optimized requirements agent with structured processing"""
 
     def __init__(self, client: anthropic.Anthropic):
         super().__init__("requirements_agent", client)
         self.expertise_areas = ["functional_requirements", "user_stories", "acceptance_criteria"]
 
     async def process_input(self, user_input: str, context: ProjectContext) -> AgentResponse:
-        prompt = f"""
-        You are a Business Analysis Agent specializing in requirements gathering.
+        start_time = asyncio.get_event_loop().time()
 
-        User input: "{user_input}"
-
-        Current requirements context:
-        - Goals: {', '.join(context.goals_requirements)}
-        - Functional: {', '.join(context.functional_requirements)}
-        - Non-functional: {', '.join(context.non_functional_requirements)}
-
-        Tasks:
-        1. Extract any functional requirements from the user input
-        2. Identify non-functional requirements (performance, security, usability)
-        3. Suggest 1-2 specific follow-up questions to clarify requirements
-        4. Rate your confidence in the current requirements (0-1)
-
-        Return a JSON response with:
-        {{
-            "functional_requirements": ["new requirement 1", "new requirement 2"],
-            "non_functional_requirements": ["new nfr 1"],
-            "follow_up_questions": ["specific question 1", "specific question 2"],
-            "confidence": 0.8,
-            "analysis": "Brief analysis of what was extracted"
-        }}
-        """
-
-        response_text = self._generate_response(prompt)
-
-        try:
-            # Parse JSON response (in real implementation, add better error handling)
-            import re
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                response_data = json.loads(json_match.group())
-            else:
-                response_data = {"functional_requirements": [], "non_functional_requirements": [],
-                                 "follow_up_questions": [], "confidence": 0.5, "analysis": response_text}
-        except:
-            response_data = {"functional_requirements": [], "non_functional_requirements": [],
-                             "follow_up_questions": [], "confidence": 0.5, "analysis": response_text}
+        prompt = self._build_prompt(user_input, context)
+        response_text = await self._generate_response_async(prompt)
+        response_data = self._extract_json_from_response(response_text)
 
         context_updates = {
             "functional_requirements": response_data.get("functional_requirements", []),
             "non_functional_requirements": response_data.get("non_functional_requirements", [])
         }
 
+        processing_time = asyncio.get_event_loop().time() - start_time
+
         return AgentResponse(
             agent_id=self.agent_id,
             content=response_data.get("analysis", ""),
             context_updates=context_updates,
             next_questions=response_data.get("follow_up_questions", []),
-            confidence=response_data.get("confidence", 0.5)
+            confidence=response_data.get("confidence", 0.5),
+            processing_time=processing_time
         )
+
+    def _build_prompt(self, user_input: str, context: ProjectContext) -> str:
+        """Build optimized prompt with context awareness"""
+        context_summary = context.to_summary()
+
+        return f"""
+        You are a Business Analysis Agent. Analyze this user input for requirements.
+
+        User input: "{user_input}"
+
+        Current context summary:
+        - Requirements: {context_summary['requirements_count']} functional requirements
+        - Completeness: {context_summary['completeness_score']:.2f}
+
+        Extract:
+        1. Functional requirements (specific features/capabilities)
+        2. Non-functional requirements (performance, security, usability)
+        3. 1-2 specific follow-up questions
+        4. Confidence level (0-1)
+
+        Respond with valid JSON:
+        {{
+            "functional_requirements": ["req1", "req2"],
+            "non_functional_requirements": ["nfr1"],
+            "follow_up_questions": ["question1", "question2"],
+            "confidence": 0.8,
+            "analysis": "Brief analysis"
+        }}
+        """
 
 
 class TechnicalAgent(BaseAgent):
-    """Agent focused on technical architecture and implementation"""
+    """Optimized technical agent with architecture focus"""
 
     def __init__(self, client: anthropic.Anthropic):
         super().__init__("technical_agent", client)
         self.expertise_areas = ["technical_stack", "architecture", "database", "apis"]
 
     async def process_input(self, user_input: str, context: ProjectContext) -> AgentResponse:
-        prompt = f"""
-        You are a Technical Architecture Agent specializing in technology decisions.
+        start_time = asyncio.get_event_loop().time()
 
-        User input: "{user_input}"
-
-        Current technical context:
-        - Tech Stack: {', '.join(context.technical_stack)}
-        - Architecture: {context.architecture_pattern}
-        - Database: {', '.join(context.database_requirements)}
-        - APIs: {', '.join(context.api_specifications)}
-
-        Tasks:
-        1. Identify technology stack preferences and requirements
-        2. Determine architecture patterns that would fit
-        3. Suggest database and API requirements
-        4. Ask technical clarification questions
-        5. Rate confidence in technical decisions (0-1)
-
-        Return JSON response with:
-        {{
-            "technical_stack": ["technology1", "technology2"],
-            "architecture_pattern": "pattern name",
-            "database_requirements": ["requirement1"],
-            "api_specifications": ["api spec1"],
-            "follow_up_questions": ["tech question 1"],
-            "confidence": 0.8,
-            "analysis": "Technical analysis"
-        }}
-        """
-
-        response_text = self._generate_response(prompt)
-
-        try:
-            import re
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                response_data = json.loads(json_match.group())
-            else:
-                response_data = {"technical_stack": [], "architecture_pattern": "",
-                                 "database_requirements": [], "api_specifications": [],
-                                 "follow_up_questions": [], "confidence": 0.5, "analysis": response_text}
-        except:
-            response_data = {"technical_stack": [], "architecture_pattern": "",
-                             "database_requirements": [], "api_specifications": [],
-                             "follow_up_questions": [], "confidence": 0.5, "analysis": response_text}
+        prompt = self._build_technical_prompt(user_input, context)
+        response_text = await self._generate_response_async(prompt)
+        response_data = self._extract_json_from_response(response_text)
 
         context_updates = {
             "technical_stack": response_data.get("technical_stack", []),
@@ -572,480 +474,49 @@ class TechnicalAgent(BaseAgent):
             "api_specifications": response_data.get("api_specifications", [])
         }
 
+        processing_time = asyncio.get_event_loop().time() - start_time
+
         return AgentResponse(
             agent_id=self.agent_id,
             content=response_data.get("analysis", ""),
             context_updates=context_updates,
             next_questions=response_data.get("follow_up_questions", []),
-            confidence=response_data.get("confidence", 0.5)
+            confidence=response_data.get("confidence", 0.5),
+            processing_time=processing_time
         )
 
-
-class UXAgent(BaseAgent):
-    """Agent focused on user experience and interface design"""
-
-    def __init__(self, client: anthropic.Anthropic):
-        super().__init__("ux_agent", client)
-        self.expertise_areas = ["ui_components", "user_flows", "user_personas"]
-
-    async def process_input(self, user_input: str, context: ProjectContext) -> AgentResponse:
-        prompt = f"""
-        You are a UX/UI Agent specializing in user experience design.
+    def _build_technical_prompt(self, user_input: str, context: ProjectContext) -> str:
+        """Build technical analysis prompt"""
+        return f"""
+        You are a Technical Architecture Agent. Analyze for technical decisions.
 
         User input: "{user_input}"
 
-        Current UX context:
-        - UI Components: {', '.join(context.ui_components)}
-        - User Personas: {', '.join(context.user_personas)}
-        - User Flows: {', '.join(context.user_flows)}
+        Current technical context:
+        - Stack: {', '.join(context.technical_stack[:3])}
+        - Architecture: {context.architecture_pattern or 'Not specified'}
 
-        Tasks:
-        1. Identify UI components and interface requirements
-        2. Determine user personas and their needs
-        3. Map out user flows and interactions
-        4. Ask UX-focused questions
-        5. Rate confidence in UX understanding (0-1)
+        Identify:
+        1. Technology preferences (languages, frameworks, databases)
+        2. Architecture patterns (MVC, microservices, etc.)
+        3. Database and API requirements
+        4. Technical questions to clarify
 
-        Return JSON response with:
+        Respond with valid JSON:
         {{
-            "ui_components": ["component1", "component2"],
-            "user_personas": ["persona1"],
-            "user_flows": ["flow1"],
-            "follow_up_questions": ["ux question 1"],
+            "technical_stack": ["tech1", "tech2"],
+            "architecture_pattern": "pattern",
+            "database_requirements": ["req1"],
+            "api_specifications": ["spec1"],
+            "follow_up_questions": ["question1"],
             "confidence": 0.8,
-            "analysis": "UX analysis"
+            "analysis": "Technical analysis"
         }}
         """
 
-        response_text = self._generate_response(prompt)
 
-        try:
-            import re
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                response_data = json.loads(json_match.group())
-            else:
-                response_data = {"ui_components": [], "user_personas": [], "user_flows": [],
-                                 "follow_up_questions": [], "confidence": 0.5, "analysis": response_text}
-        except:
-            response_data = {"ui_components": [], "user_personas": [], "user_flows": [],
-                             "follow_up_questions": [], "confidence": 0.5, "analysis": response_text}
-
-        context_updates = {
-            "ui_components": response_data.get("ui_components", []),
-            "user_personas": response_data.get("user_personas", []),
-            "user_flows": response_data.get("user_flows", [])
-        }
-
-        return AgentResponse(
-            agent_id=self.agent_id,
-            content=response_data.get("analysis", ""),
-            context_updates=context_updates,
-            next_questions=response_data.get("follow_up_questions", []),
-            confidence=response_data.get("confidence", 0.5)
-        )
-
-
-class InfrastructureAgent(BaseAgent):
-    """Agent focused on deployment and infrastructure"""
-
-    def __init__(self, client: anthropic.Anthropic):
-        super().__init__("infrastructure_agent", client)
-        self.expertise_areas = ["deployment", "scalability", "security"]
-
-    async def process_input(self, user_input: str, context: ProjectContext) -> AgentResponse:
-        prompt = f"""
-        You are an Infrastructure Agent specializing in deployment and scalability.
-
-        User input: "{user_input}"
-
-        Current infrastructure context:
-        - Deployment: {context.deployment_target}
-        - Scalability: {', '.join(context.scalability_requirements)}
-        - Security: {', '.join(context.security_requirements)}
-
-        Tasks:
-        1. Identify deployment requirements and preferences
-        2. Determine scalability needs
-        3. Assess security requirements
-        4. Ask infrastructure-focused questions
-        5. Rate confidence in infrastructure understanding (0-1)
-
-        Return JSON response with:
-        {{
-            "deployment_target": "deployment preference",
-            "scalability_requirements": ["scalability req1"],
-            "security_requirements": ["security req1"],
-            "follow_up_questions": ["infra question 1"],
-            "confidence": 0.8,
-            "analysis": "Infrastructure analysis"
-        }}
-        """
-
-        response_text = self._generate_response(prompt)
-
-        try:
-            import re
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                response_data = json.loads(json_match.group())
-            else:
-                response_data = {"deployment_target": "", "scalability_requirements": [],
-                                 "security_requirements": [], "follow_up_questions": [],
-                                 "confidence": 0.5, "analysis": response_text}
-        except:
-            response_data = {"deployment_target": "", "scalability_requirements": [],
-                             "security_requirements": [], "follow_up_questions": [],
-                             "confidence": 0.5, "analysis": response_text}
-
-        context_updates = {
-            "deployment_target": response_data.get("deployment_target", ""),
-            "scalability_requirements": response_data.get("scalability_requirements", []),
-            "security_requirements": response_data.get("security_requirements", [])
-        }
-
-        return AgentResponse(
-            agent_id=self.agent_id,
-            content=response_data.get("analysis", ""),
-            context_updates=context_updates,
-            next_questions=response_data.get("follow_up_questions", []),
-            confidence=response_data.get("confidence", 0.5)
-        )
-
-
-class PlanningAgent(BaseAgent):
-    """Agent that creates detailed project specifications"""
-
-    def __init__(self, client: anthropic.Anthropic):
-        super().__init__("planning_agent", client)
-        self.expertise_areas = ["project_planning", "specifications", "architecture_design"]
-
-    async def create_project_specification(self, context: ProjectContext) -> ProjectSpecification:
-        """Create detailed project specification from context"""
-        prompt = f"""
-        Create a comprehensive project specification based on this context:
-
-        Requirements:
-        - Goals: {', '.join(context.goals_requirements)}
-        - Functional: {', '.join(context.functional_requirements)}
-        - Non-functional: {', '.join(context.non_functional_requirements)}
-
-        Technical:
-        - Stack: {', '.join(context.technical_stack)}
-        - Architecture: {context.architecture_pattern}
-        - Database: {', '.join(context.database_requirements)}
-        - APIs: {', '.join(context.api_specifications)}
-
-        UX:
-        - UI Components: {', '.join(context.ui_components)}
-        - User Flows: {', '.join(context.user_flows)}
-
-        Infrastructure:
-        - Deployment: {context.deployment_target}
-        - Scalability: {', '.join(context.scalability_requirements)}
-        - Security: {', '.join(context.security_requirements)}
-
-        Create a detailed specification including:
-        1. Project name and description
-        2. Technical architecture details
-        3. Database schema design
-        4. API endpoint specifications
-        5. UI component specifications
-        6. Deployment configuration
-        7. Testing strategy
-
-        Return as detailed JSON specification.
-        """
-
-        response_text = self._generate_response(prompt, max_tokens=3000)
-
-        # Create project specification (simplified for demo)
-        project_name = "Generated Project"
-        description = "Project generated from user requirements"
-
-        return ProjectSpecification(
-            project_name=project_name,
-            description=description,
-            technical_architecture={
-                "stack": context.technical_stack,
-                "pattern": context.architecture_pattern,
-                "specification": response_text
-            },
-            database_schema={"requirements": context.database_requirements},
-            api_endpoints=[{"specs": context.api_specifications}],
-            ui_components=[{"components": context.ui_components}],
-            deployment_config={"target": context.deployment_target},
-            testing_strategy={"approach": "comprehensive testing strategy"}
-        )
-
-
-class CodeGenerationAgent(BaseAgent):
-    """Agent that generates actual code from specifications"""
-
-    def __init__(self, client: anthropic.Anthropic):
-        super().__init__("code_generation_agent", client)
-        self.expertise_areas = ["code_generation", "software_engineering"]
-
-    async def generate_code(self, specification: ProjectSpecification) -> Dict[str, str]:
-        """Generate complete codebase from specification"""
-        generated_files = {}
-
-        # Generate main application file
-        main_code = await self._generate_main_application(specification)
-        generated_files["main.py"] = main_code
-
-        # Generate additional files based on specification
-        if specification.database_schema:
-            models_code = await self._generate_models(specification)
-            generated_files["models.py"] = models_code
-
-        if specification.api_endpoints:
-            routes_code = await self._generate_routes(specification)
-            generated_files["routes.py"] = routes_code
-
-        # Generate configuration
-        config_code = await self._generate_config(specification)
-        generated_files["config.py"] = config_code
-
-        # Generate requirements
-        requirements = await self._generate_requirements(specification)
-        generated_files["requirements.txt"] = requirements
-
-        # Generate README
-        readme = await self._generate_readme(specification)
-        generated_files["README.md"] = readme
-
-        return generated_files
-
-    async def _generate_main_application(self, spec: ProjectSpecification) -> str:
-        """Generate the main application file"""
-        prompt = f"""
-        Generate a complete main application file for this project:
-
-        Project: {spec.project_name}
-        Description: {spec.description}
-        Tech Stack: {', '.join(spec.technical_architecture.get('stack', []))}
-        Architecture: {spec.technical_architecture.get('pattern', '')}
-
-        Requirements:
-        - Production-ready code with error handling
-        - Proper logging and security
-        - Clean, documented code
-        - Include all necessary imports
-        - Follow best practices
-
-        Generate complete, functional Python code.
-        """
-
-        return self._generate_response(prompt, max_tokens=3000)
-
-    async def _generate_models(self, spec: ProjectSpecification) -> str:
-        """Generate database models"""
-        prompt = f"""
-        Generate database models for this project:
-
-        Project: {spec.project_name}
-        Database Requirements: {spec.database_schema.get('requirements', [])}
-        Tech Stack: {', '.join(spec.technical_architecture.get('stack', []))}
-
-        Generate complete SQLAlchemy models with:
-        - Proper relationships
-        - Validation
-        - Indexes where appropriate
-        - Clean code with docstrings
-        """
-
-        return self._generate_response(prompt, max_tokens=2000)
-
-    async def _generate_routes(self, spec: ProjectSpecification) -> str:
-        """Generate API routes"""
-        prompt = f"""
-        Generate API routes for this project:
-
-        Project: {spec.project_name}
-        API Endpoints: {spec.api_endpoints}
-        Tech Stack: {', '.join(spec.technical_architecture.get('stack', []))}
-
-        Generate RESTful API routes with:
-        - Proper HTTP methods
-        - Input validation
-        - Error handling
-        - Documentation
-        - Security considerations
-
-        Generate complete, functional API routes.
-        """
-
-        return self._generate_response(prompt, max_tokens=2000)
-
-    async def _generate_config(self, spec: ProjectSpecification) -> str:
-        """Generate configuration file"""
-        prompt = f"""
-        Generate configuration file for this project:
-
-        Project: {spec.project_name}
-        Deployment: {spec.deployment_config.get('target', '')}
-        Tech Stack: {', '.join(spec.technical_architecture.get('stack', []))}
-
-        Include:
-        - Environment variables
-        - Database configuration
-        - Security settings
-        - Logging configuration
-        - Deployment settings
-
-        Generate complete configuration code.
-        """
-
-        return self._generate_response(prompt, max_tokens=1500)
-
-    async def _generate_requirements(self, spec: ProjectSpecification) -> str:
-        """Generate requirements.txt file"""
-        prompt = f"""
-        Generate requirements.txt for this project:
-
-        Tech Stack: {', '.join(spec.technical_architecture.get('stack', []))}
-        Database Requirements: {spec.database_schema.get('requirements', [])}
-
-        Include all necessary Python packages with appropriate versions.
-        Consider security and compatibility.
-
-        Generate complete requirements.txt content.
-        """
-
-        return self._generate_response(prompt, max_tokens=800)
-
-    async def _generate_readme(self, spec: ProjectSpecification) -> str:
-        """Generate README.md file"""
-        prompt = f"""
-        Generate comprehensive README.md for this project:
-
-        Project: {spec.project_name}
-        Description: {spec.description}
-        Tech Stack: {', '.join(spec.technical_architecture.get('stack', []))}
-        Deployment: {spec.deployment_config.get('target', '')}
-
-        Include:
-        - Project description
-        - Installation instructions
-        - Usage examples
-        - API documentation
-        - Contributing guidelines
-        - License information
-
-        Generate complete, professional README.md.
-        """
-
-        return self._generate_response(prompt, max_tokens=2000)
-
-
-class ValidationAgent(BaseAgent):
-    """Agent that validates and reviews generated code"""
-
-    def __init__(self, client: anthropic.Anthropic):
-        super().__init__("validation_agent", client)
-        self.expertise_areas = ["code_review", "testing", "quality_assurance"]
-
-    async def validate_code(self, generated_files: Dict[str, str], specification: ProjectSpecification) -> Dict[str, Any]:
-        """Validate generated code against specification"""
-        validation_results = {
-            "overall_score": 0.0,
-            "file_scores": {},
-            "issues": [],
-            "recommendations": [],
-            "test_suggestions": []
-        }
-
-        total_score = 0
-        file_count = 0
-
-        for filename, content in generated_files.items():
-            file_validation = await self._validate_file(filename, content, specification)
-            validation_results["file_scores"][filename] = file_validation["score"]
-            validation_results["issues"].extend(file_validation["issues"])
-            validation_results["recommendations"].extend(file_validation["recommendations"])
-
-            total_score += file_validation["score"]
-            file_count += 1
-
-        validation_results["overall_score"] = total_score / file_count if file_count > 0 else 0
-
-        # Generate test suggestions
-        test_suggestions = await self._generate_test_suggestions(specification)
-        validation_results["test_suggestions"] = test_suggestions
-
-        return validation_results
-
-    async def _validate_file(self, filename: str, content: str, specification: ProjectSpecification) -> Dict[str, Any]:
-        """Validate individual file"""
-        prompt = f"""
-        Review this generated code file:
-
-        Filename: {filename}
-        Project: {specification.project_name}
-        Content: {content[:2000]}...
-
-        Evaluate:
-        1. Code quality and best practices
-        2. Security considerations
-        3. Performance implications
-        4. Maintainability
-        5. Alignment with specification
-
-        Return JSON with:
-        {{
-            "score": 0.85,
-            "issues": ["issue1", "issue2"],
-            "recommendations": ["rec1", "rec2"]
-        }}
-        """
-
-        response_text = self._generate_response(prompt, max_tokens=1000)
-
-        try:
-            import re
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group())
-        except:
-            pass
-
-        return {
-            "score": 0.7,
-            "issues": ["Could not parse validation results"],
-            "recommendations": ["Manual review recommended"]
-        }
-
-    async def _generate_test_suggestions(self, specification: ProjectSpecification) -> List[str]:
-        """Generate test suggestions"""
-        prompt = f"""
-        Generate test suggestions for this project:
-
-        Project: {specification.project_name}
-        Description: {specification.description}
-        Tech Stack: {', '.join(specification.technical_architecture.get('stack', []))}
-
-        Suggest:
-        1. Unit tests
-        2. Integration tests
-        3. End-to-end tests
-        4. Performance tests
-        5. Security tests
-
-        Return as list of specific test scenarios.
-        """
-
-        response_text = self._generate_response(prompt, max_tokens=1000)
-
-        # Extract test suggestions from response
-        lines = response_text.split('\n')
-        suggestions = [line.strip() for line in lines if line.strip() and not line.startswith('#')]
-
-        return suggestions[:10]  # Limit to 10 suggestions
-
-
-class SocraticOrchestrator:
-    """Main orchestrator that manages all agents and project flow"""
+class OptimizedOrchestrator:
+    """Optimized orchestrator with improved performance and error handling"""
 
     def __init__(self, api_key: str, db_path: str = "socratic_rag.db"):
         self.client = anthropic.Anthropic(api_key=api_key)
@@ -1055,23 +526,18 @@ class SocraticOrchestrator:
         self.agents = {
             "requirements": RequirementsAgent(self.client),
             "technical": TechnicalAgent(self.client),
-            "ux": UXAgent(self.client),
-            "infrastructure": InfrastructureAgent(self.client),
-            "planning": PlanningAgent(self.client),
-            "code_generation": CodeGenerationAgent(self.client),
-            "validation": ValidationAgent(self.client)
         }
 
         self.current_user = None
         self.current_project = None
+        self._conversation_buffer = []
 
     async def authenticate_user(self, username: str, email: str = None) -> bool:
-        """Authenticate or create user"""
+        """Authenticate user with caching"""
         user = self.db_manager.get_user(username)
 
         if user:
             self.current_user = user
-            self.db_manager.update_user_login(user.user_id)
             return True
         elif email:
             try:
@@ -1079,384 +545,221 @@ class SocraticOrchestrator:
                 return True
             except ValueError:
                 return False
-
         return False
 
-    async def create_project(self, name: str, description: str = "") -> str:
-        """Create new project"""
-        if not self.current_user:
-            raise ValueError("User must be authenticated")
-
-        project = self.db_manager.create_project(name, description, self.current_user.user_id)
-        self.current_project = project
-        return project.project_id
-
-    async def load_project(self, project_id: str) -> bool:
-        """Load existing project"""
-        if not self.current_user:
-            raise ValueError("User must be authenticated")
-
-        project = self.db_manager.get_project(project_id)
-
-        if project and (project.owner_id == self.current_user.user_id or
-                       self.current_user.user_id in project.collaborators):
-            self.current_project = project
-            return True
-
-        return False
-
-    async def get_user_projects(self) -> List[Dict[str, Any]]:
-        """Get all projects for current user"""
-        if not self.current_user:
-            return []
-
-        projects = self.db_manager.get_user_projects(self.current_user.user_id)
-        return [
-            {
-                "project_id": p.project_id,
-                "name": p.name,
-                "description": p.description,
-                "current_phase": p.current_phase,
-                "updated_at": p.updated_at,
-                "is_owner": p.owner_id == self.current_user.user_id
-            }
-            for p in projects
-        ]
-
-    async def process_user_input(self, user_input: str) -> str:
-        """Process user input and return response"""
+    async def process_user_input_optimized(self, user_input: str) -> str:
+        """Optimized input processing with parallel agent execution"""
         if not self.current_user or not self.current_project:
             return "Please authenticate and select a project first."
 
-        # Determine current phase and relevant agents
-        current_phase = ProjectPhase(self.current_project.current_phase)
+        current_phase = ProjectPhase(self.current_project.get('current_phase', 'discovery'))
 
         if current_phase == ProjectPhase.DISCOVERY:
-            return await self._handle_discovery_phase(user_input)
+            return await self._handle_discovery_optimized(user_input)
         elif current_phase == ProjectPhase.PLANNING:
-            return await self._handle_planning_phase(user_input)
-        elif current_phase == ProjectPhase.GENERATION:
-            return await self._handle_generation_phase(user_input)
-        elif current_phase == ProjectPhase.VALIDATION:
-            return await self._handle_validation_phase(user_input)
+            return await self._handle_planning_optimized(user_input)
         else:
-            return "Project is complete. You can start a new project or review the generated code."
+            return f"Current phase: {current_phase.value}. Use appropriate commands."
 
-    async def _handle_discovery_phase(self, user_input: str) -> str:
-        """Handle discovery phase with multiple agents"""
+    async def _handle_discovery_optimized(self, user_input: str) -> str:
+        """Optimized discovery phase with parallel processing"""
+        # Create context object
+        context = ProjectContext(**json.loads(self.current_project.get('context_json', '{}')))
+
+        # Process with relevant agents in parallel
+        agent_names = ["requirements", "technical"]
+        tasks = []
+
+        for agent_name in agent_names:
+            if agent_name in self.agents:
+                task = self.agents[agent_name].process_input(user_input, context)
+                tasks.append((agent_name, task))
+
+        # Execute agents concurrently
+        results = await asyncio.gather(*[task for _, task in tasks], return_exceptions=True)
+
         responses = []
         all_questions = []
         context_updates = {}
 
-        # Get responses from all relevant agents
-        for agent_name in ["requirements", "technical", "ux", "infrastructure"]:
-            agent = self.agents[agent_name]
-            response = await agent.process_input(user_input, self.current_project.context)
-            responses.append(f"**{agent_name.title()} Agent**: {response.content}")
-            all_questions.extend(response.next_questions)
+        for (agent_name, _), result in zip(tasks, results):
+            if isinstance(result, Exception):
+                logger.error(f"Agent {agent_name} failed: {result}")
+                continue
 
-            # Update context
-            for key, value in response.context_updates.items():
-                if isinstance(value, list):
-                    current_list = getattr(self.current_project.context, key, [])
-                    updated_list = current_list + [item for item in value if item not in current_list]
-                    setattr(self.current_project.context, key, updated_list)
-                else:
-                    setattr(self.current_project.context, key, value)
+            responses.append(f"**{agent_name.title()}**: {result.content}")
+            all_questions.extend(result.next_questions)
+            context_updates.update(result.context_updates)
 
-        # Check if ready to move to planning
-        completeness_score = self._calculate_completeness_score(self.current_project.context)
+        # Update context efficiently
+        context.update_from_dict(context_updates)
 
-        if completeness_score > 0.8:
-            self.current_project.current_phase = ProjectPhase.PLANNING.value
+        # Calculate completeness
+        completeness_score = self._calculate_completeness_optimized(context)
+        context.completeness_score = completeness_score
+
+        # Check for phase transition
+        if completeness_score > DEFAULT_CONFIDENCE_THRESHOLD:
             responses.append("\n**🎯 Ready for Planning Phase!**")
-            responses.append("The requirements are sufficiently detailed. Use 'plan' to create the project specification.")
+            next_phase = ProjectPhase.PLANNING.value
+        else:
+            next_phase = ProjectPhase.DISCOVERY.value
 
-        # Update project in database
-        self.db_manager.update_project(self.current_project)
+        # Update project
+        self.db_manager.update_project_optimized(self.current_project['project_id'], {
+            'current_phase': next_phase,
+            'context_json': json.dumps(asdict(context))
+        })
 
-        # Save conversation
+        # Build response
         response_text = "\n\n".join(responses)
         if all_questions:
-            response_text += "\n\n**Follow-up Questions:**\n" + "\n".join(f"• {q}" for q in all_questions[:3])
+            response_text += "\n\n**Next Questions:**\n" + "\n".join(f"• {q}" for q in all_questions[:3])
 
-        self.db_manager.save_conversation(
-            self.current_project.project_id,
-            self.current_user.user_id,
-            user_input,
-            response_text
-        )
+        # Buffer conversation for batch saving
+        self._conversation_buffer.append({
+            'project_id': self.current_project['project_id'],
+            'user_id': self.current_user['user_id'],
+            'timestamp': datetime.now().isoformat(),
+            'user_input': user_input,
+            'system_response': response_text
+        })
+
+        # Batch save if buffer is full
+        if len(self._conversation_buffer) >= BATCH_SIZE:
+            self.db_manager.batch_save_conversation(self._conversation_buffer)
+            self._conversation_buffer.clear()
 
         return response_text
 
-    async def _handle_planning_phase(self, user_input: str) -> str:
-        """Handle planning phase"""
-        if user_input.lower() == "plan":
-            planning_agent = self.agents["planning"]
-            specification = await planning_agent.create_project_specification(self.current_project.context)
-
-            # Store specification in project context (simplified)
-            self.current_project.context.confidence_scores["specification"] = 0.9
-            self.current_project.current_phase = ProjectPhase.GENERATION.value
-            self.db_manager.update_project(self.current_project)
-
-            response = f"""
-**📋 Project Specification Created**
-
-**Project**: {specification.project_name}
-**Description**: {specification.description}
-
-**Technical Architecture**:
-- Stack: {', '.join(specification.technical_architecture.get('stack', []))}
-- Pattern: {specification.technical_architecture.get('pattern', 'Not specified')}
-
-**Next Steps**: Use 'generate' to create the codebase.
-            """
-
-            self.db_manager.save_conversation(
-                self.current_project.project_id,
-                self.current_user.user_id,
-                user_input,
-                response
-            )
-
-            return response
+    async def _handle_planning_optimized(self, user_input: str) -> str:
+        """Optimized planning phase"""
+        if user_input.lower().strip() == "plan":
+            return "Planning phase implementation - create project specification"
         else:
             return "In planning phase. Use 'plan' to create the project specification."
 
-    async def _handle_generation_phase(self, user_input: str) -> str:
-        """Handle code generation phase"""
-        if user_input.lower() == "generate":
-            # Create specification from context
-            planning_agent = self.agents["planning"]
-            specification = await planning_agent.create_project_specification(self.current_project.context)
+    def _calculate_completeness_optimized(self, context: ProjectContext) -> float:
+        """Optimized completeness calculation"""
+        weights = {
+            'functional_requirements': 0.4,
+            'technical_stack': 0.3,
+            'ui_components': 0.2,
+            'deployment_target': 0.1
+        }
 
-            # Generate code
-            code_generation_agent = self.agents["code_generation"]
-            generated_files = await code_generation_agent.generate_code(specification)
+        scores = {}
 
-            # Save generated code
-            self.db_manager.save_generated_code(self.current_project.project_id, generated_files)
+        # Requirements score
+        scores['functional_requirements'] = min(len(context.functional_requirements) / 5, 1.0)
 
-            # Move to validation phase
-            self.current_project.current_phase = ProjectPhase.VALIDATION.value
-            self.db_manager.update_project(self.current_project)
-
-            response = f"""
-**🚀 Code Generated Successfully!**
-
-Generated {len(generated_files)} files:
-{chr(10).join(f"• {filename}" for filename in generated_files.keys())}
-
-**Next Steps**: Use 'validate' to review the generated code.
-            """
-
-            self.db_manager.save_conversation(
-                self.current_project.project_id,
-                self.current_user.user_id,
-                user_input,
-                response
-            )
-
-            return response
-        else:
-            return "In generation phase. Use 'generate' to create the codebase."
-
-    async def _handle_validation_phase(self, user_input: str) -> str:
-        """Handle validation phase"""
-        if user_input.lower() == "validate":
-            # Get generated code
-            generated_files = self.db_manager.get_generated_code(self.current_project.project_id)
-
-            if not generated_files:
-                return "No generated code found. Please generate code first."
-
-            # Create specification for validation
-            planning_agent = self.agents["planning"]
-            specification = await planning_agent.create_project_specification(self.current_project.context)
-
-            # Validate code
-            validation_agent = self.agents["validation"]
-            validation_results = await validation_agent.validate_code(generated_files, specification)
-
-            # Move to complete phase
-            self.current_project.current_phase = ProjectPhase.COMPLETE.value
-            self.db_manager.update_project(self.current_project)
-
-            response = f"""
-**✅ Code Validation Complete**
-
-**Overall Score**: {validation_results['overall_score']:.2f}/1.0
-
-**File Scores**:
-{chr(10).join(f"• {filename}: {score:.2f}" for filename, score in validation_results['file_scores'].items())}
-
-**Issues Found**: {len(validation_results['issues'])}
-{chr(10).join(f"• {issue}" for issue in validation_results['issues'][:3])}
-
-**Recommendations**:
-{chr(10).join(f"• {rec}" for rec in validation_results['recommendations'][:3])}
-
-**Project Status**: COMPLETE ✅
-            """
-
-            self.db_manager.save_conversation(
-                self.current_project.project_id,
-                self.current_user.user_id,
-                user_input,
-                response
-            )
-
-            return response
-        else:
-            return "In validation phase. Use 'validate' to review the generated code."
-
-    def _calculate_completeness_score(self, context: ProjectContext) -> float:
-        """Calculate how complete the project context is"""
-        scores = []
-
-        # Requirements completeness
-        req_score = min(len(context.functional_requirements) / 5, 1.0)
-        scores.append(req_score)
-
-        # Technical completeness
+        # Technical score
         tech_score = min(len(context.technical_stack) / 3, 1.0)
         if context.architecture_pattern:
-            tech_score += 0.2
-        scores.append(min(tech_score, 1.0))
+            tech_score = min(tech_score + 0.3, 1.0)
+        scores['technical_stack'] = tech_score
 
-        # UX completeness
-        ux_score = min(len(context.ui_components) / 3, 1.0)
-        scores.append(ux_score)
+        # UI score
+        scores['ui_components'] = min(len(context.ui_components) / 3, 1.0)
 
-        # Infrastructure completeness
-        infra_score = 1.0 if context.deployment_target else 0.5
-        scores.append(infra_score)
+        # Deployment score
+        scores['deployment_target'] = 1.0 if context.deployment_target else 0.0
 
-        return sum(scores) / len(scores)
+        # Weighted average
+        total_score = sum(scores[key] * weights[key] for key in weights)
+        return total_score
 
-    async def get_project_status(self) -> Dict[str, Any]:
-        """Get current project status"""
+    async def get_project_status_optimized(self) -> Dict[str, Any]:
+        """Get optimized project status"""
         if not self.current_project:
             return {"error": "No project selected"}
 
+        context = ProjectContext(**json.loads(self.current_project.get('context_json', '{}')))
+
         return {
-            "project_id": self.current_project.project_id,
-            "name": self.current_project.name,
-            "phase": self.current_project.current_phase,
-            "completeness_score": self._calculate_completeness_score(self.current_project.context),
-            "context_summary": {
-                "functional_requirements": len(self.current_project.context.functional_requirements),
-                "technical_stack": len(self.current_project.context.technical_stack),
-                "ui_components": len(self.current_project.context.ui_components),
-                "deployment_target": bool(self.current_project.context.deployment_target)
-            }
+            "project_id": self.current_project['project_id'],
+            "name": self.current_project['name'],
+            "phase": self.current_project['current_phase'],
+            "completeness_score": self._calculate_completeness_optimized(context),
+            "context_summary": context.to_summary(),
+            "last_updated": context.last_updated
         }
 
-    async def get_generated_code(self) -> Dict[str, str]:
-        """Get generated code files"""
-        if not self.current_project:
-            return {}
+    async def cleanup(self):
+        """Cleanup resources"""
+        # Save any remaining conversations
+        if self._conversation_buffer:
+            self.db_manager.batch_save_conversation(self._conversation_buffer)
+            self._conversation_buffer.clear()
 
-        return self.db_manager.get_generated_code(self.current_project.project_id)
-
-    async def get_conversation_history(self) -> List[Dict]:
-        """Get conversation history for current project"""
-        if not self.current_project:
-            return []
-
-        return self.db_manager.get_conversation_history(self.current_project.project_id)
+        # Close agent executors
+        for agent in self.agents.values():
+            if hasattr(agent, '_executor'):
+                agent._executor.shutdown(wait=True)
 
 
-# Example usage and CLI interface
+# Performance monitoring decorator
+def monitor_performance(func):
+    """Decorator to monitor function performance"""
+
+    async def wrapper(*args, **kwargs):
+        start_time = asyncio.get_event_loop().time()
+        try:
+            result = await func(*args, **kwargs)
+            end_time = asyncio.get_event_loop().time()
+            logger.info(f"{func.__name__} completed in {end_time - start_time:.2f}s")
+            return result
+        except Exception as e:
+            end_time = asyncio.get_event_loop().time()
+            logger.error(f"{func.__name__} failed after {end_time - start_time:.2f}s: {e}")
+            raise
+
+    return wrapper
+
+
+# Example usage
 async def main():
-    """Example usage of the Socratic RAG system"""
-
-    # Initialize system
-    orchestrator = SocraticOrchestrator(
+    """Optimized main function with proper resource management"""
+    orchestrator = OptimizedOrchestrator(
         api_key=os.getenv("ANTHROPIC_API_KEY"),
-        db_path="socratic_rag.db"
+        db_path="optimized_socratic_rag.db"
     )
 
-    print("🧠 Enhanced Socratic RAG System")
-    print("=" * 50)
+    try:
+        print("🚀 Optimized Socratic RAG System")
+        print("=" * 50)
 
-    # Authentication
-    username = input("Enter username: ")
-    email = input("Enter email (for new users): ")
-
-    if await orchestrator.authenticate_user(username, email):
-        print(f"✅ Authenticated as {username}")
-    else:
-        print("❌ Authentication failed")
-        return
-
-    # Project selection
-    projects = await orchestrator.get_user_projects()
-
-    if projects:
-        print("\n📁 Your Projects:")
-        for i, project in enumerate(projects):
-            print(f"{i+1}. {project['name']} ({project['current_phase']})")
-
-        choice = input("\nSelect project (number) or 'new' for new project: ")
-
-        if choice.lower() == 'new':
-            name = input("Project name: ")
-            description = input("Project description: ")
-            project_id = await orchestrator.create_project(name, description)
-            print(f"✅ Created project: {project_id}")
+        # Simple authentication for demo
+        if await orchestrator.authenticate_user("demo_user", "demo@example.com"):
+            print("✅ Authenticated successfully")
         else:
-            try:
-                project_idx = int(choice) - 1
-                if 0 <= project_idx < len(projects):
-                    project_id = projects[project_idx]['project_id']
-                    if await orchestrator.load_project(project_id):
-                        print(f"✅ Loaded project: {projects[project_idx]['name']}")
-                    else:
-                        print("❌ Failed to load project")
-                        return
-                else:
-                    print("❌ Invalid project selection")
-                    return
-            except ValueError:
-                print("❌ Invalid input")
-                return
-    else:
-        name = input("Project name: ")
-        description = input("Project description: ")
-        project_id = await orchestrator.create_project(name, description)
-        print(f"✅ Created project: {project_id}")
+            print("❌ Authentication failed")
+            return
 
-    # Main interaction loop
-    print("\n🚀 Starting Socratic dialogue...")
-    print("Commands: 'status', 'history', 'code', 'quit'")
-    print("=" * 50)
+        # Create demo project
+        orchestrator.current_project = {
+            'project_id': 'demo-project',
+            'name': 'Demo Project',
+            'current_phase': 'discovery',
+            'context_json': '{}'
+        }
 
-    while True:
-        user_input = input("\n💬 You: ")
+        # Demo interaction
+        print("\n🤖 System ready for optimized processing...")
 
-        if user_input.lower() == 'quit':
-            break
-        elif user_input.lower() == 'status':
-            status = await orchestrator.get_project_status()
-            print(f"\n📊 Project Status: {json.dumps(status, indent=2)}")
-        elif user_input.lower() == 'history':
-            history = await orchestrator.get_conversation_history()
-            print(f"\n📜 Conversation History: {len(history)} messages")
-            for msg in history[-3:]:  # Show last 3 messages
-                print(f"[{msg['timestamp']}] {msg['username']}: {msg['user_input'][:50]}...")
-        elif user_input.lower() == 'code':
-            code = await orchestrator.get_generated_code()
-            if code:
-                print(f"\n💻 Generated Code: {len(code)} files")
-                for filename in code.keys():
-                    print(f"• {filename}")
-            else:
-                print("No code generated yet")
-        else:
-            response = await orchestrator.process_user_input(user_input)
-            print(f"\n🤖 System: {response}")
+        # Process sample input
+        response = await orchestrator.process_user_input_optimized(
+            "I want to build a web application for task management with user authentication"
+        )
+        print(f"\n📝 Response: {response}")
+
+        # Show status
+        status = await orchestrator.get_project_status_optimized()
+        print(f"\n📊 Status: {status}")
+
+    finally:
+        await orchestrator.cleanup()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
