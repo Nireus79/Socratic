@@ -846,4 +846,20 @@ class CodeGenerationAgent(BaseAgent):
 
         Project: {spec.project_name}
         Database Requirements: {spec.database_schema.get('requirements', [])}
-        Tech Stack: {', '.
+        Tech Stack: {', '.join(spec.technical_architecture.get('stack', []))}
+
+        Generate complete SQLAlchemy models with:
+        - Proper relationships
+        - Validation
+        - Indexes where appropriate
+        - Clean code with docstrings
+        """
+
+        return self._generate_response(prompt, max_tokens=2000)
+
+    async def _generate_routes(self, spec: ProjectSpecification) -> str:
+        """Generate API routes"""
+        prompt = f"""
+        Generate API routes for this project:
+
+        Project: {spec
