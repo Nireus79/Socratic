@@ -373,7 +373,7 @@ class BaseAgent(ABC):
                 logger.warning(f"Attempt {attempt + 1} failed for {self.agent_id}: {e}")
                 if attempt == MAX_RETRIES - 1:
                     return f"I apologize, but I encountered an error processing your request after {MAX_RETRIES} attempts."
-                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                asyncio.sleep(2 ** attempt)  # Exponential backoff
 
     def _extract_json_from_response(self, response_text: str) -> Dict[str, Any]:
         """Extract JSON from response with better error handling"""
