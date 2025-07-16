@@ -624,16 +624,17 @@ class EnhancedSocraticRAG:
         project_id = str(uuid.uuid4())
         now = datetime.now()
 
-        project = Project(
+        # Save project using individual parameters instead of Project object
+        self.db.save_project(
             project_id=project_id,
             name=name,
             description=description,
             owner_id=self.current_user_id,
+            phase="discovery",
+            status="active",
             created_at=now,
             updated_at=now
         )
-
-        self.db.save_project(project)
 
         # Initialize project context
         context = ProjectContext(
@@ -651,7 +652,7 @@ class EnhancedSocraticRAG:
             user_contributions={}
         )
 
-        self.db.save_project_context(project_id, context)
+        self.db.save_project_context(project_id, asdict(context))
 
         return project_id
 
@@ -743,27 +744,27 @@ class EnhancedSocraticRAG:
 
         # Build prompt
         prompt = f"""
-You are a Socratic counselor helping with software development projects. 
-Use the Socratic method to guide the user through discovery rather than providing direct answers.
+    You are a Socratic counselor helping with software development projects. 
+    Use the Socratic method to guide the user through discovery rather than providing direct answers.
 
-Current Project Context:
-- Phase: {context.phase}
-- Goals: {', '.join(context.goals) if context.goals else 'Not defined'}
-- Requirements: {', '.join(context.requirements) if context.requirements else 'Not defined'}
-- Tech Stack: {', '.join(context.tech_stack) if context.tech_stack else 'Not defined'}
-- Constraints: {', '.join(context.constraints) if context.constraints else 'None specified'}
+    Current Project Context:
+    - Phase: {context.get('phase', 'discovery')}
+    - Goals: {', '.join(context.get('goals', [])) if context.get('goals') else 'Not defined'}
+    - Requirements: {', '.join(context.get('requirements', [])) if context.get('requirements') else 'Not defined'}
+    - Tech Stack: {', '.join(context.get('tech_stack', [])) if context.get('tech_stack') else 'Not defined'}
+    - Constraints: {', '.join(context.get('constraints', [])) if context.get('constraints') else 'None specified'}
 
-Recent Conversation:
-{chr(10).join([f"User: {entry.message}" for entry in history[:3]])}
+    Recent Conversation:
+    {chr(10).join([f"User: {entry['message']}" for entry in history[:3]])}
 
-Relevant Knowledge:
-{chr(10).join(relevant_context[:3])}
+    Relevant Knowledge:
+    {chr(10).join(relevant_context[:3])}
 
-User's current message: {message}
+    User's current message: {message}
 
-Respond with a thoughtful Socratic question that helps the user think deeper about their project. Focus on the 
-current phase ({context.phase}) and guide them toward the next insight or decision they need to make.
-"""
+    Respond with a thoughtful Socratic question that helps the user think deeper about their project. Focus on the 
+    current phase ({context.get('phase', 'discovery')}) and guide them toward the next insight or decision they need to make.
+    """
 
         try:
             response = self.client.messages.create(
@@ -787,44 +788,44 @@ current phase ({context.phase}) and guide them toward the next insight or decisi
 
         # Extract goals
         if "goal" in message.lower() or "want to" in message.lower():
-            if message not in context.goals:
-                context.goals.append(message)
-                context_updates["goals"] = context.goals
+            if message not in context.get("goals", []):
+                context.setdefault("goals", []).append(message)
+                context_updates["goals"] = context["goals"]
 
         # Extract requirements
         if "need" in message.lower() or "require" in message.lower():
-            if message not in context.requirements:
-                context.requirements.append(message)
-                context_updates["requirements"] = context.requirements
+            if message not in context.get("requirements", []):
+                context.setdefault("requirements", []).append(message)
+                context_updates["requirements"] = context["requirements"]
 
         # Track user contributions
-        if self.current_user_id not in context.user_contributions:
-            context.user_contributions[self.current_user_id] = []
-        context.user_contributions[self.current_user_id].append(message)
+        if "user_contributions" not in context:
+            context["user_contributions"] = {}
+        if self.current_user_id not in context["user_contributions"]:
+            context["user_contributions"][self.current_user_id] = []
+        context["user_contributions"][self.current_user_id].append(message)
 
         # Update phase if needed
         if analysis["phase_indicators"]:
             new_phase = analysis["phase_indicators"][0]
-            if new_phase != context.phase:
-                context.phase = new_phase
+            if new_phase != context.get("phase"):
+                context["phase"] = new_phase
                 context_updates["phase"] = new_phase
 
         # Save updated context
         self.db.save_project_context(self.current_project_id, context)
 
-        # Save conversation entry
-        entry = ConversationEntry(
+        # Save conversation entry - pass individual parameters
+        self.db.save_conversation(
             entry_id=str(uuid.uuid4()),
             project_id=self.current_project_id,
             user_id=self.current_user_id,
             message=message,
             response=response,
             timestamp=datetime.now(),
-            phase=context.phase,
+            phase=context.get("phase", "discovery"),
             context_updates=context_updates
         )
-
-        self.db.save_conversation(entry)
 
     def get_project_summary(self) -> str:
         """Get project summary"""
@@ -833,33 +834,35 @@ current phase ({context.phase}) and guide them toward the next insight or decisi
             return "No project context available."
 
         project = self.db.get_project(self.current_project_id)
+        if not project:
+            return "Project not found."
 
         summary = f"""
-Project: {project.name}
-Phase: {context.phase}
-Status: {project.status}
+    Project: {project['name']}
+    Phase: {context.get('phase', 'discovery')}
+    Status: {project['status']}
 
-Goals:
-{chr(10).join(f"• {goal}" for goal in context.goals) if context.goals else "• Not defined yet"}
+    Goals:
+    {chr(10).join(f"• {goal}" for goal in context.get('goals', [])) if context.get('goals') else "• Not defined yet"}
 
-Requirements:
-{chr(10).join(f"• {req}" for req in context.requirements) if context.requirements else "• Not defined yet"}
+    Requirements:
+    {chr(10).join(f"• {req}" for req in context.get('requirements', [])) if context.get('requirements') else "• Not defined yet"}
 
-Tech Stack:
-{chr(10).join(f"• {tech}" for tech in context.tech_stack) if context.tech_stack else "• Not defined yet"}
+    Tech Stack:
+    {chr(10).join(f"• {tech}" for tech in context.get('tech_stack', [])) if context.get('tech_stack') else "• Not defined yet"}
 
-Constraints:
-{chr(10).join(f"• {constraint}" for constraint in context.constraints) if context.constraints else "• None specified"}
+    Constraints:
+    {chr(10).join(f"• {constraint}" for constraint in context.get('constraints', [])) if context.get('constraints') else "• None specified"}
 
-Team Structure: {context.team_structure}
+    Team Structure: {context.get('team_structure', 'individual')}
 
-Progress Markers:
-{chr(10).join(f"• {marker}" for marker in context.progress_markers) if context.progress_markers else "• None yet"}
+    Progress Markers:
+    {chr(10).join(f"• {marker}" for marker in context.get('progress_markers', [])) if context.get('progress_markers') else "• None yet"}
 
-Contributors:
-{chr(10).join(f"• User {user_id}: {len(contributions)} contributions"
-              for user_id, contributions in context.user_contributions.items())}
-"""
+    Contributors:
+    {chr(10).join(f"• User {user_id}: {len(contributions)} contributions"
+                  for user_id, contributions in context.get('user_contributions', {}).items())}
+    """
         return summary
 
     def process_message(self, message: str) -> str:
@@ -937,14 +940,14 @@ def main():
             elif choice == "3":
                 return
 
-        # Project selection
+        # Project selection loop
         while True:
             projects = socratic.get_user_projects()
 
             if projects:
                 print("\nYour Projects:")
                 for i, project in enumerate(projects, 1):
-                    print(f"{i}. {project.name} ({project.phase}) - {project.status}")
+                    print(f"{i}. {project['name']} ({project['phase']}) - {project['status']}")
 
                 print(f"{len(projects) + 1}. Create new project")
                 print(f"{len(projects) + 2}. Exit")
@@ -955,15 +958,15 @@ def main():
                     choice_num = int(choice)
                     if 1 <= choice_num <= len(projects):
                         selected_project = projects[choice_num - 1]
-                        socratic.select_project(selected_project.project_id)
-                        print(f"✅ Selected project: {selected_project.name}")
+                        socratic.select_project(selected_project['project_id'])
+                        print(f"✅ Selected project: {selected_project['name']}")
                         break
 
                     elif choice_num == len(projects) + 1:
                         # Create new project
                         name = input("Project name: ")
                         description = input("Project description (optional): ")
-                        project_id = socratic.create_project(name, description, )
+                        project_id = socratic.create_project(name, description)
                         socratic.select_project(project_id)
                         print(f"✅ Created and selected project: {name}")
                         break
@@ -984,52 +987,54 @@ def main():
                 print(f"✅ Created and selected project: {name}")
                 break
 
-            # Main conversation loop
-            print("\n🚀 Socratic Counselor is ready!")
-            print("Type 'help' for commands, 'summary' for project overview, or 'exit' to quit.")
-            print("=" * 50)
+        # Main conversation loop
+        print("\n🚀 Socratic Counselor is ready!")
+        print("Type 'help' for commands, 'summary' for project overview, or 'exit' to quit.")
+        print("=" * 50)
 
-            while True:
-                try:
-                    user_message = input("\n💬 You: ").strip()
+        while True:
+            try:
+                user_message = input("\n💬 You: ").strip()
 
-                    if not user_message:
-                        continue
+                if not user_message:
+                    continue
 
-                    if user_message.lower() in ['exit', 'quit', 'bye']:
-                        print("👋 Goodbye! Your progress has been saved.")
-                        break
-
-                    elif user_message.lower() == 'help':
-                        print("""
-                        Available commands:
-                        • 'summary' - View project summary
-                        • 'add collaborator <username>' - Add a collaborator
-                        • 'list projects' - Switch to project selection
-                        • 'help' - Show this help
-                        • 'exit' - Quit the application
-                    
-                        Just type your questions or thoughts to get Socratic guidance!
-                                            """)
-                        continue
-
-                    elif user_message.lower() == 'list projects':
-                        # Go back to project selection
-                        print("\nSwitching to project selection...")
-                        break
-
-                    # Process the message
-                    response = socratic.process_message(user_message)
-                    print(f"\n🤖 Socratic: {response}")
-
-                except KeyboardInterrupt:
-                    print("\n\n👋 Session interrupted. Your progress has been saved.")
+                if user_message.lower() in ['exit', 'quit', 'bye']:
+                    print("👋 Goodbye! Your progress has been saved.")
                     break
 
-                except Exception as e:
-                    print(f"\n❌ Error: {e}")
-                    print("Please try again or contact support if the issue persists.")
+                elif user_message.lower() == 'help':
+                    print("""
+Available commands:
+• 'summary' - View project summary
+• 'add collaborator <username>' - Add a collaborator
+• 'list projects' - Switch to project selection
+• 'help' - Show this help
+• 'exit' - Quit the application
 
+Just type your questions or thoughts to get Socratic guidance!
+                    """)
+                    continue
+
+                elif user_message.lower() == 'list projects':
+                    # Go back to project selection
+                    print("\nSwitching to project selection...")
+                    break
+
+                # Process the message
+                response = socratic.process_message(user_message)
+                print(f"\n🤖 Socratic: {response}")
+
+            except KeyboardInterrupt:
+                print("\n\n👋 Session interrupted. Your progress has been saved.")
+                break
+
+            except Exception as e:
+                print(f"\n❌ Error: {e}")
+                print("Please try again or contact support if the issue persists.")
+
+    except Exception as e:
+        print(f"❌ Fatal error: {e}")
     finally:
         print("..τω Ασκληπιώ οφείλομεν αλετρυόνα, απόδοτε και μη αμελήσετε..")
         print("\n📊 Session ended. All progress has been automatically saved.")
