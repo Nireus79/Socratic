@@ -862,4 +862,601 @@ class CodeGenerationAgent(BaseAgent):
         prompt = f"""
         Generate API routes for this project:
 
-        Project: {spec
+        Project: {spec.project_name}
+        API Endpoints: {spec.api_endpoints}
+        Tech Stack: {', '.join(spec.technical_architecture.get('stack', []))}
+
+        Generate RESTful API routes with:
+        - Proper HTTP methods
+        - Input validation
+        - Error handling
+        - Documentation
+        - Security considerations
+
+        Generate complete, functional API routes.
+        """
+
+        return self._generate_response(prompt, max_tokens=2000)
+
+    async def _generate_config(self, spec: ProjectSpecification) -> str:
+        """Generate configuration file"""
+        prompt = f"""
+        Generate configuration file for this project:
+
+        Project: {spec.project_name}
+        Deployment: {spec.deployment_config.get('target', '')}
+        Tech Stack: {', '.join(spec.technical_architecture.get('stack', []))}
+
+        Include:
+        - Environment variables
+        - Database configuration
+        - Security settings
+        - Logging configuration
+        - Deployment settings
+
+        Generate complete configuration code.
+        """
+
+        return self._generate_response(prompt, max_tokens=1500)
+
+    async def _generate_requirements(self, spec: ProjectSpecification) -> str:
+        """Generate requirements.txt file"""
+        prompt = f"""
+        Generate requirements.txt for this project:
+
+        Tech Stack: {', '.join(spec.technical_architecture.get('stack', []))}
+        Database Requirements: {spec.database_schema.get('requirements', [])}
+
+        Include all necessary Python packages with appropriate versions.
+        Consider security and compatibility.
+
+        Generate complete requirements.txt content.
+        """
+
+        return self._generate_response(prompt, max_tokens=800)
+
+    async def _generate_readme(self, spec: ProjectSpecification) -> str:
+        """Generate README.md file"""
+        prompt = f"""
+        Generate comprehensive README.md for this project:
+
+        Project: {spec.project_name}
+        Description: {spec.description}
+        Tech Stack: {', '.join(spec.technical_architecture.get('stack', []))}
+        Deployment: {spec.deployment_config.get('target', '')}
+
+        Include:
+        - Project description
+        - Installation instructions
+        - Usage examples
+        - API documentation
+        - Contributing guidelines
+        - License information
+
+        Generate complete, professional README.md.
+        """
+
+        return self._generate_response(prompt, max_tokens=2000)
+
+
+class ValidationAgent(BaseAgent):
+    """Agent that validates and reviews generated code"""
+
+    def __init__(self, client: anthropic.Anthropic):
+        super().__init__("validation_agent", client)
+        self.expertise_areas = ["code_review", "testing", "quality_assurance"]
+
+    async def validate_code(self, generated_files: Dict[str, str], specification: ProjectSpecification) -> Dict[str, Any]:
+        """Validate generated code against specification"""
+        validation_results = {
+            "overall_score": 0.0,
+            "file_scores": {},
+            "issues": [],
+            "recommendations": [],
+            "test_suggestions": []
+        }
+
+        total_score = 0
+        file_count = 0
+
+        for filename, content in generated_files.items():
+            file_validation = await self._validate_file(filename, content, specification)
+            validation_results["file_scores"][filename] = file_validation["score"]
+            validation_results["issues"].extend(file_validation["issues"])
+            validation_results["recommendations"].extend(file_validation["recommendations"])
+
+            total_score += file_validation["score"]
+            file_count += 1
+
+        validation_results["overall_score"] = total_score / file_count if file_count > 0 else 0
+
+        # Generate test suggestions
+        test_suggestions = await self._generate_test_suggestions(specification)
+        validation_results["test_suggestions"] = test_suggestions
+
+        return validation_results
+
+    async def _validate_file(self, filename: str, content: str, specification: ProjectSpecification) -> Dict[str, Any]:
+        """Validate individual file"""
+        prompt = f"""
+        Review this generated code file:
+
+        Filename: {filename}
+        Project: {specification.project_name}
+        Content: {content[:2000]}...
+
+        Evaluate:
+        1. Code quality and best practices
+        2. Security considerations
+        3. Performance implications
+        4. Maintainability
+        5. Alignment with specification
+
+        Return JSON with:
+        {{
+            "score": 0.85,
+            "issues": ["issue1", "issue2"],
+            "recommendations": ["rec1", "rec2"]
+        }}
+        """
+
+        response_text = self._generate_response(prompt, max_tokens=1000)
+
+        try:
+            import re
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group())
+        except:
+            pass
+
+        return {
+            "score": 0.7,
+            "issues": ["Could not parse validation results"],
+            "recommendations": ["Manual review recommended"]
+        }
+
+    async def _generate_test_suggestions(self, specification: ProjectSpecification) -> List[str]:
+        """Generate test suggestions"""
+        prompt = f"""
+        Generate test suggestions for this project:
+
+        Project: {specification.project_name}
+        Description: {specification.description}
+        Tech Stack: {', '.join(specification.technical_architecture.get('stack', []))}
+
+        Suggest:
+        1. Unit tests
+        2. Integration tests
+        3. End-to-end tests
+        4. Performance tests
+        5. Security tests
+
+        Return as list of specific test scenarios.
+        """
+
+        response_text = self._generate_response(prompt, max_tokens=1000)
+
+        # Extract test suggestions from response
+        lines = response_text.split('\n')
+        suggestions = [line.strip() for line in lines if line.strip() and not line.startswith('#')]
+
+        return suggestions[:10]  # Limit to 10 suggestions
+
+
+class SocraticOrchestrator:
+    """Main orchestrator that manages all agents and project flow"""
+
+    def __init__(self, api_key: str, db_path: str = "socratic_rag.db"):
+        self.client = anthropic.Anthropic(api_key=api_key)
+        self.db_manager = DatabaseManager(db_path)
+
+        # Initialize agents
+        self.agents = {
+            "requirements": RequirementsAgent(self.client),
+            "technical": TechnicalAgent(self.client),
+            "ux": UXAgent(self.client),
+            "infrastructure": InfrastructureAgent(self.client),
+            "planning": PlanningAgent(self.client),
+            "code_generation": CodeGenerationAgent(self.client),
+            "validation": ValidationAgent(self.client)
+        }
+
+        self.current_user = None
+        self.current_project = None
+
+    async def authenticate_user(self, username: str, email: str = None) -> bool:
+        """Authenticate or create user"""
+        user = self.db_manager.get_user(username)
+
+        if user:
+            self.current_user = user
+            self.db_manager.update_user_login(user.user_id)
+            return True
+        elif email:
+            try:
+                self.current_user = self.db_manager.create_user(username, email)
+                return True
+            except ValueError:
+                return False
+
+        return False
+
+    async def create_project(self, name: str, description: str = "") -> str:
+        """Create new project"""
+        if not self.current_user:
+            raise ValueError("User must be authenticated")
+
+        project = self.db_manager.create_project(name, description, self.current_user.user_id)
+        self.current_project = project
+        return project.project_id
+
+    async def load_project(self, project_id: str) -> bool:
+        """Load existing project"""
+        if not self.current_user:
+            raise ValueError("User must be authenticated")
+
+        project = self.db_manager.get_project(project_id)
+
+        if project and (project.owner_id == self.current_user.user_id or
+                       self.current_user.user_id in project.collaborators):
+            self.current_project = project
+            return True
+
+        return False
+
+    async def get_user_projects(self) -> List[Dict[str, Any]]:
+        """Get all projects for current user"""
+        if not self.current_user:
+            return []
+
+        projects = self.db_manager.get_user_projects(self.current_user.user_id)
+        return [
+            {
+                "project_id": p.project_id,
+                "name": p.name,
+                "description": p.description,
+                "current_phase": p.current_phase,
+                "updated_at": p.updated_at,
+                "is_owner": p.owner_id == self.current_user.user_id
+            }
+            for p in projects
+        ]
+
+    async def process_user_input(self, user_input: str) -> str:
+        """Process user input and return response"""
+        if not self.current_user or not self.current_project:
+            return "Please authenticate and select a project first."
+
+        # Determine current phase and relevant agents
+        current_phase = ProjectPhase(self.current_project.current_phase)
+
+        if current_phase == ProjectPhase.DISCOVERY:
+            return await self._handle_discovery_phase(user_input)
+        elif current_phase == ProjectPhase.PLANNING:
+            return await self._handle_planning_phase(user_input)
+        elif current_phase == ProjectPhase.GENERATION:
+            return await self._handle_generation_phase(user_input)
+        elif current_phase == ProjectPhase.VALIDATION:
+            return await self._handle_validation_phase(user_input)
+        else:
+            return "Project is complete. You can start a new project or review the generated code."
+
+    async def _handle_discovery_phase(self, user_input: str) -> str:
+        """Handle discovery phase with multiple agents"""
+        responses = []
+        all_questions = []
+        context_updates = {}
+
+        # Get responses from all relevant agents
+        for agent_name in ["requirements", "technical", "ux", "infrastructure"]:
+            agent = self.agents[agent_name]
+            response = await agent.process_input(user_input, self.current_project.context)
+            responses.append(f"**{agent_name.title()} Agent**: {response.content}")
+            all_questions.extend(response.next_questions)
+
+            # Update context
+            for key, value in response.context_updates.items():
+                if isinstance(value, list):
+                    current_list = getattr(self.current_project.context, key, [])
+                    updated_list = current_list + [item for item in value if item not in current_list]
+                    setattr(self.current_project.context, key, updated_list)
+                else:
+                    setattr(self.current_project.context, key, value)
+
+        # Check if ready to move to planning
+        completeness_score = self._calculate_completeness_score(self.current_project.context)
+
+        if completeness_score > 0.8:
+            self.current_project.current_phase = ProjectPhase.PLANNING.value
+            responses.append("\n**🎯 Ready for Planning Phase!**")
+            responses.append("The requirements are sufficiently detailed. Use 'plan' to create the project specification.")
+
+        # Update project in database
+        self.db_manager.update_project(self.current_project)
+
+        # Save conversation
+        response_text = "\n\n".join(responses)
+        if all_questions:
+            response_text += "\n\n**Follow-up Questions:**\n" + "\n".join(f"• {q}" for q in all_questions[:3])
+
+        self.db_manager.save_conversation(
+            self.current_project.project_id,
+            self.current_user.user_id,
+            user_input,
+            response_text
+        )
+
+        return response_text
+
+    async def _handle_planning_phase(self, user_input: str) -> str:
+        """Handle planning phase"""
+        if user_input.lower() == "plan":
+            planning_agent = self.agents["planning"]
+            specification = await planning_agent.create_project_specification(self.current_project.context)
+
+            # Store specification in project context (simplified)
+            self.current_project.context.confidence_scores["specification"] = 0.9
+            self.current_project.current_phase = ProjectPhase.GENERATION.value
+            self.db_manager.update_project(self.current_project)
+
+            response = f"""
+**📋 Project Specification Created**
+
+**Project**: {specification.project_name}
+**Description**: {specification.description}
+
+**Technical Architecture**:
+- Stack: {', '.join(specification.technical_architecture.get('stack', []))}
+- Pattern: {specification.technical_architecture.get('pattern', 'Not specified')}
+
+**Next Steps**: Use 'generate' to create the codebase.
+            """
+
+            self.db_manager.save_conversation(
+                self.current_project.project_id,
+                self.current_user.user_id,
+                user_input,
+                response
+            )
+
+            return response
+        else:
+            return "In planning phase. Use 'plan' to create the project specification."
+
+    async def _handle_generation_phase(self, user_input: str) -> str:
+        """Handle code generation phase"""
+        if user_input.lower() == "generate":
+            # Create specification from context
+            planning_agent = self.agents["planning"]
+            specification = await planning_agent.create_project_specification(self.current_project.context)
+
+            # Generate code
+            code_generation_agent = self.agents["code_generation"]
+            generated_files = await code_generation_agent.generate_code(specification)
+
+            # Save generated code
+            self.db_manager.save_generated_code(self.current_project.project_id, generated_files)
+
+            # Move to validation phase
+            self.current_project.current_phase = ProjectPhase.VALIDATION.value
+            self.db_manager.update_project(self.current_project)
+
+            response = f"""
+**🚀 Code Generated Successfully!**
+
+Generated {len(generated_files)} files:
+{chr(10).join(f"• {filename}" for filename in generated_files.keys())}
+
+**Next Steps**: Use 'validate' to review the generated code.
+            """
+
+            self.db_manager.save_conversation(
+                self.current_project.project_id,
+                self.current_user.user_id,
+                user_input,
+                response
+            )
+
+            return response
+        else:
+            return "In generation phase. Use 'generate' to create the codebase."
+
+    async def _handle_validation_phase(self, user_input: str) -> str:
+        """Handle validation phase"""
+        if user_input.lower() == "validate":
+            # Get generated code
+            generated_files = self.db_manager.get_generated_code(self.current_project.project_id)
+
+            if not generated_files:
+                return "No generated code found. Please generate code first."
+
+            # Create specification for validation
+            planning_agent = self.agents["planning"]
+            specification = await planning_agent.create_project_specification(self.current_project.context)
+
+            # Validate code
+            validation_agent = self.agents["validation"]
+            validation_results = await validation_agent.validate_code(generated_files, specification)
+
+            # Move to complete phase
+            self.current_project.current_phase = ProjectPhase.COMPLETE.value
+            self.db_manager.update_project(self.current_project)
+
+            response = f"""
+**✅ Code Validation Complete**
+
+**Overall Score**: {validation_results['overall_score']:.2f}/1.0
+
+**File Scores**:
+{chr(10).join(f"• {filename}: {score:.2f}" for filename, score in validation_results['file_scores'].items())}
+
+**Issues Found**: {len(validation_results['issues'])}
+{chr(10).join(f"• {issue}" for issue in validation_results['issues'][:3])}
+
+**Recommendations**:
+{chr(10).join(f"• {rec}" for rec in validation_results['recommendations'][:3])}
+
+**Project Status**: COMPLETE ✅
+            """
+
+            self.db_manager.save_conversation(
+                self.current_project.project_id,
+                self.current_user.user_id,
+                user_input,
+                response
+            )
+
+            return response
+        else:
+            return "In validation phase. Use 'validate' to review the generated code."
+
+    def _calculate_completeness_score(self, context: ProjectContext) -> float:
+        """Calculate how complete the project context is"""
+        scores = []
+
+        # Requirements completeness
+        req_score = min(len(context.functional_requirements) / 5, 1.0)
+        scores.append(req_score)
+
+        # Technical completeness
+        tech_score = min(len(context.technical_stack) / 3, 1.0)
+        if context.architecture_pattern:
+            tech_score += 0.2
+        scores.append(min(tech_score, 1.0))
+
+        # UX completeness
+        ux_score = min(len(context.ui_components) / 3, 1.0)
+        scores.append(ux_score)
+
+        # Infrastructure completeness
+        infra_score = 1.0 if context.deployment_target else 0.5
+        scores.append(infra_score)
+
+        return sum(scores) / len(scores)
+
+    async def get_project_status(self) -> Dict[str, Any]:
+        """Get current project status"""
+        if not self.current_project:
+            return {"error": "No project selected"}
+
+        return {
+            "project_id": self.current_project.project_id,
+            "name": self.current_project.name,
+            "phase": self.current_project.current_phase,
+            "completeness_score": self._calculate_completeness_score(self.current_project.context),
+            "context_summary": {
+                "functional_requirements": len(self.current_project.context.functional_requirements),
+                "technical_stack": len(self.current_project.context.technical_stack),
+                "ui_components": len(self.current_project.context.ui_components),
+                "deployment_target": bool(self.current_project.context.deployment_target)
+            }
+        }
+
+    async def get_generated_code(self) -> Dict[str, str]:
+        """Get generated code files"""
+        if not self.current_project:
+            return {}
+
+        return self.db_manager.get_generated_code(self.current_project.project_id)
+
+    async def get_conversation_history(self) -> List[Dict]:
+        """Get conversation history for current project"""
+        if not self.current_project:
+            return []
+
+        return self.db_manager.get_conversation_history(self.current_project.project_id)
+
+
+# Example usage and CLI interface
+async def main():
+    """Example usage of the Socratic RAG system"""
+
+    # Initialize system
+    orchestrator = SocraticOrchestrator(
+        api_key=os.getenv("ANTHROPIC_API_KEY"),
+        db_path="socratic_rag.db"
+    )
+
+    print("🧠 Enhanced Socratic RAG System")
+    print("=" * 50)
+
+    # Authentication
+    username = input("Enter username: ")
+    email = input("Enter email (for new users): ")
+
+    if await orchestrator.authenticate_user(username, email):
+        print(f"✅ Authenticated as {username}")
+    else:
+        print("❌ Authentication failed")
+        return
+
+    # Project selection
+    projects = await orchestrator.get_user_projects()
+
+    if projects:
+        print("\n📁 Your Projects:")
+        for i, project in enumerate(projects):
+            print(f"{i+1}. {project['name']} ({project['current_phase']})")
+
+        choice = input("\nSelect project (number) or 'new' for new project: ")
+
+        if choice.lower() == 'new':
+            name = input("Project name: ")
+            description = input("Project description: ")
+            project_id = await orchestrator.create_project(name, description)
+            print(f"✅ Created project: {project_id}")
+        else:
+            try:
+                project_idx = int(choice) - 1
+                if 0 <= project_idx < len(projects):
+                    project_id = projects[project_idx]['project_id']
+                    if await orchestrator.load_project(project_id):
+                        print(f"✅ Loaded project: {projects[project_idx]['name']}")
+                    else:
+                        print("❌ Failed to load project")
+                        return
+                else:
+                    print("❌ Invalid project selection")
+                    return
+            except ValueError:
+                print("❌ Invalid input")
+                return
+    else:
+        name = input("Project name: ")
+        description = input("Project description: ")
+        project_id = await orchestrator.create_project(name, description)
+        print(f"✅ Created project: {project_id}")
+
+    # Main interaction loop
+    print("\n🚀 Starting Socratic dialogue...")
+    print("Commands: 'status', 'history', 'code', 'quit'")
+    print("=" * 50)
+
+    while True:
+        user_input = input("\n💬 You: ")
+
+        if user_input.lower() == 'quit':
+            break
+        elif user_input.lower() == 'status':
+            status = await orchestrator.get_project_status()
+            print(f"\n📊 Project Status: {json.dumps(status, indent=2)}")
+        elif user_input.lower() == 'history':
+            history = await orchestrator.get_conversation_history()
+            print(f"\n📜 Conversation History: {len(history)} messages")
+            for msg in history[-3:]:  # Show last 3 messages
+                print(f"[{msg['timestamp']}] {msg['username']}: {msg['user_input'][:50]}...")
+        elif user_input.lower() == 'code':
+            code = await orchestrator.get_generated_code()
+            if code:
+                print(f"\n💻 Generated Code: {len(code)} files")
+                for filename in code.keys():
+                    print(f"• {filename}")
+            else:
+                print("No code generated yet")
+        else:
+            response = await orchestrator.process_user_input(user_input)
+            print(f"\n🤖 System: {response}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
