@@ -96,38 +96,46 @@ class KnowledgeEntry:
 
 
 class DatabaseManager:
-    """Manages SQLite database operations"""
+    """Manages SQLite database operations with proper datetime handling"""
 
-    def __init__(self, db_name: str = DATABASE_NAME):
+    def __init__(self, db_name: str = "socratic_projects.db"):
         self.db_name = db_name
         self.init_database()
+
+    def _datetime_to_string(self, dt: datetime) -> str:
+        """Convert datetime to ISO string"""
+        return dt.isoformat()
+
+    def _string_to_datetime(self, dt_str: str) -> datetime:
+        """Convert ISO string to datetime"""
+        return datetime.fromisoformat(dt_str)
 
     def init_database(self):
         """Initialize database with required tables"""
         conn = sqlite3.connect(self.db_name)
         cursor = conn.cursor()
 
-        # Users table
+        # Users table - using TEXT for timestamps
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 user_id TEXT PRIMARY KEY,
                 username TEXT UNIQUE NOT NULL,
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TEXT NOT NULL,
+                last_active TEXT NOT NULL
             )
         ''')
 
-        # Projects table
+        # Projects table - using TEXT for timestamps
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS projects (
                 project_id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 description TEXT,
                 owner_id TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
                 phase TEXT DEFAULT 'discovery',
                 status TEXT DEFAULT 'active',
                 FOREIGN KEY (owner_id) REFERENCES users (user_id)
@@ -140,7 +148,7 @@ class DatabaseManager:
                 project_id TEXT,
                 user_id TEXT,
                 role TEXT DEFAULT 'collaborator',
-                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                joined_at TEXT NOT NULL,
                 PRIMARY KEY (project_id, user_id),
                 FOREIGN KEY (project_id) REFERENCES projects (project_id),
                 FOREIGN KEY (user_id) REFERENCES users (user_id)
@@ -152,12 +160,12 @@ class DatabaseManager:
             CREATE TABLE IF NOT EXISTS project_contexts (
                 project_id TEXT PRIMARY KEY,
                 context_data TEXT NOT NULL,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL,
                 FOREIGN KEY (project_id) REFERENCES projects (project_id)
             )
         ''')
 
-        # Conversations table
+        # Conversations table - using TEXT for timestamps
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS conversations (
                 entry_id TEXT PRIMARY KEY,
@@ -165,7 +173,7 @@ class DatabaseManager:
                 user_id TEXT NOT NULL,
                 message TEXT NOT NULL,
                 response TEXT NOT NULL,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                timestamp TEXT NOT NULL,
                 phase TEXT NOT NULL,
                 context_updates TEXT,
                 FOREIGN KEY (project_id) REFERENCES projects (project_id),
@@ -181,17 +189,17 @@ class DatabaseManager:
                 category TEXT NOT NULL,
                 embedding BLOB NOT NULL,
                 tags TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TEXT NOT NULL
             )
         ''')
 
-        # User sessions table
+        # User sessions table - using TEXT for timestamps
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS user_sessions (
                 session_id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                expires_at TIMESTAMP NOT NULL,
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES users (user_id)
             )
         ''')
@@ -203,15 +211,16 @@ class DatabaseManager:
         """Create a new user"""
         user_id = str(uuid.uuid4())
         password_hash = hashlib.sha256(password.encode()).hexdigest()
+        now = self._datetime_to_string(datetime.now())
 
         conn = sqlite3.connect(self.db_name)
         cursor = conn.cursor()
 
         try:
             cursor.execute('''
-                INSERT INTO users (user_id, username, email, password_hash)
-                VALUES (?, ?, ?, ?)
-            ''', (user_id, username, email, password_hash))
+                INSERT INTO users (user_id, username, email, password_hash, created_at, last_active)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (user_id, username, email, password_hash, now, now))
             conn.commit()
             return user_id
         except sqlite3.IntegrityError:
@@ -232,22 +241,32 @@ class DatabaseManager:
         ''', (username, password_hash))
 
         result = cursor.fetchone()
-        conn.close()
 
+        # Update last_active
+        if result:
+            user_id = result[0]
+            now = self._datetime_to_string(datetime.now())
+            cursor.execute('''
+                UPDATE users SET last_active = ? WHERE user_id = ?
+            ''', (now, user_id))
+            conn.commit()
+
+        conn.close()
         return result[0] if result else None
 
-    def create_session(self, user_id: str) -> str:
+    def create_session(self, user_id: str, session_timeout: int = 24 * 60 * 60) -> str:
         """Create a new session for user"""
         session_id = str(uuid.uuid4())
-        expires_at = datetime.now() + timedelta(seconds=SESSION_TIMEOUT)
+        now = datetime.now()
+        expires_at = now + timedelta(seconds=session_timeout)
 
         conn = sqlite3.connect(self.db_name)
         cursor = conn.cursor()
 
         cursor.execute('''
-            INSERT INTO user_sessions (session_id, user_id, expires_at)
-            VALUES (?, ?, ?)
-        ''', (session_id, user_id, expires_at))
+            INSERT INTO user_sessions (session_id, user_id, created_at, expires_at)
+            VALUES (?, ?, ?, ?)
+        ''', (session_id, user_id, self._datetime_to_string(now), self._datetime_to_string(expires_at)))
 
         conn.commit()
         conn.close()
@@ -260,31 +279,51 @@ class DatabaseManager:
         cursor = conn.cursor()
 
         cursor.execute('''
-            SELECT user_id FROM user_sessions 
-            WHERE session_id = ? AND expires_at > CURRENT_TIMESTAMP
+            SELECT user_id, expires_at FROM user_sessions 
+            WHERE session_id = ?
         ''', (session_id,))
 
         result = cursor.fetchone()
+
+        if result:
+            user_id, expires_at_str = result
+            expires_at = self._string_to_datetime(expires_at_str)
+
+            # Check if session is still valid
+            if datetime.now() < expires_at:
+                conn.close()
+                return user_id
+            else:
+                # Session expired, delete it
+                cursor.execute('DELETE FROM user_sessions WHERE session_id = ?', (session_id,))
+                conn.commit()
+
         conn.close()
+        return None
 
-        return result[0] if result else None
-
-    def save_project(self, project: Project) -> None:
+    def save_project(self, project_id: str, name: str, description: str, owner_id: str,
+                     phase: str = "discovery", status: str = "active",
+                     created_at: Optional[datetime] = None, updated_at: Optional[datetime] = None) -> None:
         """Save or update a project"""
         conn = sqlite3.connect(self.db_name)
         cursor = conn.cursor()
+
+        now = datetime.now()
+        created_at = created_at or now
+        updated_at = updated_at or now
 
         cursor.execute('''
             INSERT OR REPLACE INTO projects 
             (project_id, name, description, owner_id, created_at, updated_at, phase, status)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (project.project_id, project.name, project.description, project.owner_id,
-              project.created_at, project.updated_at, project.phase, project.status))
+        ''', (project_id, name, description, owner_id,
+              self._datetime_to_string(created_at), self._datetime_to_string(updated_at),
+              phase, status))
 
         conn.commit()
         conn.close()
 
-    def get_project(self, project_id: str) -> Optional[Project]:
+    def get_project(self, project_id: str) -> Optional[Dict[str, Any]]:
         """Get project by ID"""
         conn = sqlite3.connect(self.db_name)
         cursor = conn.cursor()
@@ -298,19 +337,19 @@ class DatabaseManager:
         conn.close()
 
         if result:
-            return Project(
-                project_id=result[0],
-                name=result[1],
-                description=result[2],
-                owner_id=result[3],
-                created_at=datetime.fromisoformat(result[4]),
-                updated_at=datetime.fromisoformat(result[5]),
-                phase=result[6],
-                status=result[7]
-            )
+            return {
+                'project_id': result[0],
+                'name': result[1],
+                'description': result[2],
+                'owner_id': result[3],
+                'created_at': self._string_to_datetime(result[4]),
+                'updated_at': self._string_to_datetime(result[5]),
+                'phase': result[6],
+                'status': result[7]
+            }
         return None
 
-    def get_user_projects(self, user_id: str) -> List[Project]:
+    def get_user_projects(self, user_id: str) -> List[Dict[str, Any]]:
         """Get all projects for a user (owned or collaborated)"""
         conn = sqlite3.connect(self.db_name)
         cursor = conn.cursor()
@@ -329,35 +368,36 @@ class DatabaseManager:
 
         projects = []
         for result in results:
-            projects.append(Project(
-                project_id=result[0],
-                name=result[1],
-                description=result[2],
-                owner_id=result[3],
-                created_at=datetime.fromisoformat(result[4]),
-                updated_at=datetime.fromisoformat(result[5]),
-                phase=result[6],
-                status=result[7]
-            ))
+            projects.append({
+                'project_id': result[0],
+                'name': result[1],
+                'description': result[2],
+                'owner_id': result[3],
+                'created_at': self._string_to_datetime(result[4]),
+                'updated_at': self._string_to_datetime(result[5]),
+                'phase': result[6],
+                'status': result[7]
+            })
 
         return projects
 
-    def save_project_context(self, project_id: str, context: ProjectContext) -> None:
+    def save_project_context(self, project_id: str, context_data: Dict[str, Any]) -> None:
         """Save project context"""
         conn = sqlite3.connect(self.db_name)
         cursor = conn.cursor()
 
-        context_data = json.dumps(asdict(context))
+        context_json = json.dumps(context_data)
+        now = self._datetime_to_string(datetime.now())
 
         cursor.execute('''
             INSERT OR REPLACE INTO project_contexts (project_id, context_data, updated_at)
-            VALUES (?, ?, CURRENT_TIMESTAMP)
-        ''', (project_id, context_data))
+            VALUES (?, ?, ?)
+        ''', (project_id, context_json, now))
 
         conn.commit()
         conn.close()
 
-    def get_project_context(self, project_id: str) -> Optional[ProjectContext]:
+    def get_project_context(self, project_id: str) -> Optional[Dict[str, Any]]:
         """Get project context"""
         conn = sqlite3.connect(self.db_name)
         cursor = conn.cursor()
@@ -370,28 +410,32 @@ class DatabaseManager:
         conn.close()
 
         if result:
-            context_dict = json.loads(result[0])
-            return ProjectContext(**context_dict)
+            return json.loads(result[0])
         return None
 
-    def save_conversation(self, entry: ConversationEntry) -> None:
+    def save_conversation(self, entry_id: str, project_id: str, user_id: str,
+                          message: str, response: str, phase: str,
+                          context_updates: Optional[Dict[str, Any]] = None,
+                          timestamp: Optional[datetime] = None) -> None:
         """Save conversation entry"""
         conn = sqlite3.connect(self.db_name)
         cursor = conn.cursor()
 
-        context_updates = json.dumps(entry.context_updates)
+        timestamp = timestamp or datetime.now()
+        context_updates = context_updates or {}
+        context_updates_json = json.dumps(context_updates)
 
         cursor.execute('''
             INSERT INTO conversations 
             (entry_id, project_id, user_id, message, response, timestamp, phase, context_updates)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (entry.entry_id, entry.project_id, entry.user_id, entry.message,
-              entry.response, entry.timestamp, entry.phase, context_updates))
+        ''', (entry_id, project_id, user_id, message, response,
+              self._datetime_to_string(timestamp), phase, context_updates_json))
 
         conn.commit()
         conn.close()
 
-    def get_conversation_history(self, project_id: str, limit: int = 50) -> List[ConversationEntry]:
+    def get_conversation_history(self, project_id: str, limit: int = 50) -> List[Dict[str, Any]]:
         """Get conversation history for a project"""
         conn = sqlite3.connect(self.db_name)
         cursor = conn.cursor()
@@ -409,16 +453,16 @@ class DatabaseManager:
 
         conversations = []
         for result in results:
-            conversations.append(ConversationEntry(
-                entry_id=result[0],
-                project_id=result[1],
-                user_id=result[2],
-                message=result[3],
-                response=result[4],
-                timestamp=datetime.fromisoformat(result[5]),
-                phase=result[6],
-                context_updates=json.loads(result[7]) if result[7] else {}
-            ))
+            conversations.append({
+                'entry_id': result[0],
+                'project_id': result[1],
+                'user_id': result[2],
+                'message': result[3],
+                'response': result[4],
+                'timestamp': self._string_to_datetime(result[5]),
+                'phase': result[6],
+                'context_updates': json.loads(result[7]) if result[7] else {}
+            })
 
         return conversations
 
@@ -427,13 +471,81 @@ class DatabaseManager:
         conn = sqlite3.connect(self.db_name)
         cursor = conn.cursor()
 
+        now = self._datetime_to_string(datetime.now())
+
         cursor.execute('''
-            INSERT OR REPLACE INTO project_collaborators (project_id, user_id, role)
-            VALUES (?, ?, ?)
-        ''', (project_id, user_id, role))
+            INSERT OR REPLACE INTO project_collaborators (project_id, user_id, role, joined_at)
+            VALUES (?, ?, ?, ?)
+        ''', (project_id, user_id, role, now))
 
         conn.commit()
         conn.close()
+
+    def get_user_by_username(self, username: str) -> Optional[str]:
+        """Get user_id by username"""
+        conn = sqlite3.connect(self.db_name)
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT user_id FROM users WHERE username = ?', (username,))
+        result = cursor.fetchone()
+        conn.close()
+
+        return result[0] if result else None
+
+    def cleanup_expired_sessions(self) -> None:
+        """Clean up expired sessions"""
+        conn = sqlite3.connect(self.db_name)
+        cursor = conn.cursor()
+
+        now = self._datetime_to_string(datetime.now())
+        cursor.execute('DELETE FROM user_sessions WHERE expires_at < ?', (now,))
+
+        conn.commit()
+        conn.close()
+
+    def save_knowledge_entry(self, entry_id: str, content: str, category: str,
+                             embedding: bytes, tags: List[str]) -> None:
+        """Save knowledge base entry"""
+        conn = sqlite3.connect(self.db_name)
+        cursor = conn.cursor()
+
+        now = self._datetime_to_string(datetime.now())
+        tags_json = json.dumps(tags)
+
+        cursor.execute('''
+            INSERT OR REPLACE INTO knowledge_base 
+            (entry_id, content, category, embedding, tags, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (entry_id, content, category, embedding, tags_json, now))
+
+        conn.commit()
+        conn.close()
+
+    def get_knowledge_entries(self) -> List[Dict[str, Any]]:
+        """Get all knowledge base entries"""
+        conn = sqlite3.connect(self.db_name)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT entry_id, content, category, embedding, tags, created_at
+            FROM knowledge_base
+        ''')
+
+        results = cursor.fetchall()
+        conn.close()
+
+        entries = []
+        for result in results:
+            entries.append({
+                'entry_id': result[0],
+                'content': result[1],
+                'category': result[2],
+                'embedding': result[3],  # Keep as bytes for now
+                'tags': json.loads(result[4]),
+                'created_at': self._string_to_datetime(result[5])
+            })
+
+        return entries
 
 
 class EnhancedSocraticRAG:
@@ -441,7 +553,7 @@ class EnhancedSocraticRAG:
 
     def __init__(self, api_key: str = None):
         self.db = DatabaseManager()
-        self.client = anthropic.Anthropic(api_key=api_key or os.getenv("CLAUDE_API_KEY"))
+        self.client = anthropic.Anthropic(api_key=api_key or os.getenv("API_KEY_CLAUDE"))
         self.embedding_model = SentenceTransformer(EMBEDDING_MODEL)
         self.current_user_id = None
         self.current_project_id = None
@@ -631,7 +743,8 @@ class EnhancedSocraticRAG:
 
         # Build prompt
         prompt = f"""
-You are a Socratic counselor helping with software development projects. Use the Socratic method to guide the user through discovery rather than providing direct answers.
+You are a Socratic counselor helping with software development projects. 
+Use the Socratic method to guide the user through discovery rather than providing direct answers.
 
 Current Project Context:
 - Phase: {context.phase}
@@ -648,7 +761,8 @@ Relevant Knowledge:
 
 User's current message: {message}
 
-Respond with a thoughtful Socratic question that helps the user think deeper about their project. Focus on the current phase ({context.phase}) and guide them toward the next insight or decision they need to make.
+Respond with a thoughtful Socratic question that helps the user think deeper about their project. Focus on the 
+current phase ({context.phase}) and guide them toward the next insight or decision they need to make.
 """
 
         try:
@@ -659,7 +773,8 @@ Respond with a thoughtful Socratic question that helps the user think deeper abo
             )
             return response.content[0].text
         except Exception as e:
-            return f"I'm having trouble processing your message right now. Can you tell me more about what you're trying to achieve with this project?"
+            return (f"I'm having trouble processing your message right now. Can you tell me more about what you're "
+                    f"trying to achieve with this project?")
 
     def update_context(self, message: str, response: str) -> None:
         """Update project context based on conversation"""
@@ -742,7 +857,8 @@ Progress Markers:
 {chr(10).join(f"• {marker}" for marker in context.progress_markers) if context.progress_markers else "• None yet"}
 
 Contributors:
-{chr(10).join(f"• User {user_id}: {len(contributions)} contributions" for user_id, contributions in context.user_contributions.items())}
+{chr(10).join(f"• User {user_id}: {len(contributions)} contributions"
+              for user_id, contributions in context.user_contributions.items())}
 """
         return summary
 
@@ -775,13 +891,14 @@ Contributors:
 
 def main():
     """Main application loop"""
-    print("🤖 Enhanced Socratic Counselor v5.2")
+    print("Ουδέν οίδα, ούτε διδάσκω τι, αλλά διαπορώ μόνον.")
+    print("Enhanced Socratic Counselor v5.2")
     print("Multi-Project & Multi-User Support")
     print("=" * 50)
 
     # Initialize system
     try:
-        api_key = os.getenv("CLAUDE_API_KEY")
+        api_key = os.getenv("API_KEY_CLAUDE")
         if not api_key:
             api_key = input("Enter your Claude API key: ")
 
@@ -837,4 +954,86 @@ def main():
                 try:
                     choice_num = int(choice)
                     if 1 <= choice_num <= len(projects):
-                        selected_project = projects
+                        selected_project = projects[choice_num - 1]
+                        socratic.select_project(selected_project.project_id)
+                        print(f"✅ Selected project: {selected_project.name}")
+                        break
+
+                    elif choice_num == len(projects) + 1:
+                        # Create new project
+                        name = input("Project name: ")
+                        description = input("Project description (optional): ")
+                        project_id = socratic.create_project(name, description, )
+                        socratic.select_project(project_id)
+                        print(f"✅ Created and selected project: {name}")
+                        break
+
+                    elif choice_num == len(projects) + 2:
+                        return
+
+                except ValueError:
+                    print("❌ Invalid choice. Please enter a number.")
+
+            else:
+                # No projects, create first one
+                print("\nNo projects found. Let's create your first project!")
+                name = input("Project name: ")
+                description = input("Project description (optional): ")
+                project_id = socratic.create_project(name, description)
+                socratic.select_project(project_id)
+                print(f"✅ Created and selected project: {name}")
+                break
+
+            # Main conversation loop
+            print("\n🚀 Socratic Counselor is ready!")
+            print("Type 'help' for commands, 'summary' for project overview, or 'exit' to quit.")
+            print("=" * 50)
+
+            while True:
+                try:
+                    user_message = input("\n💬 You: ").strip()
+
+                    if not user_message:
+                        continue
+
+                    if user_message.lower() in ['exit', 'quit', 'bye']:
+                        print("👋 Goodbye! Your progress has been saved.")
+                        break
+
+                    elif user_message.lower() == 'help':
+                        print("""
+                        Available commands:
+                        • 'summary' - View project summary
+                        • 'add collaborator <username>' - Add a collaborator
+                        • 'list projects' - Switch to project selection
+                        • 'help' - Show this help
+                        • 'exit' - Quit the application
+                    
+                        Just type your questions or thoughts to get Socratic guidance!
+                                            """)
+                        continue
+
+                    elif user_message.lower() == 'list projects':
+                        # Go back to project selection
+                        print("\nSwitching to project selection...")
+                        break
+
+                    # Process the message
+                    response = socratic.process_message(user_message)
+                    print(f"\n🤖 Socratic: {response}")
+
+                except KeyboardInterrupt:
+                    print("\n\n👋 Session interrupted. Your progress has been saved.")
+                    break
+
+                except Exception as e:
+                    print(f"\n❌ Error: {e}")
+                    print("Please try again or contact support if the issue persists.")
+
+    finally:
+        print("..τω Ασκληπιώ οφείλομεν αλετρυόνα, απόδοτε και μη αμελήσετε..")
+        print("\n📊 Session ended. All progress has been automatically saved.")
+
+
+if __name__ == "__main__":
+    main()
