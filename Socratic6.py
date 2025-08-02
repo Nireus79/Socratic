@@ -703,7 +703,8 @@ class SocraticRAGSystem:
 
 def main():
     """Main function to run the Socratic RAG system"""
-    print("🤖 Advanced Socratic Counselor for Project Development")
+    print("Ουδέν οίδα, ούτε διδάσκω τι, αλλά διαπορώ μόνον.")
+    print("Advanced Socratic Counselor for Project Development")
     print("=" * 60)
     print("This system uses multiple AI agents to guide you through project development:")
     print("• Socrates: Asks probing questions")
@@ -722,7 +723,8 @@ def main():
 
     # Start with initial question
     if not rag_system.conversation_history:
-        initial_question = "What exactly do you want to achieve with this project? Think about the core problem you're trying to solve."
+        initial_question = ("What exactly do you want to achieve with this project? Think about the core problem "
+                            "you're trying to solve.")
         print(f"\nAssistant: {initial_question}")
     else:
         print("\nPrevious session loaded. Continuing conversation...")
@@ -766,6 +768,7 @@ def main():
             print("\n\nSession interrupted. Saving...")
             rag_system.save_session()
             print("Session saved. Goodbye! 👋")
+            print("..τω Ασκληπιώ οφείλομεν αλετρυόνα, απόδοτε και μη αμελήσετε..")
             break
         except Exception as e:
             logger.error(f"Unexpected error: {e}")

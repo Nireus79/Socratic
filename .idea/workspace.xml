@@ -4,7 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="Socratic 5.3 ContextAnalysisAgent under construction" />
+    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="Socratic 6">
+      <change afterPath="$PROJECT_DIR$/Socratic6.1.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -592,7 +595,23 @@
       <option name="project" value="LOCAL" />
       <updated>1754150842919</updated>
     </task>
-    <option name="localTasksCounter" value="47" />
+    <task id="LOCAL-00047" summary="Socratic 6">
+      <option name="closed" value="true" />
+      <created>1754159915400</created>
+      <option name="number" value="00047" />
+      <option name="presentableId" value="LOCAL-00047" />
+      <option name="project" value="LOCAL" />
+      <updated>1754159915400</updated>
+    </task>
+    <task id="LOCAL-00048" summary="Socratic 6">
+      <option name="closed" value="true" />
+      <created>1754160117510</created>
+      <option name="number" value="00048" />
+      <option name="presentableId" value="LOCAL-00048" />
+      <option name="project" value="LOCAL" />
+      <updated>1754160117510</updated>
+    </task>
+    <option name="localTasksCounter" value="49" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -610,6 +629,7 @@
     <MESSAGE value="Socratic 5.2" />
     <MESSAGE value="Socratic 5.2+ questions repeat" />
     <MESSAGE value="Socratic 5.3 ContextAnalysisAgent under construction" />
-    <option name="LAST_COMMIT_MESSAGE" value="Socratic 5.3 ContextAnalysisAgent under construction" />
+    <MESSAGE value="Socratic 6" />
+    <option name="LAST_COMMIT_MESSAGE" value="Socratic 6" />
   </component>
 </project>
