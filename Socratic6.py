@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+Does not generate code
 Advanced Socratic Agentic RAG System
 Combines version 5.2 functionality with full multi-agent implementation
 Compatible with free Claude version
