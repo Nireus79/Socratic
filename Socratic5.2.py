@@ -770,40 +770,167 @@ class EnhancedSocraticRAG:
 
         return analysis
 
+    def build_conversation_summary(self, project_id: str) -> str:
+        """Build a comprehensive summary of previous conversations"""
+        history = self.db.get_conversation_history(project_id, 50)  # Get more history
+
+        if not history:
+            return "No previous conversations."
+
+        # Group conversations by topic/phase
+        summary_parts = []
+
+        # Extract established facts
+        established_facts = {
+            'goals': set(),
+            'requirements': set(),
+            'tech_preferences': set(),
+            'constraints': set(),
+            'decisions_made': []
+        }
+
+        conversation_summary = []
+
+        for entry in reversed(history):  # Process chronologically
+            message = entry['message'].lower()
+            response = entry['response']
+
+            # Extract established information
+            if any(keyword in message for keyword in ['goal', 'want to', 'trying to']):
+                established_facts['goals'].add(entry['message'])
+
+            if any(keyword in message for keyword in ['need', 'require', 'must have']):
+                established_facts['requirements'].add(entry['message'])
+
+            if any(keyword in message for keyword in ['use', 'prefer', 'language', 'framework']):
+                established_facts['tech_preferences'].add(entry['message'])
+
+            if any(keyword in message for keyword in ['cannot', 'limit', 'constraint', 'budget']):
+                established_facts['constraints'].add(entry['message'])
+
+            # Keep recent conversation flow
+            if len(conversation_summary) < 6:  # Last 6 exchanges
+                conversation_summary.append(f"User: {entry['message']}")
+                conversation_summary.append(f"Assistant: {entry['response']}")
+
+        # Build summary
+        summary_parts.append("=== ESTABLISHED PROJECT FACTS ===")
+
+        if established_facts['goals']:
+            summary_parts.append("GOALS DISCUSSED:")
+            for goal in list(established_facts['goals'])[:5]:
+                summary_parts.append(f"• {goal}")
+
+        if established_facts['requirements']:
+            summary_parts.append("\nREQUIREMENTS IDENTIFIED:")
+            for req in list(established_facts['requirements'])[:5]:
+                summary_parts.append(f"• {req}")
+
+        if established_facts['tech_preferences']:
+            summary_parts.append("\nTECH PREFERENCES MENTIONED:")
+            for tech in list(established_facts['tech_preferences'])[:5]:
+                summary_parts.append(f"• {tech}")
+
+        if established_facts['constraints']:
+            summary_parts.append("\nCONSTRAINTS IDENTIFIED:")
+            for constraint in list(established_facts['constraints'])[:3]:
+                summary_parts.append(f"• {constraint}")
+
+        summary_parts.append("\n=== RECENT CONVERSATION FLOW ===")
+        summary_parts.extend(conversation_summary)
+
+        return "\n".join(summary_parts)
+
+    def get_unanswered_questions(self, project_id: str) -> List[str]:
+        """Identify what key questions still need to be answered"""
+        context = self.db.get_project_context(project_id)
+        if not context:
+            return ["What is the main goal of your project?"]
+
+        history = self.db.get_conversation_history(project_id, 30)
+        discussed_topics = set()
+
+        # Track what's been discussed
+        for entry in history:
+            message = entry['message'].lower()
+            if any(word in message for word in ['goal', 'purpose', 'objective']):
+                discussed_topics.add('goals')
+            if any(word in message for word in ['user', 'audience', 'customer']):
+                discussed_topics.add('target_users')
+            if any(word in message for word in ['feature', 'function', 'capability']):
+                discussed_topics.add('features')
+            if any(word in message for word in ['data', 'database', 'storage']):
+                discussed_topics.add('data_requirements')
+            if any(word in message for word in ['deploy', 'host', 'platform']):
+                discussed_topics.add('deployment')
+            if any(word in message for word in ['timeline', 'deadline', 'schedule']):
+                discussed_topics.add('timeline')
+
+        # Essential questions that should be answered
+        essential_questions = {
+            'goals': "What specific problem does your project solve?",
+            'target_users': "Who will be using this application?",
+            'features': "What are the core features you need?",
+            'data_requirements': "What kind of data will your application handle?",
+            'deployment': "Where do you plan to deploy this application?",
+            'timeline': "What's your timeline for this project?"
+        }
+
+        unanswered = []
+        for topic, question in essential_questions.items():
+            if topic not in discussed_topics:
+                unanswered.append(question)
+
+        return unanswered
+
     def generate_socratic_response(self, message: str) -> str:
-        """Generate Socratic response using Claude"""
+        """Generate Socratic response using Claude with improved context awareness"""
         context = self.db.get_project_context(self.current_project_id)
         if not context:
             return "Let's start by understanding your project. What exactly do you want to achieve?"
 
-        # Get recent conversation history
-        history = self.db.get_conversation_history(self.current_project_id, 10)
+        # Get comprehensive conversation summary
+        conversation_summary = self.build_conversation_summary(self.current_project_id)
+
+        # Get unanswered questions
+        unanswered_questions = self.get_unanswered_questions(self.current_project_id)
 
         # Get relevant knowledge
         relevant_context = self.get_relevant_context(message)
 
-        # Build prompt
+        # Build enhanced prompt
         prompt = f"""
     You are a Socratic counselor helping with software development projects. 
     Use the Socratic method to guide the user through discovery rather than providing direct answers.
 
-    Current Project Context:
+    IMPORTANT: You have access to the complete conversation history below. DO NOT repeat questions that have already been answered. Build upon what has already been established.
+
+    CURRENT PROJECT CONTEXT:
     - Phase: {context.get('phase', 'discovery')}
-    - Goals: {', '.join(context.get('goals', [])) if context.get('goals') else 'Not defined'}
-    - Requirements: {', '.join(context.get('requirements', [])) if context.get('requirements') else 'Not defined'}
-    - Tech Stack: {', '.join(context.get('tech_stack', [])) if context.get('tech_stack') else 'Not defined'}
-    - Constraints: {', '.join(context.get('constraints', [])) if context.get('constraints') else 'None specified'}
+    - Goals: {', '.join(context.get('goals', [])) if context.get('goals') else 'Not yet defined'}
+    - Requirements: {', '.join(context.get('requirements', [])) if context.get('requirements') else 'Not yet defined'}
+    - Tech Stack: {', '.join(context.get('tech_stack', [])) if context.get('tech_stack') else 'Not yet defined'}
 
-    Recent Conversation:
-    {chr(10).join([f"User: {entry['message']}" for entry in history[:3]])}
+    COMPLETE CONVERSATION HISTORY & ESTABLISHED FACTS:
+    {conversation_summary}
 
-    Relevant Knowledge:
-    {chr(10).join(relevant_context[:3])}
+    UNANSWERED KEY QUESTIONS:
+    {chr(10).join(f"• {q}" for q in unanswered_questions[:3]) if unanswered_questions else "• Most key areas have been discussed"}
 
-    User's current message: {message}
+    RELEVANT KNOWLEDGE:
+    {chr(10).join(relevant_context[:2])}
 
-    Respond with a thoughtful Socratic question that helps the user think deeper about their project. Focus on the 
-    current phase ({context.get('phase', 'discovery')}) and guide them toward the next insight or decision they need to make.
+    USER'S CURRENT MESSAGE: {message}
+
+    INSTRUCTIONS:
+    1. Acknowledge what has already been established (don't ignore previous conversations)
+    2. Build upon previous answers rather than starting fresh
+    3. Ask NEW questions that advance the conversation
+    4. If the user is repeating something already discussed, gently reference the previous discussion
+    5. Focus on unexplored areas or dive deeper into established topics
+    6. Keep the current phase ({context.get('phase', 'discovery')}) in mind
+
+    Generate a thoughtful Socratic response that shows you remember the conversation history.
     """
 
         try:
@@ -814,48 +941,99 @@ class EnhancedSocraticRAG:
             )
             return response.content[0].text
         except Exception as e:
-            return (f"I'm having trouble processing your message right now. Can you tell me more about what you're "
-                    f"trying to achieve with this project?")
+            return (f"I'm having trouble processing your message right now. Based on our previous discussions, "
+                    f"can you tell me more about the specific aspect you'd like to explore further?")
 
     def update_context(self, message: str, response: str) -> None:
-        """Update project context based on conversation"""
+        """Enhanced context update with better information extraction"""
         context = self.db.get_project_context(self.current_project_id)
         if not context:
             return
 
         analysis = self.analyze_message(message)
         context_updates = {}
+        message_lower = message.lower()
 
-        # Extract goals
-        if "goal" in message.lower() or "want to" in message.lower():
-            if message not in context.get("goals", []):
-                context.setdefault("goals", []).append(message)
-                context_updates["goals"] = context["goals"]
+        # More sophisticated information extraction
 
-        # Extract requirements
-        if "need" in message.lower() or "require" in message.lower():
-            if message not in context.get("requirements", []):
-                context.setdefault("requirements", []).append(message)
-                context_updates["requirements"] = context["requirements"]
+        # Extract goals with better pattern matching
+        goal_indicators = ['goal', 'want to', 'trying to', 'objective', 'aim to', 'purpose']
+        if any(indicator in message_lower for indicator in goal_indicators):
+            goals = context.setdefault("goals", [])
+            if message not in goals and len(message) > 10:  # Avoid very short responses
+                goals.append(message)
+                context_updates["goals"] = goals
 
-        # Track user contributions
+        # Extract requirements with better patterns
+        req_indicators = ['need', 'require', 'must have', 'should support', 'has to']
+        if any(indicator in message_lower for indicator in req_indicators):
+            requirements = context.setdefault("requirements", [])
+            if message not in requirements and len(message) > 10:
+                requirements.append(message)
+                context_updates["requirements"] = requirements
+
+        # Extract technology preferences
+        tech_indicators = ['use', 'prefer', 'language', 'framework', 'database', 'library']
+        if any(indicator in message_lower for indicator in tech_indicators):
+            tech_stack = context.setdefault("tech_stack", [])
+            if message not in tech_stack and len(message) > 10:
+                tech_stack.append(message)
+                context_updates["tech_stack"] = tech_stack
+
+        # Extract constraints
+        constraint_indicators = ['cannot', 'limit', 'constraint', 'budget', 'deadline', 'restriction']
+        if any(indicator in message_lower for indicator in constraint_indicators):
+            constraints = context.setdefault("constraints", [])
+            if message not in constraints and len(message) > 10:
+                constraints.append(message)
+                context_updates["constraints"] = constraints
+
+        # Track user contributions more granularly
         if "user_contributions" not in context:
             context["user_contributions"] = {}
         if self.current_user_id not in context["user_contributions"]:
             context["user_contributions"][self.current_user_id] = []
-        context["user_contributions"][self.current_user_id].append(message)
 
-        # Update phase if needed
+        # Add contribution with metadata
+        contribution = {
+            "message": message,
+            "timestamp": datetime.now().isoformat(),
+            "phase": context.get("phase", "discovery"),
+            "topics_addressed": []
+        }
+
+        # Tag the contribution with topics
+        if any(indicator in message_lower for indicator in goal_indicators):
+            contribution["topics_addressed"].append("goals")
+        if any(indicator in message_lower for indicator in req_indicators):
+            contribution["topics_addressed"].append("requirements")
+        if any(indicator in message_lower for indicator in tech_indicators):
+            contribution["topics_addressed"].append("technology")
+
+        context["user_contributions"][self.current_user_id].append(contribution)
+
+        # Update phase progression with better logic
         if analysis["phase_indicators"]:
-            new_phase = analysis["phase_indicators"][0]
-            if new_phase != context.get("phase"):
-                context["phase"] = new_phase
-                context_updates["phase"] = new_phase
+            current_phase = context.get("phase", "discovery")
+            suggested_phase = analysis["phase_indicators"][0]
+
+            # Only advance phases, don't go backwards unless explicitly requested
+            phase_order = ["discovery", "analysis", "design", "implementation"]
+            current_index = phase_order.index(current_phase) if current_phase in phase_order else 0
+            suggested_index = phase_order.index(suggested_phase) if suggested_phase in phase_order else 0
+
+            if suggested_index > current_index:
+                context["phase"] = suggested_phase
+                context_updates["phase"] = suggested_phase
+                # Add progress marker
+                progress_markers = context.setdefault("progress_markers", [])
+                progress_markers.append(f"Advanced to {suggested_phase} phase")
+                context_updates["progress_markers"] = progress_markers
 
         # Save updated context
         self.db.save_project_context(self.current_project_id, context)
 
-        # Save conversation entry - pass individual parameters
+        # Save conversation entry with enhanced context updates
         self.db.save_conversation(
             entry_id=str(uuid.uuid4()),
             project_id=self.current_project_id,
