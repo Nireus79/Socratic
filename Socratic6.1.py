@@ -1829,6 +1829,7 @@ def main():
 
     def print_menu():
         print("\n=== Socratic RAG System ===")
+        print("Ουδέν οίδα, ούτε διδάσκω τι, αλλά διαπορώ μόνον.")
         print("1. Create/Login User")
         print("2. Create New Project")
         print("3. List My Projects")
@@ -2079,6 +2080,7 @@ def main():
 
         except KeyboardInterrupt:
             print("\nGoodbye!")
+            print("..τω Ασκληπιώ οφείλομεν αλετρυόνα, απόδοτε και μη αμελήσετε..")
             break
         except Exception as e:
             print(f"An error occurred: {e}")
