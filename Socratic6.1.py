@@ -124,7 +124,7 @@ class KnowledgeEntry:
     phase: str
     keywords: List[str]
     project_id: Optional[str] = None  # For project-specific knowledge
-    user_id: Optional[str] = None    # For user-contributed knowledge
+    user_id: Optional[str] = None  # For user-contributed knowledge
     embedding: Optional[np.ndarray] = None
     created_at: str = ""
     confidence_score: float = 1.0
@@ -851,844 +851,1081 @@ class AnalystAgent(BaseAgent):
 
         return key_points[:5]  # Limit to top 5
 
-        def _identify_implications(self, response: str, context: ProjectContext) -> List[str]:
-            """Identify implications and consequences"""
-            implications = []
+    def _identify_implications(self, response: str, context: ProjectContext) -> List[str]:
+        """Identify implications and consequences"""
+        implications = []
 
-            # Technical implications
-            if "real-time" in response.lower():
-                implications.append("Real-time functionality requires WebSocket connections or similar technology")
+        # Technical implications
+        if "real-time" in response.lower():
+            implications.append("Real-time functionality requires WebSocket connections or similar technology")
 
-            if "mobile" in response.lower():
-                implications.append("Mobile support requires responsive design or native app development")
+        if "mobile" in response.lower():
+            implications.append("Mobile support requires responsive design or native app development")
 
-            if "scale" in response.lower() or "many users" in response.lower():
-                implications.append("Scalability concerns require careful architecture and possibly caching strategies")
+        if "scale" in response.lower() or "many users" in response.lower():
+            implications.append("Scalability concerns require careful architecture and possibly caching strategies")
 
-            if "secure" in response.lower() or "privacy" in response.lower():
-                implications.append("Security requirements may need encryption, authentication, and authorization")
+        if "secure" in response.lower() or "privacy" in response.lower():
+            implications.append("Security requirements may need encryption, authentication, and authorization")
 
-            if "integrate" in response.lower() or "third-party" in response.lower():
-                implications.append("External integrations require API management and error handling")
+        if "integrate" in response.lower() or "third-party" in response.lower():
+            implications.append("External integrations require API management and error handling")
 
-            return implications
+        return implications
 
-        def _identify_gaps(self, response: str, context: ProjectContext) -> List[str]:
-            """Identify missing information or gaps"""
-            gaps = []
+    def _identify_gaps(self, response: str, context: ProjectContext) -> List[str]:
+        """Identify missing information or gaps"""
+        gaps = []
 
-            if not context.tech_stack:
-                gaps.append("Technology stack not defined")
+        if not context.tech_stack:
+            gaps.append("Technology stack not defined")
 
+        if not context.user_stories:
+            gaps.append("User stories need to be defined")
+
+        if not context.data_entities:
+            gaps.append("Data model and entities need clarification")
+
+        if not context.api_endpoints:
+            gaps.append("API design and endpoints need specification")
+
+        if not context.security_requirements:
+            gaps.append("Security requirements need to be addressed")
+
+        if not context.performance_requirements:
+            gaps.append("Performance and scalability requirements need definition")
+
+        return gaps
+
+    def _suggest_next_focus(self, response: str, context: ProjectContext) -> str:
+        """Suggest what to focus on next"""
+        phase = context.phase.lower()
+
+        if phase == "discovery":
             if not context.user_stories:
-                gaps.append("User stories need to be defined")
-
-            if not context.data_entities:
-                gaps.append("Data model and entities need clarification")
-
-            if not context.api_endpoints:
-                gaps.append("API design and endpoints need specification")
-
-            if not context.security_requirements:
-                gaps.append("Security requirements need to be addressed")
-
-            if not context.performance_requirements:
-                gaps.append("Performance and scalability requirements need definition")
-
-            return gaps
-
-        def _suggest_next_focus(self, response: str, context: ProjectContext) -> str:
-            """Suggest what to focus on next"""
-            phase = context.phase.lower()
-
-            if phase == "discovery":
-                if not context.user_stories:
-                    return "Define user stories and user journeys"
-                elif not context.data_entities:
-                    return "Identify data entities and relationships"
-                else:
-                    return "Move to analysis phase - technical requirements"
-
-            elif phase == "analysis":
-                if not context.tech_stack:
-                    return "Choose technology stack"
-                elif not context.api_endpoints:
-                    return "Design API structure and endpoints"
-                else:
-                    return "Move to design phase - detailed architecture"
-
-            elif phase == "design":
-                if not context.ui_components:
-                    return "Design user interface components"
-                else:
-                    return "Move to implementation phase - start coding"
-
+                return "Define user stories and user journeys"
+            elif not context.data_entities:
+                return "Identify data entities and relationships"
             else:
-                return "Continue with current implementation tasks"
+                return "Move to analysis phase - technical requirements"
 
-    class CreatorAgent(BaseAgent):
-        """Enhanced content creation and synthesis agent"""
-
-        def __init__(self):
-            super().__init__(
-                "Demiurge",
-                "Creator",
-                "Synthesizes insights into actionable content and specifications"
-            )
-
-        def create_technical_specification(self, context: ProjectContext,
-                                           analysis: Dict[str, Any]) -> TechnicalSpecification:
-            """Create comprehensive technical specification"""
-            now = datetime.now().isoformat()
-
-            spec = TechnicalSpecification(
-                project_id=context.project_id,
-                database_schema=self._generate_database_schema(context, analysis),
-                api_design=self._generate_api_design(context, analysis),
-                file_structure=self._generate_file_structure(context),
-                component_architecture=self._generate_component_architecture(context, analysis),
-                implementation_plan=self._generate_implementation_plan(context, analysis),
-                test_requirements=self._generate_test_requirements(context),
-                deployment_config=self._generate_deployment_config(context),
-                dependencies=self._generate_dependencies(context),
-                environment_variables=self._generate_environment_variables(context),
-                created_at=now,
-                updated_at=now
-            )
-
-            return spec
-
-        def _generate_database_schema(self, context: ProjectContext, analysis: Dict[str, Any]) -> Dict[str, Any]:
-            """Generate database schema from context and analysis"""
-            schema = {
-                "database_type": "postgresql",  # Default choice
-                "tables": {},
-                "relationships": [],
-                "indexes": []
-            }
-
-            # Extract entities from analysis
-            entities = analysis.get("data_entities", [])
-
-            for entity in entities:
-                table_name = f"{entity['name']}s"
-                schema["tables"][table_name] = {
-                    "columns": {
-                        "id": {"type": "uuid", "primary_key": True, "default": "gen_random_uuid()"},
-                        "created_at": {"type": "timestamp", "default": "now()"},
-                        "updated_at": {"type": "timestamp", "default": "now()"}
-                    }
-                }
-
-                # Add entity-specific attributes
-                for attr in entity.get("attributes", []):
-                    column_type = self._infer_column_type(attr)
-                    schema["tables"][table_name]["columns"][attr] = {"type": column_type}
-
-            return schema
-
-        def _infer_column_type(self, attribute: str) -> str:
-            """Infer database column type from attribute name"""
-            type_mapping = {
-                "email": "varchar(255)",
-                "password": "varchar(255)",
-                "name": "varchar(255)",
-                "title": "varchar(255)",
-                "description": "text",
-                "content": "text",
-                "price": "decimal(10,2)",
-                "total": "decimal(10,2)",
-                "status": "varchar(50)",
-                "role": "varchar(50)",
-                "phone": "varchar(20)",
-                "address": "text",
-                "date": "date",
-                "timestamp": "timestamp",
-                "created_at": "timestamp",
-                "updated_at": "timestamp",
-                "size": "bigint",
-                "count": "integer",
-                "priority": "integer"
-            }
-
-            return type_mapping.get(attribute, "varchar(255)")
-
-        def _generate_api_design(self, context: ProjectContext, analysis: Dict[str, Any]) -> Dict[str, Any]:
-            """Generate API design specification"""
-            api_design = {
-                "base_url": "/api/v1",
-                "authentication": "JWT",
-                "endpoints": [],
-                "middleware": ["cors", "helmet", "rate-limiting", "logging"],
-                "response_format": "JSON",
-                "error_handling": "standardized"
-            }
-
-            # Add endpoints from analysis
-            api_requirements = analysis.get("api_requirements", [])
-            for req in api_requirements:
-                endpoint = {
-                    "path": req["path"],
-                    "method": req["method"],
-                    "description": req["description"],
-                    "auth_required": req.get("auth_required", False),
-                    "parameters": [],
-                    "response_schema": {}
-                }
-                api_design["endpoints"].append(endpoint)
-
-            return api_design
-
-        def _generate_file_structure(self, context: ProjectContext) -> Dict[str, Any]:
-            """Generate project file structure"""
-            tech_stack = context.tech_stack
-
-            if any("react" in tech.lower() for tech in tech_stack):
-                return self._react_file_structure()
-            elif any("python" in tech.lower() or "flask" in tech.lower() or "django" in tech.lower() for tech in
-                     tech_stack):
-                return self._python_file_structure()
-            elif any("node" in tech.lower() or "express" in tech.lower() for tech in tech_stack):
-                return self._node_file_structure()
+        elif phase == "analysis":
+            if not context.tech_stack:
+                return "Choose technology stack"
+            elif not context.api_endpoints:
+                return "Design API structure and endpoints"
             else:
-                return self._generic_file_structure()
+                return "Move to design phase - detailed architecture"
 
-        def _react_file_structure(self) -> Dict[str, Any]:
-            """Generate React project structure"""
-            return {
-                "src/": {
-                    "components/": {"common/": {}, "forms/": {}, "layout/": {}},
-                    "pages/": {},
-                    "hooks/": {},
-                    "services/": {"api.js": None},
-                    "utils/": {"helpers.js": None},
-                    "styles/": {"globals.css": None},
-                    "context/": {"AuthContext.js": None},
-                    "App.js": None,
-                    "index.js": None
-                },
-                "public/": {"index.html": None},
-                "package.json": None,
-                ".env": None,
-                "README.md": None
-            }
+        elif phase == "design":
+            if not context.ui_components:
+                return "Design user interface components"
+            else:
+                return "Move to implementation phase - start coding"
 
-        def _python_file_structure(self) -> Dict[str, Any]:
-            """Generate Python project structure"""
-            return {
-                "app/": {
-                    "models/": {"__init__.py": None},
-                    "routes/": {"__init__.py": None},
-                    "services/": {"__init__.py": None},
-                    "utils/": {"__init__.py": None},
-                    "templates/": {},
-                    "static/": {"css/": {}, "js/": {}},
-                    "__init__.py": None
-                },
-                "migrations/": {},
-                "tests/": {"__init__.py": None},
-                "config.py": None,
-                "requirements.txt": None,
-                "app.py": None,
-                ".env": None,
-                "README.md": None
-            }
+        else:
+            return "Continue with current implementation tasks"
 
-        def _node_file_structure(self) -> Dict[str, Any]:
-            """Generate Node.js project structure"""
-            return {
-                "src/": {
-                    "controllers/": {},
-                    "models/": {},
-                    "routes/": {},
-                    "middleware/": {},
-                    "services/": {},
-                    "utils/": {},
-                    "config/": {"database.js": None}
-                },
-                "tests/": {},
-                "package.json": None,
-                "server.js": None,
-                ".env": None,
-                "README.md": None
-            }
 
-        def _generic_file_structure(self) -> Dict[str, Any]:
-            """Generate generic project structure"""
-            return {
-                "src/": {},
-                "tests/": {},
-                "docs/": {},
-                "config/": {},
-                "README.md": None,
-                ".env": None
-            }
+class CreatorAgent(BaseAgent):
+    """Enhanced content creation and synthesis agent"""
 
-        def _generate_component_architecture(self, context: ProjectContext, analysis: Dict[str, Any]) -> Dict[str, Any]:
-            """Generate component architecture"""
-            architecture = {
-                "pattern": "MVC",  # Default
-                "layers": {
-                    "presentation": {
-                        "components": analysis.get("ui_requirements", []),
-                        "responsibilities": ["User interface", "User interactions", "Data presentation"]
-                    },
-                    "business": {
-                        "services": [],
-                        "responsibilities": ["Business logic", "Data validation", "Process orchestration"]
-                    },
-                    "data": {
-                        "repositories": [],
-                        "responsibilities": ["Data access", "Database operations", "External API calls"]
-                    }
-                },
-                "communication": "dependency_injection"
-            }
+    def __init__(self):
+        super().__init__(
+            "Demiurge",
+            "Creator",
+            "Synthesizes insights into actionable content and specifications"
+        )
 
-            # Add services based on entities
-            entities = analysis.get("data_entities", [])
-            for entity in entities:
-                service_name = f"{entity['name'].title()}Service"
-                architecture["layers"]["business"]["services"].append(service_name)
+    def create_technical_specification(self, context: ProjectContext,
+                                       analysis: Dict[str, Any]) -> TechnicalSpecification:
+        """Create comprehensive technical specification"""
+        now = datetime.now().isoformat()
 
-                repo_name = f"{entity['name'].title()}Repository"
-                architecture["layers"]["data"]["repositories"].append(repo_name)
+        spec = TechnicalSpecification(
+            project_id=context.project_id,
+            database_schema=self._generate_database_schema(context, analysis),
+            api_design=self._generate_api_design(context, analysis),
+            file_structure=self._generate_file_structure(context),
+            component_architecture=self._generate_component_architecture(context, analysis),
+            implementation_plan=self._generate_implementation_plan(context, analysis),
+            test_requirements=self._generate_test_requirements(context),
+            deployment_config=self._generate_deployment_config(context),
+            dependencies=self._generate_dependencies(context),
+            environment_variables=self._generate_environment_variables(context),
+            created_at=now,
+            updated_at=now
+        )
 
-            return architecture
+        return spec
 
-        def _generate_implementation_plan(self, context: ProjectContext, analysis: Dict[str, Any]) -> List[
-            Dict[str, Any]]:
-            """Generate step-by-step implementation plan"""
-            plan = [
-                {
-                    "phase": "Setup",
-                    "tasks": [
-                        "Initialize project structure",
-                        "Set up development environment",
-                        "Configure version control",
-                        "Set up database"
-                    ],
-                    "estimated_hours": 8,
-                    "dependencies": []
-                },
-                {
-                    "phase": "Core Backend",
-                    "tasks": [
-                        "Implement database models",
-                        "Create basic API endpoints",
-                        "Set up authentication",
-                        "Implement error handling"
-                    ],
-                    "estimated_hours": 24,
-                    "dependencies": ["Setup"]
-                },
-                {
-                    "phase": "Business Logic",
-                    "tasks": [
-                        "Implement core business services",
-                        "Add data validation",
-                        "Create business rule processing"
-                    ],
-                    "estimated_hours": 32,
-                    "dependencies": ["Core Backend"]
-                },
-                {
-                    "phase": "Frontend",
-                    "tasks": [
-                        "Create basic UI components",
-                        "Implement user authentication flow",
-                        "Build main application views",
-                        "Add responsive design"
-                    ],
-                    "estimated_hours": 40,
-                    "dependencies": ["Business Logic"]
-                },
-                {
-                    "phase": "Integration & Testing",
-                    "tasks": [
-                        "Write unit tests",
-                        "Implement integration tests",
-                        "Perform end-to-end testing",
-                        "Fix bugs and optimize"
-                    ],
-                    "estimated_hours": 24,
-                    "dependencies": ["Frontend"]
-                },
-                {
-                    "phase": "Deployment",
-                    "tasks": [
-                        "Set up production environment",
-                        "Configure CI/CD pipeline",
-                        "Deploy application",
-                        "Monitor and maintain"
-                    ],
-                    "estimated_hours": 16,
-                    "dependencies": ["Integration & Testing"]
-                }
-            ]
+    def _generate_database_schema(self, context: ProjectContext, analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate database schema from context and analysis"""
+        schema = {
+            "database_type": "postgresql",  # Default choice
+            "tables": {},
+            "relationships": [],
+            "indexes": []
+        }
 
-            return plan
+        # Extract entities from analysis
+        entities = analysis.get("data_entities", [])
 
-        def _generate_test_requirements(self, context: ProjectContext) -> List[str]:
-            """Generate testing requirements"""
-            return [
-                "Unit tests for all business logic functions",
-                "Integration tests for API endpoints",
-                "Database transaction tests",
-                "Authentication and authorization tests",
-                "Input validation and error handling tests",
-                "Performance tests for critical paths",
-                "End-to-end user workflow tests",
-                "Security vulnerability tests",
-                "Cross-browser compatibility tests (if web app)",
-                "Mobile responsiveness tests (if applicable)"
-            ]
-
-        def _generate_deployment_config(self, context: ProjectContext) -> Dict[str, Any]:
-            """Generate deployment configuration"""
-            return {
-                "environment": "production",
-                "platform": "docker",
-                "orchestration": "docker-compose",
-                "database": {
-                    "type": "postgresql",
-                    "backup_strategy": "daily",
-                    "connection_pooling": True
-                },
-                "caching": {
-                    "type": "redis",
-                    "ttl": 3600
-                },
-                "monitoring": {
-                    "logging": "structured",
-                    "metrics": "prometheus",
-                    "alerting": "email"
-                },
-                "security": {
-                    "https": True,
-                    "security_headers": True,
-                    "rate_limiting": True
-                },
-                "scaling": {
-                    "auto_scaling": False,
-                    "load_balancer": False,
-                    "cdn": False
+        for entity in entities:
+            table_name = f"{entity['name']}s"
+            schema["tables"][table_name] = {
+                "columns": {
+                    "id": {"type": "uuid", "primary_key": True, "default": "gen_random_uuid()"},
+                    "created_at": {"type": "timestamp", "default": "now()"},
+                    "updated_at": {"type": "timestamp", "default": "now()"}
                 }
             }
 
-        def _generate_dependencies(self, context: ProjectContext) -> List[str]:
-            """Generate project dependencies based on tech stack"""
-            tech_stack = context.tech_stack
-            dependencies = []
+            # Add entity-specific attributes
+            for attr in entity.get("attributes", []):
+                column_type = self._infer_column_type(attr)
+                schema["tables"][table_name]["columns"][attr] = {"type": column_type}
 
-            # Python dependencies
-            if any("python" in tech.lower() for tech in tech_stack):
-                dependencies.extend([
-                    "flask>=2.0.0",
-                    "sqlalchemy>=1.4.0",
-                    "alembic>=1.7.0",
-                    "psycopg2-binary>=2.9.0",
-                    "flask-jwt-extended>=4.2.0",
-                    "marshmallow>=3.14.0",
-                    "python-dotenv>=0.19.0",
-                    "pytest>=6.2.0",
-                    "black>=21.0.0",
-                    "flake8>=4.0.0"
-                ])
+        return schema
 
-            # Node.js dependencies
-            if any("node" in tech.lower() or "express" in tech.lower() for tech in tech_stack):
-                dependencies.extend([
-                    "express>=4.18.0",
-                    "mongoose>=6.0.0",
-                    "jsonwebtoken>=8.5.0",
-                    "bcrypt>=5.0.0",
-                    "cors>=2.8.0",
-                    "helmet>=5.0.0",
-                    "dotenv>=16.0.0",
-                    "jest>=28.0.0",
-                    "nodemon>=2.0.0",
-                    "eslint>=8.0.0"
-                ])
+    def _infer_column_type(self, attribute: str) -> str:
+        """Infer database column type from attribute name"""
+        type_mapping = {
+            "email": "varchar(255)",
+            "password": "varchar(255)",
+            "name": "varchar(255)",
+            "title": "varchar(255)",
+            "description": "text",
+            "content": "text",
+            "price": "decimal(10,2)",
+            "total": "decimal(10,2)",
+            "status": "varchar(50)",
+            "role": "varchar(50)",
+            "phone": "varchar(20)",
+            "address": "text",
+            "date": "date",
+            "timestamp": "timestamp",
+            "created_at": "timestamp",
+            "updated_at": "timestamp",
+            "size": "bigint",
+            "count": "integer",
+            "priority": "integer"
+        }
 
-            # React dependencies
-            if any("react" in tech.lower() for tech in tech_stack):
-                dependencies.extend([
-                    "react>=18.0.0",
-                    "react-dom>=18.0.0",
-                    "react-router-dom>=6.0.0",
-                    "axios>=0.27.0",
-                    "styled-components>=5.3.0",
-                    "@testing-library/react>=13.0.0",
-                    "@testing-library/jest-dom>=5.16.0"
-                ])
+        return type_mapping.get(attribute, "varchar(255)")
 
-            return dependencies
+    def _generate_api_design(self, context: ProjectContext, analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate API design specification"""
+        api_design = {
+            "base_url": "/api/v1",
+            "authentication": "JWT",
+            "endpoints": [],
+            "middleware": ["cors", "helmet", "rate-limiting", "logging"],
+            "response_format": "JSON",
+            "error_handling": "standardized"
+        }
 
-        def _generate_environment_variables(self, context: ProjectContext) -> Dict[str, str]:
-            """Generate environment variables template"""
-            return {
-                "NODE_ENV": "production",
-                "PORT": "3000",
-                "DATABASE_URL": "postgresql://user:password@localhost:5432/dbname",
-                "JWT_SECRET": "your-super-secret-jwt-key",
-                "JWT_EXPIRATION": "24h",
-                "REDIS_URL": "redis://localhost:6379",
-                "LOG_LEVEL": "info",
-                "API_BASE_URL": "http://localhost:3000/api/v1",
-                "CORS_ORIGIN": "http://localhost:3000",
-                "RATE_LIMIT_WINDOW": "15",
-                "RATE_LIMIT_MAX": "100"
+        # Add endpoints from analysis
+        api_requirements = analysis.get("api_requirements", [])
+        for req in api_requirements:
+            endpoint = {
+                "path": req["path"],
+                "method": req["method"],
+                "description": req["description"],
+                "auth_required": req.get("auth_required", False),
+                "parameters": [],
+                "response_schema": {}
             }
+            api_design["endpoints"].append(endpoint)
 
-    class EnhancedSocraticRAG:
-        """Enhanced Socratic RAG system with database support"""
+        return api_design
 
-        def __init__(self, db_path: str = "socratic_rag.db"):
-            self.db_manager = DatabaseManager(db_path)
-            self.embedding_system = SimpleEmbedding()
+    def _generate_file_structure(self, context: ProjectContext) -> Dict[str, Any]:
+        """Generate project file structure"""
+        tech_stack = context.tech_stack
 
-            # Initialize agents
-            self.socratic_agent = SocraticAgent()
-            self.analyst_agent = AnalystAgent()
-            self.creator_agent = CreatorAgent()
+        if any("react" in tech.lower() for tech in tech_stack):
+            return self._react_file_structure()
+        elif any("python" in tech.lower() or "flask" in tech.lower() or "django" in tech.lower() for tech in
+                 tech_stack):
+            return self._python_file_structure()
+        elif any("node" in tech.lower() or "express" in tech.lower() for tech in tech_stack):
+            return self._node_file_structure()
+        else:
+            return self._generic_file_structure()
 
-            # Initialize global knowledge base
-            self._initialize_knowledge_base()
+    def _react_file_structure(self) -> Dict[str, Any]:
+        """Generate React project structure"""
+        return {
+            "src/": {
+                "components/": {"common/": {}, "forms/": {}, "layout/": {}},
+                "pages/": {},
+                "hooks/": {},
+                "services/": {"api.js": None},
+                "utils/": {"helpers.js": None},
+                "styles/": {"globals.css": None},
+                "context/": {"AuthContext.js": None},
+                "App.js": None,
+                "index.js": None
+            },
+            "public/": {"index.html": None},
+            "package.json": None,
+            ".env": None,
+            "README.md": None
+        }
 
-            logger.info("Enhanced Socratic RAG system initialized")
+    def _python_file_structure(self) -> Dict[str, Any]:
+        """Generate Python project structure"""
+        return {
+            "app/": {
+                "models/": {"__init__.py": None},
+                "routes/": {"__init__.py": None},
+                "services/": {"__init__.py": None},
+                "utils/": {"__init__.py": None},
+                "templates/": {},
+                "static/": {"css/": {}, "js/": {}},
+                "__init__.py": None
+            },
+            "migrations/": {},
+            "tests/": {"__init__.py": None},
+            "config.py": None,
+            "requirements.txt": None,
+            "app.py": None,
+            ".env": None,
+            "README.md": None
+        }
 
-        def _initialize_knowledge_base(self):
-            """Initialize the global knowledge base with enhanced entries"""
-            knowledge_entries = [
-                # Discovery Phase Knowledge
-                KnowledgeEntry(
-                    id=str(uuid.uuid4()),
-                    content="User stories should follow the format: As a [user type], I want [functionality] so that [benefit]. This helps clarify who needs what and why.",
-                    category="methodology",
-                    phase="discovery",
-                    keywords=["user stories", "requirements", "agile"],
-                    created_at=datetime.now().isoformat()
-                ),
-                KnowledgeEntry(
-                    id=str(uuid.uuid4()),
-                    content="Data entities represent the core objects in your system. Identify what data you need to store, how it relates, and what operations you'll perform on it.",
-                    category="data_modeling",
-                    phase="discovery",
-                    keywords=["data model", "entities", "database"],
-                    created_at=datetime.now().isoformat()
-                ),
+    def _node_file_structure(self) -> Dict[str, Any]:
+        """Generate Node.js project structure"""
+        return {
+            "src/": {
+                "controllers/": {},
+                "models/": {},
+                "routes/": {},
+                "middleware/": {},
+                "services/": {},
+                "utils/": {},
+                "config/": {"database.js": None}
+            },
+            "tests/": {},
+            "package.json": None,
+            "server.js": None,
+            ".env": None,
+            "README.md": None
+        }
 
-                # Analysis Phase Knowledge
-                KnowledgeEntry(
-                    id=str(uuid.uuid4()),
-                    content="RESTful API design principles: Use HTTP methods appropriately (GET for retrieval, POST for creation, PUT for updates, DELETE for removal). Use consistent URL patterns and status codes.",
-                    category="api_design",
-                    phase="analysis",
-                    keywords=["REST", "API", "HTTP", "web services"],
-                    created_at=datetime.now().isoformat()
-                ),
-                KnowledgeEntry(
-                    id=str(uuid.uuid4()),
-                    content="Database normalization reduces redundancy. First normal form eliminates repeating groups, second normal form eliminates partial dependencies, third normal form eliminates transitive dependencies.",
-                    category="database",
-                    phase="analysis",
-                    keywords=["normalization", "database design", "schema"],
-                    created_at=datetime.now().isoformat()
-                ),
+    def _generic_file_structure(self) -> Dict[str, Any]:
+        """Generate generic project structure"""
+        return {
+            "src/": {},
+            "tests/": {},
+            "docs/": {},
+            "config/": {},
+            "README.md": None,
+            ".env": None
+        }
 
-                # Design Phase Knowledge
-                KnowledgeEntry(
-                    id=str(uuid.uuid4()),
-                    content="MVC (Model-View-Controller) pattern separates concerns: Models handle data, Views handle presentation, Controllers handle user input and coordinate between Models and Views.",
-                    category="architecture",
-                    phase="design",
-                    keywords=["MVC", "architecture", "separation of concerns"],
-                    created_at=datetime.now().isoformat()
-                ),
-                KnowledgeEntry(
-                    id=str(uuid.uuid4()),
-                    content="Authentication verifies identity, Authorization determines permissions. Use JWT tokens for stateless authentication in web applications.",
-                    category="security",
-                    phase="design",
-                    keywords=["authentication", "authorization", "JWT", "security"],
-                    created_at=datetime.now().isoformat()
-                ),
+    def _generate_component_architecture(self, context: ProjectContext, analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate component architecture"""
+        architecture = {
+            "pattern": "MVC",  # Default
+            "layers": {
+                "presentation": {
+                    "components": analysis.get("ui_requirements", []),
+                    "responsibilities": ["User interface", "User interactions", "Data presentation"]
+                },
+                "business": {
+                    "services": [],
+                    "responsibilities": ["Business logic", "Data validation", "Process orchestration"]
+                },
+                "data": {
+                    "repositories": [],
+                    "responsibilities": ["Data access", "Database operations", "External API calls"]
+                }
+            },
+            "communication": "dependency_injection"
+        }
 
-                # Implementation Phase Knowledge
-                KnowledgeEntry(
-                    id=str(uuid.uuid4()),
-                    content="Test-driven development (TDD): Write tests first, then implement code to pass tests. This ensures better code quality and test coverage.",
-                    category="testing",
-                    phase="implementation",
-                    keywords=["TDD", "testing", "quality"],
-                    created_at=datetime.now().isoformat()
-                ),
-                KnowledgeEntry(
-                    id=str(uuid.uuid4()),
-                    content="Environment variables keep sensitive configuration out of code. Use .env files for local development and secure secret management in production.",
-                    category="configuration",
-                    phase="implementation",
-                    keywords=["environment", "configuration", "secrets"],
-                    created_at=datetime.now().isoformat()
-                )
-            ]
+        # Add services based on entities
+        entities = analysis.get("data_entities", [])
+        for entity in entities:
+            service_name = f"{entity['name'].title()}Service"
+            architecture["layers"]["business"]["services"].append(service_name)
 
-            # Save knowledge entries to database
-            for entry in knowledge_entries:
-                # Generate embedding
-                entry.embedding = self.embedding_system.get_embedding(entry.content)
-                self.db_manager.save_knowledge_entry(entry)
+            repo_name = f"{entity['name'].title()}Repository"
+            architecture["layers"]["data"]["repositories"].append(repo_name)
 
-        def create_user(self, username: str, email: str, role: str = "developer") -> User:
-            """Create a new user"""
-            return self.db_manager.create_user(username, email, role)
+        return architecture
 
-        def create_project(self, name: str, description: str, owner_username: str) -> ProjectMetadata:
-            """Create a new project"""
-            user = self.db_manager.get_user(owner_username)
-            if not user:
-                raise ValueError(f"User {owner_username} not found")
-
-            return self.db_manager.create_project(name, description, user.id)
-
-        def start_conversation(self, project_id: str, user_id: str, initial_message: str) -> str:
-            """Start a conversation for a project"""
-            # Save user message
-            user_entry = ConversationEntry(
-                id=str(uuid.uuid4()),
-                project_id=project_id,
-                user_id=user_id,
-                role="user",
-                content=initial_message,
-                timestamp=datetime.now().isoformat()
-            )
-            self.db_manager.save_conversation_entry(user_entry)
-
-            # Load or create project context
-            context = self.db_manager.load_project_context(project_id)
-            if not context:
-                context = ProjectContext(
-                    project_id=project_id,
-                    goals=[],
-                    requirements=[],
-                    tech_stack=[],
-                    constraints=[],
-                    team_structure="",
-                    language_preferences=[],
-                    deployment_target="",
-                    code_style="",
-                    phase="discovery",
-                    business_logic=[],
-                    user_stories=[],
-                    non_functional_requirements=[],
-                    integration_requirements=[],
-                    data_entities=[],
-                    api_endpoints=[],
-                    ui_components=[],
-                    security_requirements=[],
-                    performance_requirements=[],
-                    timestamp=datetime.now().isoformat()
-                )
-
-            # Get conversation history
-            conversation_history = self.db_manager.get_conversation_history(project_id)
-
-            # Load relevant knowledge
-            knowledge_base = self.db_manager.load_knowledge_entries(project_id)
-            relevant_knowledge = self._find_relevant_knowledge(initial_message, knowledge_base)
-
-            # Generate Socratic question
-            question = self.socratic_agent.generate_question(
-                context, initial_message, relevant_knowledge, conversation_history
-            )
-
-            # Save assistant response
-            assistant_entry = ConversationEntry(
-                id=str(uuid.uuid4()),
-                project_id=project_id,
-                user_id=user_id,
-                role="assistant",
-                content=question,
-                agent_name=self.socratic_agent.name,
-                timestamp=datetime.now().isoformat()
-            )
-            self.db_manager.save_conversation_entry(assistant_entry)
-
-            return question
-
-        def continue_conversation(self, project_id: str, user_id: str, user_response: str) -> str:
-            """Continue an existing conversation"""
-            # Save user response
-            user_entry = ConversationEntry(
-                id=str(uuid.uuid4()),
-                project_id=project_id,
-                user_id=user_id,
-                role="user",
-                content=user_response,
-                timestamp=datetime.now().isoformat()
-            )
-            self.db_manager.save_conversation_entry(user_entry)
-
-            # Load project context
-            context = self.db_manager.load_project_context(project_id)
-            if not context:
-                return "Error: Project context not found. Please start a new conversation."
-
-            # Analyze user response
-            analysis = self.analyst_agent.analyze_response(user_response, context)
-
-            # Update project context based on analysis
-            context = self._update_context_from_analysis(context, analysis, user_response)
-            self.db_manager.save_project_context(context)
-
-            # Get conversation history
-            conversation_history = self.db_manager.get_conversation_history(project_id)
-
-            # Load relevant knowledge
-            knowledge_base = self.db_manager.load_knowledge_entries(project_id)
-            relevant_knowledge = self._find_relevant_knowledge(user_response, knowledge_base)
-
-            # Generate next question
-            question = self.socratic_agent.generate_question(
-                context, user_response, relevant_knowledge, conversation_history
-            )
-
-            # Save assistant response with analysis
-            assistant_entry = ConversationEntry(
-                id=str(uuid.uuid4()),
-                project_id=project_id,
-                user_id=user_id,
-                role="assistant",
-                content=question,
-                agent_name=self.socratic_agent.name,
-                analysis_data=analysis,
-                timestamp=datetime.now().isoformat()
-            )
-            self.db_manager.save_conversation_entry(assistant_entry)
-
-            return question
-
-        def generate_technical_specification(self, project_id: str) -> TechnicalSpecification:
-            """Generate comprehensive technical specification for a project"""
-            context = self.db_manager.load_project_context(project_id)
-            if not context:
-                raise ValueError("Project context not found")
-
-            # Get conversation history for analysis
-            conversation_history = self.db_manager.get_conversation_history(project_id, limit=100)
-
-            # Analyze all conversations to extract comprehensive insights
-            combined_analysis = self._analyze_full_conversation(conversation_history, context)
-
-            # Generate technical specification
-            spec = self.creator_agent.create_technical_specification(context, combined_analysis)
-
-            # Save specification to database
-            self.db_manager.save_technical_specification(spec)
-
-            return spec
-
-        def _find_relevant_knowledge(self, query: str, knowledge_base: List[KnowledgeEntry], top_k: int = 3) -> List[
-            KnowledgeEntry]:
-            """Find relevant knowledge entries using simple embedding similarity"""
-            if not knowledge_base:
-                return []
-
-            query_embedding = self.embedding_system.get_embedding(query)
-            similarities = []
-
-            for entry in knowledge_base:
-                if entry.embedding is not None:
-                    similarity = cosine_similarity([query_embedding], [entry.embedding])[0][0]
-                    similarities.append((similarity, entry))
-
-            # Sort by similarity and return top k
-            similarities.sort(key=lambda x: x[0], reverse=True)
-            return [entry for _, entry in similarities[:top_k]]
-
-        def _update_context_from_analysis(self, context: ProjectContext, analysis: Dict[str, Any],
-                                          user_response: str) -> ProjectContext:
-            """Update project context based on analysis results"""
-            # Update goals
-            key_points = analysis.get("key_points", [])
-            for point in key_points:
-                if "goal" in point.lower() or "want" in point.lower():
-                    if point not in context.goals:
-                        context.goals.append(point)
-
-            # Update requirements
-            if "requirement" in user_response.lower() or "must" in user_response.lower():
-                context.requirements.append(user_response)
-
-            # Update tech stack
-            tech_keywords = ["python", "javascript", "react", "node", "flask", "django", "postgresql", "mysql",
-                             "mongodb"]
-            response_lower = user_response.lower()
-            for keyword in tech_keywords:
-                if keyword in response_lower and keyword not in context.tech_stack:
-                    context.tech_stack.append(keyword)
-
-            # Update business logic
-            business_logic = analysis.get("business_logic", [])
-            context.business_logic.extend(business_logic)
-
-            # Update data entities
-            data_entities = analysis.get("data_entities", [])
-            context.data_entities.extend(data_entities)
-
-            # Update API endpoints
-            api_requirements = analysis.get("api_requirements", [])
-            context.api_endpoints.extend(api_requirements)
-
-            # Update UI components
-            ui_requirements = analysis.get("ui_requirements", [])
-            context.ui_components.extend(ui_requirements)
-
-            # Update timestamp
-            context.timestamp = datetime.now().isoformat()
-
-            return context
-
-        def _analyze_full_conversation(self, conversation_history: List[ConversationEntry], context: ProjectContext) -> \
-        Dict[str, Any]:
-            """Analyze full conversation history to extract comprehensive insights"""
-            combined_analysis = {
-                "key_points": [],
-                "technical_insights": [],
-                "business_logic": [],
-                "data_entities": [],
-                "api_requirements": [],
-                "ui_requirements": [],
-                "implications": [],
-                "missing_info": [],
-                "next_focus": ""
+    def _generate_implementation_plan(self, context: ProjectContext, analysis: Dict[str, Any]) -> List[
+        Dict[str, Any]]:
+        """Generate step-by-step implementation plan"""
+        plan = [
+            {
+                "phase": "Setup",
+                "tasks": [
+                    "Initialize project structure",
+                    "Set up development environment",
+                    "Configure version control",
+                    "Set up database"
+                ],
+                "estimated_hours": 8,
+                "dependencies": []
+            },
+            {
+                "phase": "Core Backend",
+                "tasks": [
+                    "Implement database models",
+                    "Create basic API endpoints",
+                    "Set up authentication",
+                    "Implement error handling"
+                ],
+                "estimated_hours": 24,
+                "dependencies": ["Setup"]
+            },
+            {
+                "phase": "Business Logic",
+                "tasks": [
+                    "Implement core business services",
+                    "Add data validation",
+                    "Create business rule processing"
+                ],
+                "estimated_hours": 32,
+                "dependencies": ["Core Backend"]
+            },
+            {
+                "phase": "Frontend",
+                "tasks": [
+                    "Create basic UI components",
+                    "Implement user authentication flow",
+                    "Build main application views",
+                    "Add responsive design"
+                ],
+                "estimated_hours": 40,
+                "dependencies": ["Business Logic"]
+            },
+            {
+                "phase": "Integration & Testing",
+                "tasks": [
+                    "Write unit tests",
+                    "Implement integration tests",
+                    "Perform end-to-end testing",
+                    "Fix bugs and optimize"
+                ],
+                "estimated_hours": 24,
+                "dependencies": ["Frontend"]
+            },
+            {
+                "phase": "Deployment",
+                "tasks": [
+                    "Set up production environment",
+                    "Configure CI/CD pipeline",
+                    "Deploy application",
+                    "Monitor and maintain"
+                ],
+                "estimated_hours": 16,
+                "dependencies": ["Integration & Testing"]
             }
+        ]
 
-            # Analyze all user responses
-            for entry in conversation_history:
-                if entry.role == "user":
-                    analysis = self.analyst_agent.analyze_response(entry.content, context)
+        return plan
 
-                    # Combine all insights
-                    for key in combined_analysis:
-                        if key in analysis and isinstance(analysis[key], list):
-                            combined_analysis[key].extend(analysis[key])
-                        elif key in analysis and isinstance(analysis[key], str):
-                            combined_analysis[key] = analysis[key]
+    def _generate_test_requirements(self, context: ProjectContext) -> List[str]:
+        """Generate testing requirements"""
+        return [
+            "Unit tests for all business logic functions",
+            "Integration tests for API endpoints",
+            "Database transaction tests",
+            "Authentication and authorization tests",
+            "Input validation and error handling tests",
+            "Performance tests for critical paths",
+            "End-to-end user workflow tests",
+            "Security vulnerability tests",
+            "Cross-browser compatibility tests (if web app)",
+            "Mobile responsiveness tests (if applicable)"
+        ]
 
-            # Remove duplicates from lists
-            for key, value in combined_analysis.items():
-                if isinstance(value, list):
-                    combined_analysis[key] = list(set(value))
+    def _generate_deployment_config(self, context: ProjectContext) -> Dict[str, Any]:
+        """Generate deployment configuration"""
+        return {
+            "environment": "production",
+            "platform": "docker",
+            "orchestration": "docker-compose",
+            "database": {
+                "type": "postgresql",
+                "backup_strategy": "daily",
+                "connection_pooling": True
+            },
+            "caching": {
+                "type": "redis",
+                "ttl": 3600
+            },
+            "monitoring": {
+                "logging": "structured",
+                "metrics": "prometheus",
+                "alerting": "email"
+            },
+            "security": {
+                "https": True,
+                "security_headers": True,
+                "rate_limiting": True
+            },
+            "scaling": {
+                "auto_scaling": False,
+                "load_balancer": False,
+                "cdn": False
+            }
+        }
 
-            return combined_analysis
+    def _generate_dependencies(self, context: ProjectContext) -> List[str]:
+        """Generate project dependencies based on tech stack"""
+        tech_stack = context.tech_stack
+        dependencies = []
 
-        def get_project_summary(self, project_id: str) -> Dict[str, Any]:
-            """Get comprehensive project summary"""
-            context = self.db_manager.load_project_context(project_id)
-            if not context:
-                return {"error": "Project not found"}
+        # Python dependencies
+        if any("python" in tech.lower() for tech in tech_stack):
+            dependencies.extend([
+                "flask>=2.0.0",
+                "sqlalchemy>=1.4.0",
+                "alembic>=1.7.0",
+                "psycopg2-binary>=2.9.0",
+                "flask-jwt-extended>=4.2.0",
+                "marshmallow>=3.14.0",
+                "python-dotenv>=0.19.0",
+                "pytest>=6.2.0",
+                "black>=21.0.0",
+                "flake8>=4.0.0"
+            ])
 
-            spec = self.db_manager.load_technical_specification(project_id)
-            conversation_history = self.
+        # Node.js dependencies
+        if any("node" in tech.lower() or "express" in tech.lower() for tech in tech_stack):
+            dependencies.extend([
+                "express>=4.18.0",
+                "mongoose>=6.0.0",
+                "jsonwebtoken>=8.5.0",
+                "bcrypt>=5.0.0",
+                "cors>=2.8.0",
+                "helmet>=5.0.0",
+                "dotenv>=16.0.0",
+                "jest>=28.0.0",
+                "nodemon>=2.0.0",
+                "eslint>=8.0.0"
+            ])
+
+        # React dependencies
+        if any("react" in tech.lower() for tech in tech_stack):
+            dependencies.extend([
+                "react>=18.0.0",
+                "react-dom>=18.0.0",
+                "react-router-dom>=6.0.0",
+                "axios>=0.27.0",
+                "styled-components>=5.3.0",
+                "@testing-library/react>=13.0.0",
+                "@testing-library/jest-dom>=5.16.0"
+            ])
+
+        return dependencies
+
+    def _generate_environment_variables(self, context: ProjectContext) -> Dict[str, str]:
+        """Generate environment variables template"""
+        return {
+            "NODE_ENV": "production",
+            "PORT": "3000",
+            "DATABASE_URL": "postgresql://user:password@localhost:5432/dbname",
+            "JWT_SECRET": "your-super-secret-jwt-key",
+            "JWT_EXPIRATION": "24h",
+            "REDIS_URL": "redis://localhost:6379",
+            "LOG_LEVEL": "info",
+            "API_BASE_URL": "http://localhost:3000/api/v1",
+            "CORS_ORIGIN": "http://localhost:3000",
+            "RATE_LIMIT_WINDOW": "15",
+            "RATE_LIMIT_MAX": "100"
+        }
+
+
+class EnhancedSocraticRAG:
+    """Enhanced Socratic RAG system with database support"""
+
+    def __init__(self, db_path: str = "socratic_rag.db"):
+        self.db_manager = DatabaseManager(db_path)
+        self.embedding_system = SimpleEmbedding()
+
+        # Initialize agents
+        self.socratic_agent = SocraticAgent()
+        self.analyst_agent = AnalystAgent()
+        self.creator_agent = CreatorAgent()
+
+        # Initialize global knowledge base
+        self._initialize_knowledge_base()
+
+        logger.info("Enhanced Socratic RAG system initialized")
+
+    def _initialize_knowledge_base(self):
+        """Initialize the global knowledge base with enhanced entries"""
+        knowledge_entries = [
+            # Discovery Phase Knowledge
+            KnowledgeEntry(
+                id=str(uuid.uuid4()),
+                content="User stories should follow the format: As a [user type], I want [functionality] so that "
+                        "[benefit]. This helps clarify who needs what and why.",
+                category="methodology",
+                phase="discovery",
+                keywords=["user stories", "requirements", "agile"],
+                created_at=datetime.now().isoformat()
+            ),
+            KnowledgeEntry(
+                id=str(uuid.uuid4()),
+                content="Data entities represent the core objects in your system. Identify what data you need to "
+                        "store, how it relates, and what operations you'll perform on it.",
+                category="data_modeling",
+                phase="discovery",
+                keywords=["data model", "entities", "database"],
+                created_at=datetime.now().isoformat()
+            ),
+
+            # Analysis Phase Knowledge
+            KnowledgeEntry(
+                id=str(uuid.uuid4()),
+                content="RESTful API design principles: Use HTTP methods appropriately (GET for retrieval, "
+                        "POST for creation, PUT for updates, DELETE for removal). Use consistent URL patterns and "
+                        "status codes.",
+                category="api_design",
+                phase="analysis",
+                keywords=["REST", "API", "HTTP", "web services"],
+                created_at=datetime.now().isoformat()
+            ),
+            KnowledgeEntry(
+                id=str(uuid.uuid4()),
+                content="Database normalization reduces redundancy. First normal form eliminates repeating "
+                        "groups, second normal form eliminates partial dependencies, third normal form eliminates "
+                        "transitive dependencies.",
+                category="database",
+                phase="analysis",
+                keywords=["normalization", "database design", "schema"],
+                created_at=datetime.now().isoformat()
+            ),
+
+            # Design Phase Knowledge
+            KnowledgeEntry(
+                id=str(uuid.uuid4()),
+                content="MVC (Model-View-Controller) pattern separates concerns: Models handle data, Views handle "
+                        "presentation, Controllers handle user input and coordinate between Models and Views.",
+                category="architecture",
+                phase="design",
+                keywords=["MVC", "architecture", "separation of concerns"],
+                created_at=datetime.now().isoformat()
+            ),
+            KnowledgeEntry(
+                id=str(uuid.uuid4()),
+                content="Authentication verifies identity, Authorization determines permissions. Use JWT tokens "
+                        "for stateless authentication in web applications.",
+                category="security",
+                phase="design",
+                keywords=["authentication", "authorization", "JWT", "security"],
+                created_at=datetime.now().isoformat()
+            ),
+
+            # Implementation Phase Knowledge
+            KnowledgeEntry(
+                id=str(uuid.uuid4()),
+                content="Test-driven development (TDD): Write tests first, then implement code to pass tests. "
+                        "This ensures better code quality and test coverage.",
+                category="testing",
+                phase="implementation",
+                keywords=["TDD", "testing", "quality"],
+                created_at=datetime.now().isoformat()
+            ),
+            KnowledgeEntry(
+                id=str(uuid.uuid4()),
+                content="Environment variables keep sensitive configuration out of code. Use .env files for local "
+                        "development and secure secret management in production.",
+                category="configuration",
+                phase="implementation",
+                keywords=["environment", "configuration", "secrets"],
+                created_at=datetime.now().isoformat()
+            )
+        ]
+
+        # Save knowledge entries to database
+        for entry in knowledge_entries:
+            # Generate embedding
+            entry.embedding = self.embedding_system.get_embedding(entry.content)
+            self.db_manager.save_knowledge_entry(entry)
+
+    def create_user(self, username: str, email: str, role: str = "developer") -> User:
+        """Create a new user"""
+        return self.db_manager.create_user(username, email, role)
+
+    def create_project(self, name: str, description: str, owner_username: str) -> ProjectMetadata:
+        """Create a new project"""
+        user = self.db_manager.get_user(owner_username)
+        if not user:
+            raise ValueError(f"User {owner_username} not found")
+
+        return self.db_manager.create_project(name, description, user.id)
+
+    def start_conversation(self, project_id: str, user_id: str, initial_message: str) -> str:
+        """Start a conversation for a project"""
+        # Save user message
+        user_entry = ConversationEntry(
+            id=str(uuid.uuid4()),
+            project_id=project_id,
+            user_id=user_id,
+            role="user",
+            content=initial_message,
+            timestamp=datetime.now().isoformat()
+        )
+        self.db_manager.save_conversation_entry(user_entry)
+
+        # Load or create project context
+        context = self.db_manager.load_project_context(project_id)
+        if not context:
+            context = ProjectContext(
+                project_id=project_id,
+                goals=[],
+                requirements=[],
+                tech_stack=[],
+                constraints=[],
+                team_structure="",
+                language_preferences=[],
+                deployment_target="",
+                code_style="",
+                phase="discovery",
+                business_logic=[],
+                user_stories=[],
+                non_functional_requirements=[],
+                integration_requirements=[],
+                data_entities=[],
+                api_endpoints=[],
+                ui_components=[],
+                security_requirements=[],
+                performance_requirements=[],
+                timestamp=datetime.now().isoformat()
+            )
+
+        # Get conversation history
+        conversation_history = self.db_manager.get_conversation_history(project_id)
+
+        # Load relevant knowledge
+        knowledge_base = self.db_manager.load_knowledge_entries(project_id)
+        relevant_knowledge = self._find_relevant_knowledge(initial_message, knowledge_base)
+
+        # Generate Socratic question
+        question = self.socratic_agent.generate_question(
+            context, initial_message, relevant_knowledge, conversation_history
+        )
+
+        # Save assistant response
+        assistant_entry = ConversationEntry(
+            id=str(uuid.uuid4()),
+            project_id=project_id,
+            user_id=user_id,
+            role="assistant",
+            content=question,
+            agent_name=self.socratic_agent.name,
+            timestamp=datetime.now().isoformat()
+        )
+        self.db_manager.save_conversation_entry(assistant_entry)
+
+        return question
+
+    def continue_conversation(self, project_id: str, user_id: str, user_response: str) -> str:
+        """Continue an existing conversation"""
+        # Save user response
+        user_entry = ConversationEntry(
+            id=str(uuid.uuid4()),
+            project_id=project_id,
+            user_id=user_id,
+            role="user",
+            content=user_response,
+            timestamp=datetime.now().isoformat()
+        )
+        self.db_manager.save_conversation_entry(user_entry)
+
+        # Load project context
+        context = self.db_manager.load_project_context(project_id)
+        if not context:
+            return "Error: Project context not found. Please start a new conversation."
+
+        # Analyze user response
+        analysis = self.analyst_agent.analyze_response(user_response, context)
+
+        # Update project context based on analysis
+        context = self._update_context_from_analysis(context, analysis, user_response)
+        self.db_manager.save_project_context(context)
+
+        # Get conversation history
+        conversation_history = self.db_manager.get_conversation_history(project_id)
+
+        # Load relevant knowledge
+        knowledge_base = self.db_manager.load_knowledge_entries(project_id)
+        relevant_knowledge = self._find_relevant_knowledge(user_response, knowledge_base)
+
+        # Generate next question
+        question = self.socratic_agent.generate_question(
+            context, user_response, relevant_knowledge, conversation_history
+        )
+
+        # Save assistant response with analysis
+        assistant_entry = ConversationEntry(
+            id=str(uuid.uuid4()),
+            project_id=project_id,
+            user_id=user_id,
+            role="assistant",
+            content=question,
+            agent_name=self.socratic_agent.name,
+            analysis_data=analysis,
+            timestamp=datetime.now().isoformat()
+        )
+        self.db_manager.save_conversation_entry(assistant_entry)
+
+        return question
+
+    def generate_technical_specification(self, project_id: str) -> TechnicalSpecification:
+        """Generate comprehensive technical specification for a project"""
+        context = self.db_manager.load_project_context(project_id)
+        if not context:
+            raise ValueError("Project context not found")
+
+        # Get conversation history for analysis
+        conversation_history = self.db_manager.get_conversation_history(project_id, limit=100)
+
+        # Analyze all conversations to extract comprehensive insights
+        combined_analysis = self._analyze_full_conversation(conversation_history, context)
+
+        # Generate technical specification
+        spec = self.creator_agent.create_technical_specification(context, combined_analysis)
+
+        # Save specification to database
+        self.db_manager.save_technical_specification(spec)
+
+        return spec
+
+    def _find_relevant_knowledge(self, query: str, knowledge_base: List[KnowledgeEntry], top_k: int = 3) -> List[
+        KnowledgeEntry]:
+        """Find relevant knowledge entries using simple embedding similarity"""
+        if not knowledge_base:
+            return []
+
+        query_embedding = self.embedding_system.get_embedding(query)
+        similarities = []
+
+        for entry in knowledge_base:
+            if entry.embedding is not None:
+                similarity = cosine_similarity([query_embedding], [entry.embedding])[0][0]
+                similarities.append((similarity, entry))
+
+        # Sort by similarity and return top k
+        similarities.sort(key=lambda x: x[0], reverse=True)
+        return [entry for _, entry in similarities[:top_k]]
+
+    def _update_context_from_analysis(self, context: ProjectContext, analysis: Dict[str, Any],
+                                      user_response: str) -> ProjectContext:
+        """Update project context based on analysis results"""
+        # Update goals
+        key_points = analysis.get("key_points", [])
+        for point in key_points:
+            if "goal" in point.lower() or "want" in point.lower():
+                if point not in context.goals:
+                    context.goals.append(point)
+
+        # Update requirements
+        if "requirement" in user_response.lower() or "must" in user_response.lower():
+            context.requirements.append(user_response)
+
+        # Update tech stack
+        tech_keywords = ["python", "javascript", "react", "node", "flask", "django", "postgresql", "mysql",
+                         "mongodb"]
+        response_lower = user_response.lower()
+        for keyword in tech_keywords:
+            if keyword in response_lower and keyword not in context.tech_stack:
+                context.tech_stack.append(keyword)
+
+        # Update business logic
+        business_logic = analysis.get("business_logic", [])
+        context.business_logic.extend(business_logic)
+
+        # Update data entities
+        data_entities = analysis.get("data_entities", [])
+        context.data_entities.extend(data_entities)
+
+        # Update API endpoints
+        api_requirements = analysis.get("api_requirements", [])
+        context.api_endpoints.extend(api_requirements)
+
+        # Update UI components
+        ui_requirements = analysis.get("ui_requirements", [])
+        context.ui_components.extend(ui_requirements)
+
+        # Update timestamp
+        context.timestamp = datetime.now().isoformat()
+
+        return context
+
+    def _analyze_full_conversation(self, conversation_history: List[ConversationEntry], context: ProjectContext) -> \
+            Dict[str, Any]:
+        """Analyze full conversation history to extract comprehensive insights"""
+        combined_analysis = {
+            "key_points": [],
+            "technical_insights": [],
+            "business_logic": [],
+            "data_entities": [],
+            "api_requirements": [],
+            "ui_requirements": [],
+            "implications": [],
+            "missing_info": [],
+            "next_focus": ""
+        }
+
+        # Analyze all user responses
+        for entry in conversation_history:
+            if entry.role == "user":
+                analysis = self.analyst_agent.analyze_response(entry.content, context)
+
+                # Combine all insights
+                for key in combined_analysis:
+                    if key in analysis and isinstance(analysis[key], list):
+                        combined_analysis[key].extend(analysis[key])
+                    elif key in analysis and isinstance(analysis[key], str):
+                        combined_analysis[key] = analysis[key]
+
+        # Remove duplicates from lists
+        for key, value in combined_analysis.items():
+            if isinstance(value, list):
+                combined_analysis[key] = list(set(value))
+
+        return combined_analysis
+
+    def get_project_summary(self, project_id: str) -> Dict[str, Any]:
+        """Get comprehensive project summary"""
+        context = self.db_manager.load_project_context(project_id)
+        if not context:
+            return {"error": "Project not found"}
+
+        spec = self.db_manager.load_technical_specification(project_id)
+        conversation_history = self.db_manager.get_conversation_history(project_id)
+
+        summary = {
+            "project_id": project_id,
+            "phase": context.phase,
+            "goals": context.goals,
+            "requirements": context.requirements,
+            "tech_stack": context.tech_stack,
+            "conversation_count": len(conversation_history),
+            "data_entities": len(context.data_entities),
+            "api_endpoints": len(context.api_endpoints),
+            "ui_components": len(context.ui_components),
+            "has_technical_spec": spec is not None,
+            "last_updated": context.timestamp
+        }
+
+        if spec:
+            summary["implementation_plan"] = spec.implementation_plan
+            summary["estimated_total_hours"] = sum(
+                phase.get("estimated_hours", 0) for phase in spec.implementation_plan
+            )
+
+        return summary
+
+    def add_custom_knowledge(self, project_id: str, user_id: str, content: str,
+                             category: str, phase: str, keywords: List[str]) -> KnowledgeEntry:
+        """Add custom knowledge entry for a project"""
+        entry = KnowledgeEntry(
+            id=str(uuid.uuid4()),
+            content=content,
+            category=category,
+            phase=phase,
+            keywords=keywords,
+            project_id=project_id,
+            user_id=user_id,
+            created_at=datetime.now().isoformat()
+        )
+
+        # Generate embedding
+        entry.embedding = self.embedding_system.get_embedding(content)
+
+        # Save to database
+        self.db_manager.save_knowledge_entry(entry)
+
+        return entry
+
+    def export_project_data(self, project_id: str) -> Dict[str, Any]:
+        """Export all project data for backup or transfer"""
+        context = self.db_manager.load_project_context(project_id)
+        spec = self.db_manager.load_technical_specification(project_id)
+        conversation_history = self.db_manager.get_conversation_history(project_id, limit=1000)
+        knowledge_entries = self.db_manager.load_knowledge_entries(project_id)
+
+        export_data = {
+            "export_timestamp": datetime.now().isoformat(),
+            "project_id": project_id,
+            "context": context.to_dict() if context else None,
+            "technical_specification": spec.to_dict() if spec else None,
+            "conversation_history": [entry.to_dict() for entry in conversation_history],
+            "custom_knowledge": [entry.to_dict() for entry in knowledge_entries if
+                                 entry.project_id == project_id]
+        }
+
+        return export_data
+
+    def change_project_phase(self, project_id: str, new_phase: str) -> bool:
+        """Change project phase (discovery -> analysis -> design -> implementation)"""
+        valid_phases = ["discovery", "analysis", "design", "implementation"]
+        if new_phase not in valid_phases:
+            return False
+
+        context = self.db_manager.load_project_context(project_id)
+        if not context:
+            return False
+
+        context.phase = new_phase
+        context.timestamp = datetime.now().isoformat()
+        self.db_manager.save_project_context(context)
+
+        return True
+
+    def get_conversation_insights(self, project_id: str) -> Dict[str, Any]:
+        """Get insights from conversation patterns and analysis"""
+        conversation_history = self.db_manager.get_conversation_history(project_id)
+
+        insights = {
+            "total_conversations": len(conversation_history),
+            "user_messages": len([e for e in conversation_history if e.role == "user"]),
+            "assistant_messages": len([e for e in conversation_history if e.role == "assistant"]),
+            "agents_used": list(set([e.agent_name for e in conversation_history if e.agent_name])),
+            "conversation_timeline": [],
+            "key_decisions": [],
+            "evolution_summary": ""
+        }
+
+        # Build timeline
+        for entry in conversation_history:
+            insights["conversation_timeline"].append({
+                "timestamp": entry.timestamp,
+                "role": entry.role,
+                "agent": entry.agent_name,
+                "content_length": len(entry.content)
+            })
+
+        # Extract key decisions from analysis data
+        for entry in conversation_history:
+            if entry.analysis_data and "key_points" in entry.analysis_data:
+                for point in entry.analysis_data["key_points"]:
+                    if any(keyword in point.lower() for keyword in
+                           ["decide", "choose", "will use", "going with"]):
+                        insights["key_decisions"].append({
+                            "timestamp": entry.timestamp,
+                            "decision": point
+                        })
+
+        return insights
+
+
+def main():
+    """Main function demonstrating the enhanced Socratic RAG system"""
+    print("=== Enhanced Socratic Agentic RAG System ===\n")
+
+    # Initialize the system
+    rag_system = EnhancedSocraticRAG()
+
+    # Create a sample user
+    try:
+        user = rag_system.create_user("john_doe", "john@example.com", "developer")
+        print(f"Created user: {user.username}")
+    except Exception as e:
+        # User might already exist
+        user = rag_system.db_manager.get_user("john_doe")
+        if not user:
+            print(f"Error creating user: {e}")
+            return
+
+    # Create a sample project
+    try:
+        project = rag_system.create_project(
+            "Task Management System",
+            "A comprehensive task management application for teams",
+            user.username
+        )
+        print(f"Created project: {project.name} (ID: {project.id})")
+    except Exception as e:
+        print(f"Error creating project: {e}")
+        return
+
+    # Start a conversation
+    print("\n=== Starting Conversation ===")
+    initial_message = ("I want to build a task management system for my team where we can create, assign, and track "
+                       "tasks.")
+
+    response = rag_system.start_conversation(project.id, user.id, initial_message)
+    print(f"User: {initial_message}")
+    print(f"Assistant: {response}")
+
+    # Continue conversation with sample responses
+    sample_responses = [
+        "We need users to be able to create tasks with titles, descriptions, due dates, and priority levels. Tasks "
+        "should be assignable to team members.",
+        "Yes, we'll need user authentication. Team members should only see tasks assigned to them or tasks they "
+        "created. Managers should see all tasks.",
+        "We want a web application using React for the frontend and Python Flask for the backend. We'll use "
+        "PostgreSQL for the database.",
+        "We need a dashboard showing task statistics, a task list with filtering and sorting, and forms for creating "
+        "and editing tasks."
+    ]
+
+    print("\n=== Continuing Conversation ===")
+    for i, response_text in enumerate(sample_responses):
+        response = rag_system.continue_conversation(project.id, user.id, response_text)
+        print(f"\nUser: {response_text}")
+        print(f"Assistant: {response}")
+
+        if i == 1:  # After some conversation, change phase
+            rag_system.change_project_phase(project.id, "analysis")
+            print("(Phase changed to: analysis)")
+        elif i == 2:
+            rag_system.change_project_phase(project.id, "design")
+            print("(Phase changed to: design)")
+
+    # Generate technical specification
+    print("\n=== Generating Technical Specification ===")
+    try:
+        spec = rag_system.generate_technical_specification(project.id)
+        print("Technical specification generated successfully!")
+        print(f"Database tables: {len(spec.database_schema.get('tables', {}))}")
+        print(f"API endpoints: {len(spec.api_design.get('endpoints', []))}")
+        print(f"Implementation phases: {len(spec.implementation_plan)}")
+    except Exception as e:
+        print(f"Error generating specification: {e}")
+
+    # Get project summary
+    print("\n=== Project Summary ===")
+    summary = rag_system.get_project_summary(project.id)
+    for key, value in summary.items():
+        print(f"{key}: {value}")
+
+    # Get conversation insights
+    print("\n=== Conversation Insights ===")
+    insights = rag_system.get_conversation_insights(project.id)
+    print(f"Total conversations: {insights['total_conversations']}")
+    print(f"Agents used: {insights['agents_used']}")
+    print(f"Key decisions: {len(insights['key_decisions'])}")
+
+    # Add custom knowledge
+    print("\n=== Adding Custom Knowledge ===")
+    custom_knowledge = rag_system.add_custom_knowledge(
+        project.id,
+        user.id,
+        "For task management systems, consider implementing real-time notifications using WebSockets to keep team "
+        "members updated on task changes.",
+        "best_practices",
+        "implementation",
+        ["real-time", "notifications", "websockets", "task management"]
+    )
+    print(f"Added custom knowledge entry: {custom_knowledge.id}")
+
+    print("\n=== System Demo Complete ===")
+    print(f"Database file: {rag_system.db_manager.db_path}")
+    print("All project data has been saved and can be retrieved across sessions.")
+
+
+if __name__ == "__main__":
+    main()
