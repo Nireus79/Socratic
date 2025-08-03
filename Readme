@@ -1,280 +1,402 @@
-# Multi-Agent Socratic RAG System
+# Enhanced Socratic Agentic RAG System
 
-> *"Ουδέν οίδα, ούτε διδάσκω τι, αλλά διαπορώ μόνον."*  
-> *"I know nothing, nor do I teach anything, but I only inquire."*
+"Ουδέν οίδα, ούτε διδάσκω τι, αλλά διαπορώ μόνον."
+("I know nothing, nor do I teach anything, but I only inquire.")
 
-A sophisticated AI-powered project development system that uses specialized agents to guide you through the entire software development lifecycle - from initial idea to production-ready code.
+Key Sections:
 
-## 🌟 Overview
+Overview & Philosophy - Explains the Socratic method approach
+Architecture - Details the three-agent system and how they work together
+Complete Example - Full walkthrough of building a task management system
+Technical Details - Database schema, data models, and implementation
+Usage Guide - Step-by-step instructions for each feature
+Benefits - Why the Socratic approach is superior to direct answers
 
-The Multi-Agent Socratic RAG System employs the Socratic method of learning through questioning, using multiple specialized AI agents to collaboratively understand your project requirements and generate complete, production-ready applications.
+How the System Works:
+The system uses three AI agents that work together:
 
-### Key Features
+Socrates asks probing questions based on your project phase
+Theaetetus analyzes your responses to extract technical insights
+Demiurge synthesizes everything into actionable specifications
 
-- **🤖 Multi-Agent Architecture**: Specialized agents for different aspects of development
-- **💡 Socratic Discovery**: Intelligent questioning to refine requirements
-- **🏗️ Complete Code Generation**: Produces full, functional applications
-- **✅ Automated Validation**: Quality assurance and code review
-- **📊 Context Tracking**: Maintains comprehensive project understanding
-- **🎯 Phase-based Development**: Structured approach from discovery to deployment
+The example shows how a simple idea ("I want a task management system") evolves through guided questioning into a comprehensive technical specification with:
 
-## 🏛️ Architecture
+8 database tables
+24 API endpoints
+144 estimated development hours
+Complete implementation plan
 
-### Specialized Agents
+Why This Approach Works:
+Instead of giving you a generic solution, the system helps you discover:
 
-1. **Requirements Agent** - Gathers functional and non-functional requirements
-2. **Technical Agent** - Determines architecture and technology stack
-3. **UX Agent** - Focuses on user experience and interface design
-4. **Infrastructure Agent** - Handles deployment and scalability concerns
-5. **Planning Agent** - Creates detailed project specifications
-6. **Code Generation Agent** - Generates complete, production-ready code
-7. **Validation Agent** - Reviews code quality and identifies issues
+Real user problems (not assumed problems)
+Specific requirements (not generic features)
+Technical decisions (based on your actual needs)
+Implementation strategy (tailored to your context)
+
+## Overview
+
+The Enhanced Socratic Agentic RAG (Retrieval-Augmented Generation) System is a sophisticated AI-powered development assistant that uses the Socratic method to guide users through software project development. Instead of providing direct answers, it asks probing questions to help you discover solutions yourself, leading to better understanding and more thoughtful design decisions.
+
+## Key Features
+
+- **Multi-Agent Architecture**: Three specialized AI agents work together
+- **Database-Driven**: SQLite database for persistent storage
+- **Multi-User & Multi-Project Support**: Collaborate across teams and projects
+- **Phase-Based Development**: Structured progression through development phases
+- **Technical Specification Generation**: Automated creation of comprehensive technical docs
+- **Knowledge Base Integration**: Context-aware assistance using embedded knowledge
+- **Conversation Analytics**: Insights into decision-making patterns
+
+## How It Works
+
+### The Three Agents
+
+1. **Socrates (Primary Questioner)**
+   - Asks probing questions based on your project phase
+   - Guides discovery through strategic inquiry
+   - Adapts questioning style to current context
+
+2. **Theaetetus (Analyst)**
+   - Analyzes your responses for technical insights
+   - Extracts business logic, data entities, and API requirements
+   - Identifies gaps and implications in your thinking
+
+3. **Demiurge (Creator)**
+   - Synthesizes insights into actionable specifications
+   - Generates database schemas, API designs, and implementation plans
+   - Creates comprehensive technical documentation
 
 ### Development Phases
 
-1. **Discovery Phase** - Interactive requirement gathering
-2. **Planning Phase** - Detailed specification creation
-3. **Generation Phase** - Complete code generation
-4. **Validation Phase** - Quality assurance and review
-5. **Complete Phase** - Final deliverable ready
+The system guides you through four structured phases:
 
-## 🚀 Getting Started
+1. **Discovery**: Understanding the problem, users, and goals
+2. **Analysis**: Technical requirements and architectural decisions
+3. **Design**: Detailed system design and component architecture
+4. **Implementation**: Coding strategies and development planning
+
+### Knowledge Base System
+
+- **Embedded Knowledge**: Pre-loaded with software development best practices
+- **Context-Aware Retrieval**: Finds relevant information using simple embeddings
+- **Custom Knowledge**: Add project-specific insights and learnings
+- **Phase-Specific Guidance**: Knowledge filtered by current development phase
+
+## Installation & Setup
 
 ### Prerequisites
 
-- Python 3.8+
-- Anthropic Claude API key
-- Required Python packages (see Installation)
-
-### Installation
-
-1. Clone or download the `Socratic5.py` file
-2. Install required dependencies:
-
 ```bash
-pip install anthropic asyncio logging dataclasses enum34
+# Required Python packages
+pip install numpy scikit-learn sqlite3 uuid hashlib datetime typing dataclasses pickle logging
 ```
 
-3. Set up your Anthropic API key:
+### Quick Start
 
-```bash
-export API_KEY_CLAUDE="your_api_key_here"
-```
+1. **Clone and Run**:
+   ```bash
+   python Socratic6.1.py
+   ```
 
-Or pass it directly when initializing the system.
+2. **First-Time Setup**:
+   - The system automatically creates a SQLite database (`socratic_rag.db`)
+   - Initialize with default knowledge base entries
+   - Ready to create users and projects
 
-### Running the System
+## Usage Example
 
-```bash
-python Socratic5.py
-```
+### Complete Walkthrough: Building a Task Management System
 
-## 💬 Usage
+Let's walk through developing a task management application from start to finish:
 
-### Basic Commands
-
-- **Regular conversation**: Describe your project, answer questions, refine requirements
-- **`generate` or `code`**: Generate complete project code
-- **`summary`**: View current project context and requirements
-- **`validate`**: Check context completeness and identify missing information
-- **`help`**: Display available commands and usage information
-- **`quit`, `exit`, `end`**: Exit the system (automatically saves context)
-
-### Example Interaction
+#### Step 1: User Creation and Project Setup
 
 ```
-💬 You: I want to build a task management web application
+=== Socratic RAG System ===
+1. Create/Login User
+> 1
+Enter username: alice_developer
+Enter email: alice@example.com
+Enter role (developer/manager/designer) [developer]: developer
+Created and logged in as: alice_developer
 
-🤖 System: Agent Analysis:
-**Requirements**: I can see you want to build a task management web application. 
-This suggests features like creating, updating, deleting, and organizing tasks.
-
-**Technical**: For a web application, we should consider the frontend framework, 
-backend technology, and database requirements.
-
-**UX**: Task management apps typically need intuitive interfaces for task creation, 
-organization, and tracking.
-
-Next Steps:
-1. What specific features do you want users to be able to do with tasks?
-2. Do you have any preferred technologies or frameworks?
-3. Who are your target users - individuals or teams?
+2. Create New Project
+> 2
+Project name: TeamTask Pro
+Project description: A collaborative task management system for development teams
+Created project: TeamTask Pro
 ```
 
-### Sample Workflow
+#### Step 2: Discovery Phase - Initial Conversation
 
-1. **Start with a project idea**: "I want to build an e-commerce platform"
-2. **Answer agent questions**: The system will ask about features, users, technology preferences
-3. **Refine requirements**: Continue the conversation to clarify details
-4. **Monitor progress**: Use `summary` to see current context completeness
-5. **Generate code**: When ready (70%+ completeness), use `generate` to create your application
+```
+5. Start/Continue Conversation
+> 5
+Starting new conversation for this project.
+Describe your project idea: I want to build a task management system where development teams can track their work, assign tasks to team members, and monitor progress in real-time.
 
-## 📁 Generated Output
+Assistant (Socrates): What specific problem are you trying to solve for your users?
 
-The system generates complete project structures including:
+Your response: Development teams often lose track of who's working on what, deadlines get missed, and there's no visibility into project progress. Team leads spend too much time in status meetings instead of coding.
 
-- **`main.py`** - Main application file with core functionality
-- **`models.py`** - Database models and schema
-- **`routes.py`** - API endpoints and route handlers
-- **`config.py`** - Configuration management
-- **`requirements.txt`** - Python dependencies
-- **`README.md`** - Project documentation
+Assistant (Socrates): Who is your target audience, and what are their current pain points?
 
-## 🔧 Configuration
+Your response: The primary users are software developers, team leads, and project managers. Developers want to focus on coding without administrative overhead. Team leads need visibility without micromanaging. Project managers need accurate progress reporting for stakeholders.
 
-### Environment Variables
+Assistant (Socrates): Can you describe the user journey through your proposed solution?
 
-- `API_KEY_CLAUDE` - Your Anthropic Claude API key
-- `DEBUG` - Enable debug mode (default: False)
-
-### Context Persistence
-
-The system automatically saves project context to `project_context.json` when you exit. This allows you to resume your project development session later.
-
-## 📊 Project Context Tracking
-
-The system maintains comprehensive context across multiple dimensions:
-
-### Requirements
-- Goals and objectives
-- Functional requirements
-- Non-functional requirements
-
-### Technical Specifications
-- Technology stack
-- Architecture patterns
-- Database requirements
-- API specifications
-
-### User Experience
-- UI components
-- User personas
-- User flows and interactions
-
-### Infrastructure
-- Deployment targets
-- Scalability requirements
-- Security considerations
-
-### Quality Metrics
-- Agent confidence scores
-- Context completeness percentage
-- Validation results
-
-## 🧠 AI Agent Capabilities
-
-### Requirements Agent
-- Extracts functional and non-functional requirements
-- Identifies user stories and acceptance criteria
-- Suggests clarifying questions about business logic
-
-### Technical Agent
-- Recommends appropriate technology stacks
-- Suggests architectural patterns
-- Defines database and API requirements
-
-### UX Agent
-- Identifies UI components and design patterns
-- Develops user personas and use cases
-- Maps user flows and interactions
-
-### Infrastructure Agent
-- Assesses deployment and hosting needs
-- Evaluates scalability requirements
-- Identifies security considerations
-
-### Planning Agent
-- Creates comprehensive project specifications
-- Designs technical architecture
-- Develops implementation roadmaps
-
-### Code Generation Agent
-- Generates production-ready code
-- Implements best practices and patterns
-- Creates complete application structures
-
-### Validation Agent
-- Reviews generated code for quality
-- Identifies potential issues and improvements
-- Provides quality scores and recommendations
-
-## 🔍 Quality Assurance
-
-The system includes built-in quality assurance through:
-
-- **Syntax validation** - Checks for code errors
-- **Security review** - Identifies potential vulnerabilities
-- **Best practices compliance** - Ensures code follows conventions
-- **Documentation assessment** - Evaluates code documentation
-- **Architecture review** - Validates design patterns
-
-## 📈 Completeness Tracking
-
-The system tracks project completeness across multiple dimensions:
-
-- **Overall completeness score** (0-100%)
-- **Individual agent confidence scores**
-- **Missing requirement identification**
-- **Readiness assessment for code generation**
-
-## 🤝 Contributing
-
-This is a standalone system designed for individual project development. To extend functionality:
-
-1. Create new specialized agents by extending the `BaseAgent` class
-2. Add new context fields to the `ProjectContext` dataclass
-3. Implement additional validation rules in the `ValidationAgent`
-4. Extend the code generation capabilities for new frameworks
-
-## 📜 License
-
-This project is provided as-is for educational and development purposes. Please ensure you have proper licensing for the Anthropic Claude API.
-
-## 🔗 Dependencies
-
-- **anthropic** - Claude API client
-- **asyncio** - Asynchronous programming support
-- **logging** - Application logging
-- **dataclasses** - Data structure definitions
-- **enum** - Enumeration support
-- **json** - JSON serialization
-- **datetime** - Date and time handling
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-1. **API Key Error**: Ensure your Claude API key is properly set
-2. **Import Errors**: Install all required dependencies
-3. **Context Loading**: Check that `project_context.json` exists and is valid
-4. **Generation Failures**: Ensure context completeness is above 70%
-
-### Debug Mode
-
-Enable debug mode by setting the `DEBUG` environment variable to see detailed logging:
-
-```bash
-export DEBUG=true
-python Socratic5.py
+Your response: A developer logs in, sees their assigned tasks, updates progress with a simple click, and gets back to coding. Team leads view a dashboard showing team progress, can reassign tasks if needed, and spot bottlenecks early. Project managers generate reports showing sprint progress and can communicate status to stakeholders automatically.
 ```
 
-## 🌟 Advanced Features
+#### Step 3: Moving to Analysis Phase
 
-### Context Persistence
-- Automatic context saving on exit
-- Manual save/load functionality
-- Session resumption capabilities
+```
+6. Change Project Phase
+> 6
+Available phases:
+1. discovery
+2. analysis
+3. design
+4. implementation
+Select phase number: 2
+Changed phase to: analysis
 
-### Multi-Agent Coordination
-- Parallel agent processing
-- Consensus building algorithms
-- Conflict resolution strategies
+5. Start/Continue Conversation
+> 5
+Continuing existing conversation.
+Your response: I think we need a web application with a React frontend and Node.js backend. We'll need user authentication, real-time updates, and integration with Git repositories to automatically create tasks from commits.
 
-### Adaptive Questioning
-- Dynamic question generation based on context
-- Confidence-weighted question prioritization
-- Contextual follow-up strategies
+Assistant (Socrates): What are the core technical challenges in implementing this solution?
+
+Your response: The main challenges are real-time synchronization across multiple users, handling concurrent task updates without conflicts, scaling the notification system, and securely integrating with various Git providers like GitHub and GitLab.
+
+Assistant (Socrates): How will you structure your database to support your requirements?
+
+Your response: We need tables for Users, Teams, Projects, Tasks, Comments, and Notifications. Tasks need to track status, priority, assignee, dependencies, and time estimates. We'll also need audit logs for task changes and integration tokens for Git repositories.
+```
+
+#### Step 4: Generate Technical Specification
+
+```
+7. Generate Technical Specification
+> 7
+Generating technical specification...
+Technical specification generated successfully!
+
+Summary:
+- Database tables: 8
+- API endpoints: 24
+- Implementation phases: 6
+- Dependencies: 15
+- Estimated total hours: 144
+- Estimated weeks (40h/week): 3.6
+```
+
+#### Step 5: View Project Summary
+
+```
+8. View Project Summary
+> 8
+
+Project Summary:
+- Project Id: abc123-def456-ghi789
+- Phase: analysis
+- Goals: ['Development teams want to focus on coding without administrative overhead', 'Team leads need visibility without micromanaging']
+- Requirements: ['Real-time synchronization across multiple users', 'Integration with Git repositories']
+- Tech Stack: ['react', 'node', 'postgresql']
+- Conversation Count: 6
+- Data Entities: 6
+- Api Endpoints: 8
+- Ui Components: 4
+- Has Technical Spec: True
+- Estimated Total Hours: 144
+```
+
+### What the System Generated Behind the Scenes
+
+During this conversation, the system automatically:
+
+1. **Extracted Data Entities**:
+   - User (name, email, role, team_id)
+   - Team (name, description, owner_id)
+   - Project (name, description, team_id, status)
+   - Task (title, description, status, priority, assignee_id, project_id)
+   - Comment (content, author_id, task_id, created_at)
+   - Notification (message, user_id, read_status, type)
+
+2. **Identified API Endpoints**:
+   - `POST /api/users` - Create user
+   - `GET /api/users/:id` - Get user details
+   - `POST /api/tasks` - Create task
+   - `PUT /api/tasks/:id` - Update task
+   - `GET /api/projects/:id/tasks` - Get project tasks
+   - And 19 more endpoints...
+
+3. **Generated Implementation Plan**:
+   - **Setup Phase** (8 hours): Project structure, environment, database
+   - **Core Backend** (24 hours): Models, APIs, authentication
+   - **Business Logic** (32 hours): Task management, notifications
+   - **Frontend** (40 hours): React components, real-time updates
+   - **Integration & Testing** (24 hours): Testing, Git integration
+   - **Deployment** (16 hours): Production setup, monitoring
+
+4. **Created Database Schema**:
+   ```sql
+   CREATE TABLE tasks (
+       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+       title VARCHAR(255) NOT NULL,
+       description TEXT,
+       status VARCHAR(50) DEFAULT 'todo',
+       priority INTEGER DEFAULT 3,
+       assignee_id UUID REFERENCES users(id),
+       project_id UUID REFERENCES projects(id),
+       created_at TIMESTAMP DEFAULT NOW(),
+       updated_at TIMESTAMP DEFAULT NOW()
+   );
+   ```
+
+## Menu System
+
+### Main Menu Options
+
+1. **Create/Login User** - User management
+2. **Create New Project** - Start new development project
+3. **List My Projects** - View all your projects
+4. **Select Project** - Choose active project
+5. **Start/Continue Conversation** - Engage with Socratic questioning
+6. **Change Project Phase** - Move through development phases
+7. **Generate Technical Specification** - Create comprehensive tech docs
+8. **View Project Summary** - Overview of project status
+9. **View Conversation Insights** - Analytics on your decision-making
+10. **Add Custom Knowledge** - Extend the knowledge base
+11. **Export Project Data** - Backup or transfer project data
+
+## Architecture Details
+
+### Database Schema
+
+The system uses SQLite with the following core tables:
+
+- **users**: User accounts and roles
+- **projects**: Project metadata and settings
+- **project_members**: Team membership
+- **project_context**: Rich project context and requirements
+- **technical_specifications**: Generated technical documentation
+- **conversations**: Complete conversation history with analysis
+- **knowledge_base**: Embedded knowledge entries
+
+### Data Models
+
+```python
+@dataclass
+class ProjectContext:
+    goals: List[str]
+    requirements: List[str]
+    tech_stack: List[str]
+    user_stories: List[str]
+    data_entities: List[Dict[str, Any]]
+    api_endpoints: List[Dict[str, Any]]
+    ui_components: List[Dict[str, Any]]
+    # ... and many more fields
+
+@dataclass
+class TechnicalSpecification:
+    database_schema: Dict[str, Any]
+    api_design: Dict[str, Any]
+    file_structure: Dict[str, Any]
+    implementation_plan: List[Dict[str, Any]]
+    # ... comprehensive technical details
+```
+
+### Embedding System
+
+Simple bag-of-words embedding for knowledge retrieval:
+- Converts text to numerical vectors
+- Uses cosine similarity for relevance matching
+- Enables context-aware knowledge suggestions
+- Works without external AI APIs
+
+## Benefits of the Socratic Approach
+
+### Traditional Development Assistant:
+```
+User: "How do I build a task management system?"
+Assistant: "Here's a complete implementation with React and Node.js..."
+```
+
+### Socratic RAG System:
+```
+User: "I want to build a task management system"
+Socrates: "What specific problem are you trying to solve for your users?"
+User: "Teams lose track of who's working on what..."
+Socrates: "Who experiences this pain most acutely?"
+User: "Team leads spend too much time in status meetings..."
+Socrates: "What would success look like from their perspective?"
+```
+
+**Result**: You discover the real requirements through guided inquiry rather than building what you initially thought you wanted.
+
+## Advanced Features
+
+### Knowledge Base Integration
+- **Phase-Specific Knowledge**: Different guidance for each development phase
+- **Custom Knowledge Entries**: Add project-specific learnings
+- **Embedded Retrieval**: Find relevant knowledge automatically
+- **Confidence Scoring**: Prioritize higher-quality knowledge
+
+### Conversation Analytics
+- **Decision Tracking**: Identify key decisions made during conversations
+- **Evolution Analysis**: See how your project understanding evolved
+- **Agent Insights**: Which agents contributed most to your project
+- **Timeline Visualization**: Track conversation patterns over time
+
+### Multi-User Collaboration
+- **Team Projects**: Multiple developers on the same project
+- **Role-Based Access**: Different permissions for different roles
+- **Shared Knowledge**: Team-specific knowledge base entries
+- **Conversation History**: See team discussions and decisions
+
+## Best Practices
+
+1. **Start with Discovery**: Don't rush to technical decisions
+2. **Answer Honestly**: The system works best with genuine responses
+3. **Take Your Time**: Let the Socratic process guide you naturally
+4. **Document Insights**: Add important discoveries to the knowledge base
+5. **Review and Iterate**: Use conversation insights to improve your process
+
+## Extensibility
+
+The system is designed for easy extension:
+
+- **New Agents**: Add specialized agents for different domains
+- **Custom Phases**: Define project-specific development phases
+- **Enhanced Embeddings**: Integrate more sophisticated embedding systems
+- **External Integrations**: Connect to Git, Jira, Slack, etc.
+- **Advanced Analytics**: Add machine learning for pattern recognition
+
+## Technical Requirements
+
+- **Python 3.8+**
+- **SQLite 3**
+- **NumPy**
+- **Scikit-learn**
+- **Standard Library**: uuid, hashlib, datetime, typing, dataclasses, pickle, logging
+
+## License
+
+This project is released under the MIT License.
+
+## Philosophy
+
+*"The unexamined code is not worth writing."*
+
+The Socratic RAG System embodies the belief that better software comes from better thinking. By asking the right questions at the right time, we help developers discover solutions that truly address user needs rather than just implementing the first idea that comes to mind.
 
 ---
 
-*Built with the philosophy that the best way to learn is through questioning, and the best way to build is through understanding.*
+"τω Ασκληπιώ οφείλομεν αλετρυόνα, απόδοτε και μη αμελήσετε.."
+("We owe a rooster to Asclepius; pay it and do not neglect it.")
+Socrates' last words, meaning body is mortal, our spirit is not.
+
+
