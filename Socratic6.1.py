@@ -1822,109 +1822,267 @@ class EnhancedSocraticRAG:
 
 
 def main():
-    """Main function demonstrating the enhanced Socratic RAG system"""
-    print("=== Enhanced Socratic Agentic RAG System ===\n")
-
-    # Initialize the system
+    """Functional main interface for the Socratic RAG system"""
     rag_system = EnhancedSocraticRAG()
+    current_user = None
+    current_project = None
 
-    # Create a sample user
-    try:
-        user = rag_system.create_user("john_doe", "john@example.com", "developer")
-        print(f"Created user: {user.username}")
-    except Exception as e:
-        # User might already exist
-        user = rag_system.db_manager.get_user("john_doe")
-        if not user:
-            print(f"Error creating user: {e}")
+    def print_menu():
+        print("\n=== Socratic RAG System ===")
+        print("1. Create/Login User")
+        print("2. Create New Project")
+        print("3. List My Projects")
+        print("4. Select Project")
+        print("5. Start/Continue Conversation")
+        print("6. Change Project Phase")
+        print("7. Generate Technical Specification")
+        print("8. View Project Summary")
+        print("9. View Conversation Insights")
+        print("10. Add Custom Knowledge")
+        print("11. Export Project Data")
+        print("0. Exit")
+        print(f"Current User: {current_user.username if current_user else 'None'}")
+        print(f"Current Project: {current_project.name if current_project else 'None'}")
+        print("-" * 40)
+
+    def create_or_login_user():
+        nonlocal current_user
+        username = input("Enter username: ").strip()
+        existing_user = rag_system.db_manager.get_user(username)
+
+        if existing_user:
+            current_user = existing_user
+            print(f"Logged in as: {username}")
+        else:
+            email = input("Enter email: ").strip()
+            role = input("Enter role (developer/manager/designer) [developer]: ").strip() or "developer"
+            try:
+                current_user = rag_system.create_user(username, email, role)
+                print(f"Created and logged in as: {username}")
+            except Exception as e:
+                print(f"Error creating user: {e}")
+
+    def create_project():
+        if not current_user:
+            print("Please login first!")
             return
 
-    # Create a sample project
-    try:
-        project = rag_system.create_project(
-            "Task Management System",
-            "A comprehensive task management application for teams",
-            user.username
-        )
-        print(f"Created project: {project.name} (ID: {project.id})")
-    except Exception as e:
-        print(f"Error creating project: {e}")
-        return
+        name = input("Project name: ").strip()
+        description = input("Project description: ").strip()
 
-    # Start a conversation
-    print("\n=== Starting Conversation ===")
-    initial_message = ("I want to build a task management system for my team where we can create, assign, and track "
-                       "tasks.")
+        try:
+            project = rag_system.create_project(name, description, current_user.username)
+            print(f"Created project: {project.name}")
+            return project
+        except Exception as e:
+            print(f"Error creating project: {e}")
+            return None
 
-    response = rag_system.start_conversation(project.id, user.id, initial_message)
-    print(f"User: {initial_message}")
-    print(f"Assistant: {response}")
+    def list_projects():
+        if not current_user:
+            print("Please login first!")
+            return
 
-    # Continue conversation with sample responses
-    sample_responses = [
-        "We need users to be able to create tasks with titles, descriptions, due dates, and priority levels. Tasks "
-        "should be assignable to team members.",
-        "Yes, we'll need user authentication. Team members should only see tasks assigned to them or tasks they "
-        "created. Managers should see all tasks.",
-        "We want a web application using React for the frontend and Python Flask for the backend. We'll use "
-        "PostgreSQL for the database.",
-        "We need a dashboard showing task statistics, a task list with filtering and sorting, and forms for creating "
-        "and editing tasks."
-    ]
+        projects = rag_system.db_manager.get_user_projects(current_user.id)
+        if not projects:
+            print("No projects found.")
+            return
 
-    print("\n=== Continuing Conversation ===")
-    for i, response_text in enumerate(sample_responses):
-        response = rag_system.continue_conversation(project.id, user.id, response_text)
-        print(f"\nUser: {response_text}")
-        print(f"Assistant: {response}")
+        print("\nYour Projects:")
+        for i, project in enumerate(projects, 1):
+            print(f"{i}. {project.name} - {project.status} ({project.updated_at})")
+        return projects
 
-        if i == 1:  # After some conversation, change phase
-            rag_system.change_project_phase(project.id, "analysis")
-            print("(Phase changed to: analysis)")
-        elif i == 2:
-            rag_system.change_project_phase(project.id, "design")
-            print("(Phase changed to: design)")
+    def select_project():
+        nonlocal current_project
+        projects = list_projects()
+        if not projects:
+            return
 
-    # Generate technical specification
-    print("\n=== Generating Technical Specification ===")
-    try:
-        spec = rag_system.generate_technical_specification(project.id)
-        print("Technical specification generated successfully!")
-        print(f"Database tables: {len(spec.database_schema.get('tables', {}))}")
-        print(f"API endpoints: {len(spec.api_design.get('endpoints', []))}")
-        print(f"Implementation phases: {len(spec.implementation_plan)}")
-    except Exception as e:
-        print(f"Error generating specification: {e}")
+        try:
+            choice = int(input("Select project number: ")) - 1
+            if 0 <= choice < len(projects):
+                current_project = projects[choice]
+                print(f"Selected project: {current_project.name}")
+            else:
+                print("Invalid selection.")
+        except ValueError:
+            print("Please enter a valid number.")
 
-    # Get project summary
-    print("\n=== Project Summary ===")
-    summary = rag_system.get_project_summary(project.id)
-    for key, value in summary.items():
-        print(f"{key}: {value}")
+    def conversation():
+        if not current_user or not current_project:
+            print("Please login and select a project first!")
+            return
 
-    # Get conversation insights
-    print("\n=== Conversation Insights ===")
-    insights = rag_system.get_conversation_insights(project.id)
-    print(f"Total conversations: {insights['total_conversations']}")
-    print(f"Agents used: {insights['agents_used']}")
-    print(f"Key decisions: {len(insights['key_decisions'])}")
+        # Check if this is the first conversation
+        history = rag_system.db_manager.get_conversation_history(current_project.id, limit=1)
 
-    # Add custom knowledge
-    print("\n=== Adding Custom Knowledge ===")
-    custom_knowledge = rag_system.add_custom_knowledge(
-        project.id,
-        user.id,
-        "For task management systems, consider implementing real-time notifications using WebSockets to keep team "
-        "members updated on task changes.",
-        "best_practices",
-        "implementation",
-        ["real-time", "notifications", "websockets", "task management"]
-    )
-    print(f"Added custom knowledge entry: {custom_knowledge.id}")
+        if not history:
+            print("Starting new conversation for this project.")
+            message = input("Describe your project idea: ").strip()
+            if message:
+                response = rag_system.start_conversation(current_project.id, current_user.id, message)
+                print(f"\nAssistant: {response}")
+        else:
+            print("Continuing existing conversation.")
+            message = input("Your response: ").strip()
+            if message:
+                response = rag_system.continue_conversation(current_project.id, current_user.id, message)
+                print(f"\nAssistant: {response}")
 
-    print("\n=== System Demo Complete ===")
-    print(f"Database file: {rag_system.db_manager.db_path}")
-    print("All project data has been saved and can be retrieved across sessions.")
+    def change_phase():
+        if not current_project:
+            print("Please select a project first!")
+            return
+
+        phases = ["discovery", "analysis", "design", "implementation"]
+        print("Available phases:")
+        for i, phase in enumerate(phases, 1):
+            print(f"{i}. {phase}")
+
+        try:
+            choice = int(input("Select phase number: ")) - 1
+            if 0 <= choice < len(phases):
+                success = rag_system.change_project_phase(current_project.id, phases[choice])
+                if success:
+                    print(f"Changed phase to: {phases[choice]}")
+                else:
+                    print("Failed to change phase.")
+            else:
+                print("Invalid selection.")
+        except ValueError:
+            print("Please enter a valid number.")
+
+    def generate_spec():
+        if not current_project:
+            print("Please select a project first!")
+            return
+
+        try:
+            print("Generating technical specification...")
+            spec = rag_system.generate_technical_specification(current_project.id)
+            print("Technical specification generated successfully!")
+
+            print(f"\nSummary:")
+            print(f"- Database tables: {len(spec.database_schema.get('tables', {}))}")
+            print(f"- API endpoints: {len(spec.api_design.get('endpoints', []))}")
+            print(f"- Implementation phases: {len(spec.implementation_plan)}")
+            print(f"- Dependencies: {len(spec.dependencies)}")
+
+            # Show estimated timeline
+            total_hours = sum(phase.get("estimated_hours", 0) for phase in spec.implementation_plan)
+            print(f"- Estimated total hours: {total_hours}")
+            print(f"- Estimated weeks (40h/week): {total_hours / 40:.1f}")
+
+        except Exception as e:
+            print(f"Error generating specification: {e}")
+
+    def view_summary():
+        if not current_project:
+            print("Please select a project first!")
+            return
+
+        summary = rag_system.get_project_summary(current_project.id)
+        print("\nProject Summary:")
+        for key, value in summary.items():
+            if key != "implementation_plan":  # Skip detailed plan in summary
+                print(f"- {key.replace('_', ' ').title()}: {value}")
+
+    def view_insights():
+        if not current_project:
+            print("Please select a project first!")
+            return
+
+        insights = rag_system.get_conversation_insights(current_project.id)
+        print("\nConversation Insights:")
+        print(f"- Total conversations: {insights['total_conversations']}")
+        print(f"- User messages: {insights['user_messages']}")
+        print(f"- Assistant messages: {insights['assistant_messages']}")
+        print(f"- Agents used: {', '.join(insights['agents_used'])}")
+        print(f"- Key decisions made: {len(insights['key_decisions'])}")
+
+        if insights['key_decisions']:
+            print("\nKey Decisions:")
+            for decision in insights['key_decisions'][-3:]:  # Show last 3
+                print(f"  - {decision['decision']}")
+
+    def add_knowledge():
+        if not current_user or not current_project:
+            print("Please login and select a project first!")
+            return
+
+        content = input("Knowledge content: ").strip()
+        category = input("Category: ").strip()
+        phase = input("Phase (discovery/analysis/design/implementation): ").strip()
+        keywords = input("Keywords (comma-separated): ").strip().split(',')
+        keywords = [k.strip() for k in keywords if k.strip()]
+
+        try:
+            entry = rag_system.add_custom_knowledge(
+                current_project.id, current_user.id, content, category, phase, keywords
+            )
+            print(f"Added knowledge entry: {entry.id}")
+        except Exception as e:
+            print(f"Error adding knowledge: {e}")
+
+    def export_data():
+        if not current_project:
+            print("Please select a project first!")
+            return
+
+        try:
+            data = rag_system.export_project_data(current_project.id)
+            filename = f"project_export_{current_project.id[:8]}.json"
+
+            with open(filename, 'w') as f:
+                json.dump(data, f, indent=2, default=str)
+
+            print(f"Project data exported to: {filename}")
+        except Exception as e:
+            print(f"Error exporting data: {e}")
+
+    # Main loop
+    while True:
+        try:
+            print_menu()
+            choice = input("Choose option: ").strip()
+
+            if choice == "1":
+                create_or_login_user()
+            elif choice == "2":
+                project = create_project()
+                if project:
+                    current_project = project
+            elif choice == "3":
+                list_projects()
+            elif choice == "4":
+                select_project()
+            elif choice == "5":
+                conversation()
+            elif choice == "6":
+                change_phase()
+            elif choice == "7":
+                generate_spec()
+            elif choice == "8":
+                view_summary()
+            elif choice == "9":
+                view_insights()
+            elif choice == "10":
+                add_knowledge()
+            elif choice == "11":
+                export_data()
+            elif choice == "0":
+                print("Goodbye!")
+                break
+            else:
+                print("Invalid option. Please try again.")
+
+        except KeyboardInterrupt:
+            print("\nGoodbye!")
+            break
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            input("Press Enter to continue...")
 
 
 if __name__ == "__main__":
