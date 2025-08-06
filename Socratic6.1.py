@@ -16,6 +16,12 @@ import pickle
 import logging
 import uuid
 import hashlib
+import requests
+import os
+import mimetypes
+from pathlib import Path
+from typing import List, Dict, Any, Optional
+import base64
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -1581,6 +1587,239 @@ class EnhancedSocraticRAG:
 
         return question
 
+    def load_github_repository(self, repo_url: str, project_id: str,
+                               branch: str = "main") -> Dict[str, Any]:
+        """Load scripts and files from a GitHub repository"""
+        try:
+            # Extract owner and repo from URL
+            parts = repo_url.rstrip('/').split('/')
+            owner, repo = parts[-2], parts[-1]
+
+            # GitHub API endpoint for repository contents
+            api_url = f"https://api.github.com/repos/{owner}/{repo}/contents"
+
+            result = {
+                "loaded_files": 0,
+                "errors": [],
+                "processed_files": []
+            }
+
+            # Get repository structure
+            response = requests.get(api_url)
+            if response.status_code != 200:
+                result["errors"].append(f"Failed to access repository: {response.status_code}")
+                return result
+
+            files = response.json()
+            self._process_github_files(files, owner, repo, branch, project_id, result)
+
+            return result
+
+        except Exception as e:
+            return {"loaded_files": 0, "errors": [str(e)], "processed_files": []}
+
+    def _process_github_files(self, files: List[Dict], owner: str, repo: str,
+                              branch: str, project_id: str, result: Dict):
+        """Recursively process GitHub repository files"""
+
+        # File extensions to process
+        code_extensions = {'.py', '.js', '.ts', '.java', '.cpp', '.c', '.h', '.css', '.html', '.jsx', '.tsx'}
+        doc_extensions = {'.md', '.txt', '.rst', '.json', '.yaml', '.yml', '.xml'}
+
+        for file_info in files:
+            if file_info['type'] == 'file':
+                file_path = file_info['path']
+                file_ext = Path(file_path).suffix.lower()
+
+                # Skip binary files and large files
+                if file_ext in code_extensions or file_ext in doc_extensions:
+                    if file_info['size'] < 100000:  # Skip files larger than 100KB
+                        try:
+                            # Get file content
+                            content_url = file_info['download_url']
+                            content_response = requests.get(content_url)
+
+                            if content_response.status_code == 200:
+                                content = content_response.text
+
+                                # Determine category based on file extension
+                                if file_ext in code_extensions:
+                                    category = "code"
+                                    phase = "implementation"
+                                else:
+                                    category = "documentation"
+                                    phase = "analysis"
+
+                                # Create knowledge entry using existing structure
+                                entry = KnowledgeEntry(
+                                    id=str(uuid.uuid4()),
+                                    content=f"File: {file_path}\n\n{content}",
+                                    category=category,
+                                    phase=phase,
+                                    keywords=[file_path, Path(file_path).stem, file_ext[1:]],
+                                    project_id=project_id,
+                                    created_at=datetime.now().isoformat(),
+                                    confidence_score=0.8
+                                )
+
+                                # Use existing embedding and save methods
+                                entry.embedding = self.embedding_system.get_embedding(content)
+                                self.db_manager.save_knowledge_entry(entry)
+
+                                result["loaded_files"] += 1
+                                result["processed_files"].append(file_path)
+
+                        except Exception as e:
+                            result["errors"].append(f"Error processing {file_path}: {str(e)}")
+
+            elif file_info['type'] == 'dir':
+                # Recursively process directories
+                dir_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{file_info['path']}"
+                try:
+                    dir_response = requests.get(dir_url)
+                    if dir_response.status_code == 200:
+                        dir_files = dir_response.json()
+                        self._process_github_files(dir_files, owner, repo, branch, project_id, result)
+                except Exception as e:
+                    result["errors"].append(f"Error processing directory {file_info['path']}: {str(e)}")
+
+    def load_local_files(self, file_paths: List[str], project_id: str) -> Dict[str, Any]:
+        """Load local files into the knowledge base"""
+        result = {
+            "loaded_files": 0,
+            "errors": [],
+            "processed_files": []
+        }
+
+        # Supported file extensions
+        supported_extensions = {
+            '.py', '.js', '.ts', '.java', '.cpp', '.c', '.h', '.css', '.html',
+            '.jsx', '.tsx', '.md', '.txt', '.rst', '.json', '.yaml', '.yml',
+            '.xml', '.sql', '.sh', '.bat', '.ps1'
+        }
+
+        for file_path in file_paths:
+            try:
+                path = Path(file_path)
+
+                if not path.exists():
+                    result["errors"].append(f"File not found: {file_path}")
+                    continue
+
+                if not path.is_file():
+                    result["errors"].append(f"Not a file: {file_path}")
+                    continue
+
+                file_ext = path.suffix.lower()
+                if file_ext not in supported_extensions:
+                    result["errors"].append(f"Unsupported file type: {file_path}")
+                    continue
+
+                # Check file size (skip very large files)
+                if path.stat().st_size > 1000000:  # 1MB limit
+                    result["errors"].append(f"File too large: {file_path}")
+                    continue
+
+                # Read file content
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                except UnicodeDecodeError:
+                    with open(file_path, 'r', encoding='latin-1') as f:
+                        content = f.read()
+
+                # Determine category and phase
+                code_extensions = {'.py', '.js', '.ts', '.java', '.cpp', '.c', '.h', '.css', '.html', '.jsx', '.tsx'}
+
+                if file_ext in code_extensions:
+                    category = "code"
+                    phase = "implementation"
+                elif file_ext in {'.md', '.txt', '.rst'}:
+                    category = "documentation"
+                    phase = "analysis"
+                elif file_ext in {'.json', '.yaml', '.yml', '.xml'}:
+                    category = "configuration"
+                    phase = "design"
+                else:
+                    category = "script"
+                    phase = "implementation"
+
+                # Extract keywords
+                keywords = [path.name, path.stem, file_ext[1:], str(path.parent.name)]
+
+                # Create knowledge entry using existing structure
+                entry = KnowledgeEntry(
+                    id=str(uuid.uuid4()),
+                    content=f"File: {file_path}\nType: {file_ext}\n\n{content}",
+                    category=category,
+                    phase=phase,
+                    keywords=list(set(keywords)),
+                    project_id=project_id,
+                    created_at=datetime.now().isoformat(),
+                    confidence_score=0.9
+                )
+
+                # Use existing embedding and save methods
+                entry.embedding = self.embedding_system.get_embedding(content)
+                self.db_manager.save_knowledge_entry(entry)
+
+                result["loaded_files"] += 1
+                result["processed_files"].append(file_path)
+
+            except Exception as e:
+                result["errors"].append(f"Error processing {file_path}: {str(e)}")
+
+        return result
+
+    def load_directory_recursively(self, directory_path: str, project_id: str,
+                                   max_depth: int = 3) -> Dict[str, Any]:
+        """Recursively load all supported files from a directory"""
+        result = {
+            "loaded_files": 0,
+            "errors": [],
+            "processed_files": []
+        }
+
+        try:
+            directory = Path(directory_path)
+            if not directory.exists() or not directory.is_dir():
+                result["errors"].append(f"Directory not found: {directory_path}")
+                return result
+
+            # Find all files recursively
+            file_paths = []
+
+            def scan_directory(path: Path, current_depth: int = 0):
+                if current_depth > max_depth:
+                    return
+
+                try:
+                    for item in path.iterdir():
+                        if item.is_file():
+                            file_paths.append(str(item))
+                        elif item.is_dir() and not item.name.startswith('.'):
+                            # Skip hidden directories and common ignore patterns
+                            skip_dirs = {'node_modules', '__pycache__', '.git', 'venv', 'env', 'dist', 'build'}
+                            if item.name not in skip_dirs:
+                                scan_directory(item, current_depth + 1)
+                except PermissionError:
+                    result["errors"].append(f"Permission denied: {path}")
+
+            scan_directory(directory)
+
+            # Load found files using existing method
+            load_result = self.load_local_files(file_paths, project_id)
+
+            # Merge results
+            result["loaded_files"] = load_result["loaded_files"]
+            result["errors"].extend(load_result["errors"])
+            result["processed_files"] = load_result["processed_files"]
+
+        except Exception as e:
+            result["errors"].append(f"Error scanning directory: {str(e)}")
+
+        return result
+
     def generate_technical_specification(self, project_id: str) -> TechnicalSpecification:
         """Generate comprehensive technical specification for a project"""
         context = self.db_manager.load_project_context(project_id)
@@ -1841,6 +2080,9 @@ def main():
         print("9. View Conversation Insights")
         print("10. Add Custom Knowledge")
         print("11. Export Project Data")
+        print("12. Load GitHub Repository")  # NEW
+        print("13. Load Local Files")  # NEW
+        print("14. Load Directory")  # NEW
         print("0. Exit")
         print(f"Current User: {current_user.username if current_user else 'None'}")
         print(f"Current Project: {current_project.name if current_project else 'None'}")
@@ -2042,6 +2284,71 @@ def main():
         except Exception as e:
             print(f"Error exporting data: {e}")
 
+    def load_github_repo():
+        if not current_user or not current_project:
+            print("Please login and select a project first!")
+            return
+
+        repo_url = input("Enter GitHub repository URL: ").strip()
+        if repo_url:
+            print("Loading repository... (this may take a moment)")
+            result = rag_system.load_github_repository(repo_url, current_project.id)
+
+            print(f"✅ Loaded {result['loaded_files']} files")
+            print(f"📁 Processed files: {len(result['processed_files'])}")
+
+            if result['errors']:
+                print("❌ Errors:")
+                for error in result['errors'][:5]:  # Show first 5 errors
+                    print(f"  - {error}")
+
+            if result['processed_files']:
+                print("📂 Sample processed files:")
+                for file_path in result['processed_files'][:5]:
+                    print(f"  - {file_path}")
+
+    def load_local_files():
+        if not current_user or not current_project:
+            print("Please login and select a project first!")
+            return
+
+        print("Enter file paths (one per line, empty line to finish):")
+        file_paths = []
+        while True:
+            path = input().strip()
+            if not path:
+                break
+            file_paths.append(path)
+
+        if file_paths:
+            print("Loading files...")
+            result = rag_system.load_local_files(file_paths, current_project.id)
+
+            print(f"✅ Loaded {result['loaded_files']} files")
+
+            if result['errors']:
+                print("❌ Errors:")
+                for error in result['errors']:
+                    print(f"  - {error}")
+
+    def load_directory():
+        if not current_user or not current_project:
+            print("Please login and select a project first!")
+            return
+
+        dir_path = input("Enter directory path: ").strip()
+        if dir_path:
+            print("Scanning directory... (this may take a moment)")
+            result = rag_system.load_directory_recursively(dir_path, current_project.id)
+
+            print(f"✅ Loaded {result['loaded_files']} files from directory")
+            print(f"📁 Processed {len(result['processed_files'])} files")
+
+            if result['errors']:
+                print("❌ Errors:")
+                for error in result['errors'][:5]:  # Show first 5 errors
+                    print(f"  - {error}")
+
     # Main loop
     while True:
         try:
@@ -2072,6 +2379,12 @@ def main():
                 add_knowledge()
             elif choice == "11":
                 export_data()
+            elif choice == '12':
+                load_github_repo()
+            elif choice == '13':
+                load_local_files()
+            elif choice == '14':
+                load_directory()
             elif choice == "0":
                 print("Goodbye!")
                 break
