@@ -4,11 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="load git repo/files">
+    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7">
+      <change afterPath="$PROJECT_DIR$/socratic_projects.db" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_projects.db" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/socratic_rag.db" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_rag.db" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_session.json" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -72,7 +71,51 @@
       <recent name="C:\Users\themi\PycharmProjects\Socratic" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.Socratic6.1">
+  <component name="RunManager" selected="Python.Socratic5.3">
+    <configuration name="Socratic5.2" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="Socratic" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Socratic5.2.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Socratic5.3" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="Socratic" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Socratic5.3.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <configuration name="Socratic6" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="Socratic" />
       <option name="ENV_FILES" value="" />
@@ -141,11 +184,15 @@
     </configuration>
     <list>
       <item itemvalue="Python.main" />
+      <item itemvalue="Python.Socratic5.2" />
+      <item itemvalue="Python.Socratic5.3" />
       <item itemvalue="Python.Socratic6" />
       <item itemvalue="Python.Socratic6.1" />
     </list>
     <recent_temporary>
       <list>
+        <item itemvalue="Python.Socratic5.3" />
+        <item itemvalue="Python.Socratic5.2" />
         <item itemvalue="Python.Socratic6.1" />
         <item itemvalue="Python.Socratic6" />
       </list>
@@ -166,14 +213,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1750504324591</updated>
-    </task>
-    <task id="LOCAL-00010" summary="Socratic 2">
-      <option name="closed" value="true" />
-      <created>1750879975826</created>
-      <option name="number" value="00010" />
-      <option name="presentableId" value="LOCAL-00010" />
-      <option name="project" value="LOCAL" />
-      <updated>1750879975826</updated>
     </task>
     <task id="LOCAL-00011" summary="Socratic 2">
       <option name="closed" value="true" />
@@ -559,7 +598,15 @@
       <option name="project" value="LOCAL" />
       <updated>1754469370344</updated>
     </task>
-    <option name="localTasksCounter" value="59" />
+    <task id="LOCAL-00059" summary="7">
+      <option name="closed" value="true" />
+      <created>1754490745234</created>
+      <option name="number" value="00059" />
+      <option name="presentableId" value="LOCAL-00059" />
+      <option name="project" value="LOCAL" />
+      <updated>1754490745235</updated>
+    </task>
+    <option name="localTasksCounter" value="60" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -581,6 +628,7 @@
     <MESSAGE value="Socratic 6,1" />
     <MESSAGE value="CodeCraft" />
     <MESSAGE value="load git repo/files" />
-    <option name="LAST_COMMIT_MESSAGE" value="load git repo/files" />
+    <MESSAGE value="7" />
+    <option name="LAST_COMMIT_MESSAGE" value="7" />
   </component>
 </project>

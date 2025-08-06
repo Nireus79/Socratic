@@ -882,4 +882,700 @@ class ClaudeClient:
         except Exception as e:
             raise e
 
-    def _calculate_cost(self, usage) ->
+    def _calculate_cost(self, usage) -> float:
+        """Calculate estimated cost based on token usage"""
+        # Claude 3 Sonnet pricing (approximate)
+        input_cost_per_1k = 0.003
+        output_cost_per_1k = 0.015
+
+        input_cost = (usage.input_tokens / 1000) * input_cost_per_1k
+        output_cost = (usage.output_tokens / 1000) * output_cost_per_1k
+
+        return input_cost + output_cost
+
+
+# User Management System
+class UserManager:
+    def __init__(self, database: ProjectDatabase):
+        self.database = database
+
+    def create_user(self, username: str, passcode: str) -> bool:
+        """Create new user with passcode"""
+        if self.database.load_user(username):
+            return False  # User already exists
+
+        passcode_hash = hashlib.sha256(passcode.encode()).hexdigest()
+        user = User(
+            username=username,
+            passcode_hash=passcode_hash,
+            created_at=datetime.datetime.now(),
+            projects=[]
+        )
+
+        self.database.save_user(user)
+        return True
+
+    def authenticate_user(self, username: str, passcode: str) -> bool:
+        """Authenticate user with passcode"""
+        user = self.database.load_user(username)
+        if not user:
+            return False
+
+        passcode_hash = hashlib.sha256(passcode.encode()).hexdigest()
+        return user.passcode_hash == passcode_hash
+
+    def get_user(self, username: str) -> Optional[User]:
+        """Get user by username"""
+        return self.database.load_user(username)
+
+
+# Session Management
+class SessionManager:
+    def __init__(self):
+        self.active_sessions = {}
+        self.session_timeout = CONFIG['SESSION_TIMEOUT']
+
+    def create_session(self, username: str, project_id: str = None) -> str:
+        """Create new session"""
+        session_id = str(uuid.uuid4())
+
+        self.active_sessions[session_id] = {
+            'username': username,
+            'project_id': project_id,
+            'created_at': datetime.datetime.now(),
+            'last_activity': datetime.datetime.now()
+        }
+
+        return session_id
+
+    def get_session(self, session_id: str) -> Optional[Dict]:
+        """Get session if valid"""
+        session = self.active_sessions.get(session_id)
+        if not session:
+            return None
+
+        # Check if session expired
+        if (datetime.datetime.now() - session['last_activity']).seconds > self.session_timeout:
+            del self.active_sessions[session_id]
+            return None
+
+        session['last_activity'] = datetime.datetime.now()
+        return session
+
+    def update_session(self, session_id: str, project_id: str):
+        """Update session with project"""
+        session = self.active_sessions.get(session_id)
+        if session:
+            session['project_id'] = project_id
+            session['last_activity'] = datetime.datetime.now()
+
+
+# Main Orchestrator Class
+class AgentOrchestrator:
+    def __init__(self, api_key: str):
+        # Initialize data directory
+        os.makedirs(CONFIG['DATA_DIR'], exist_ok=True)
+
+        # Initialize databases
+        self.vector_db = VectorDatabase(os.path.join(CONFIG['DATA_DIR'], 'vector_db'))
+        self.database = ProjectDatabase(os.path.join(CONFIG['DATA_DIR'], 'projects.db'))
+
+        # Initialize Claude client
+        self.claude_client = ClaudeClient(api_key, self)
+
+        # Initialize managers
+        self.user_manager = UserManager(self.database)
+        self.session_manager = SessionManager()
+
+        # Initialize agents
+        self.project_manager = ProjectManagerAgent(self)
+        self.socratic_counselor = SocraticCounselorAgent(self)
+        self.context_analyzer = ContextAnalyzerAgent(self)
+        self.code_generator = CodeGeneratorAgent(self)
+        self.system_monitor = SystemMonitorAgent(self)
+
+        # Initialize knowledge base
+        self._load_default_knowledge()
+
+        print(f"{Fore.GREEN}✅ Enhanced Socratic RAG System initialized successfully!")
+
+    def _load_default_knowledge(self):
+        """Load default software development knowledge"""
+        default_knowledge = [
+            {
+                'id': 'sdlc_1',
+                'content': 'Software Development Life Cycle includes planning, analysis, design, implementation, testing, and maintenance phases.',
+                'category': 'methodology',
+                'metadata': {'topic': 'sdlc', 'importance': 'high'}
+            },
+            {
+                'id': 'arch_1',
+                'content': 'Microservices architecture breaks applications into small, independent services that communicate over APIs.',
+                'category': 'architecture',
+                'metadata': {'topic': 'microservices', 'importance': 'medium'}
+            },
+            {
+                'id': 'test_1',
+                'content': 'Test-driven development (TDD) involves writing tests before implementing functionality.',
+                'category': 'testing',
+                'metadata': {'topic': 'tdd', 'importance': 'medium'}
+            },
+            {
+                'id': 'sec_1',
+                'content': 'Always validate and sanitize user input to prevent injection attacks and data corruption.',
+                'category': 'security',
+                'metadata': {'topic': 'input_validation', 'importance': 'high'}
+            }
+        ]
+
+        for knowledge_data in default_knowledge:
+            entry = KnowledgeEntry(**knowledge_data)
+            try:
+                self.vector_db.add_knowledge(entry)
+            except:
+                pass  # Entry might already exist
+
+
+# Enhanced CLI Interface
+class EnhancedCLI:
+    def __init__(self, orchestrator: AgentOrchestrator):
+        self.orchestrator = orchestrator
+        self.current_session = None
+        self.current_project = None
+
+    def start(self):
+        """Start the enhanced CLI interface"""
+        self._print_header()
+
+        # User authentication
+        if not self._authenticate_user():
+            return
+
+        # Main menu loop
+        while True:
+            try:
+                self._show_main_menu()
+                choice = input(f"\n{Fore.CYAN}Enter your choice: {Style.RESET_ALL}").strip()
+
+                if choice == '1':
+                    self._create_new_project()
+                elif choice == '2':
+                    self._load_existing_project()
+                elif choice == '3':
+                    self._continue_project()
+                elif choice == '4':
+                    self._generate_script()
+                elif choice == '5':
+                    self._manage_collaborators()
+                elif choice == '6':
+                    self._view_system_stats()
+                elif choice == '7':
+                    self._export_project()
+                elif choice == '0':
+                    print(f"{Fore.GREEN}Goodbye! 👋")
+                    break
+                else:
+                    print(f"{Fore.RED}Invalid choice. Please try again.")
+
+            except KeyboardInterrupt:
+                print(f"\n{Fore.YELLOW}Interrupted. Saving session...")
+                self._save_current_state()
+                break
+            except Exception as e:
+                print(f"{Fore.RED}An error occurred: {e}")
+
+    def _print_header(self):
+        """Print enhanced header"""
+        header = f"""
+{Fore.CYAN}╔══════════════════════════════════════════════════════════╗
+║                  🎯 SOCRATIC RAG SYSTEM v7.0             ║
+║              Multi-Agent Project Development              ║
+╚══════════════════════════════════════════════════════════╝{Style.RESET_ALL}
+
+{Fore.GREEN}🤖 Agents Active: {Fore.WHITE}ProjectManager | SocraticCounselor | ContextAnalyzer | CodeGenerator | SystemMonitor
+{Fore.GREEN}💾 Database: {Fore.WHITE}Vector Database + SQLite
+{Fore.GREEN}🔐 Security: {Fore.WHITE}User Authentication Enabled
+"""
+        print(header)
+
+    def _authenticate_user(self) -> bool:
+        """Enhanced user authentication"""
+        print(f"\n{Fore.YELLOW}🔐 User Authentication Required")
+        print("=" * 40)
+
+        while True:
+            username = input(f"{Fore.CYAN}Username: {Style.RESET_ALL}").strip()
+            if not username:
+                continue
+
+            user = self.orchestrator.user_manager.get_user(username)
+
+            if not user:
+                print(f"{Fore.YELLOW}User not found. Create new account? (y/n): {Style.RESET_ALL}", end="")
+                if input().lower().startswith('y'):
+                    passcode = getpass.getpass(f"{Fore.CYAN}Create passcode: {Style.RESET_ALL}")
+                    if self.orchestrator.user_manager.create_user(username, passcode):
+                        print(f"{Fore.GREEN}✅ User created successfully!")
+                        self.current_session = self.orchestrator.session_manager.create_session(username)
+                        return True
+                    else:
+                        print(f"{Fore.RED}❌ Failed to create user.")
+                continue
+
+            passcode = getpass.getpass(f"{Fore.CYAN}Passcode: {Style.RESET_ALL}")
+
+            if self.orchestrator.user_manager.authenticate_user(username, passcode):
+                print(f"{Fore.GREEN}✅ Authentication successful!")
+                self.current_session = self.orchestrator.session_manager.create_session(username)
+                return True
+            else:
+                print(f"{Fore.RED}❌ Invalid credentials. Try again.")
+
+    def _show_main_menu(self):
+        """Show enhanced main menu"""
+        session = self.orchestrator.session_manager.get_session(self.current_session)
+        username = session['username'] if session else "Unknown"
+
+        # Get system stats
+        stats = self.orchestrator.system_monitor.process({'action': 'get_stats'})
+
+        menu = f"""
+{Fore.BLUE}┌─ MAIN MENU ─────────────────────────────────────────────┐{Style.RESET_ALL}
+{Fore.WHITE}│ User: {Fore.GREEN}{username:<20} {Fore.WHITE}│ Tokens: {Fore.YELLOW}{stats.get('total_tokens', 0):<10}{Fore.WHITE} │
+{Fore.WHITE}│ Connection: {Fore.GREEN if stats.get('connection_status') else Fore.RED}●{Fore.WHITE} {'Online' if stats.get('connection_status') else 'Offline':<15} │ Cost: ${stats.get('total_cost', 0.0):.4f}      │{Style.RESET_ALL}
+{Fore.BLUE}├─────────────────────────────────────────────────────────┤{Style.RESET_ALL}
+
+{Fore.WHITE}1.{Fore.CYAN} 🆕 Create New Project
+{Fore.WHITE}2.{Fore.CYAN} 📂 Load Existing Project  
+{Fore.WHITE}3.{Fore.CYAN} ▶️  Continue Current Project
+{Fore.WHITE}4.{Fore.CYAN} 🔨 Generate Script
+{Fore.WHITE}5.{Fore.CYAN} 👥 Manage Collaborators
+{Fore.WHITE}6.{Fore.CYAN} 📊 View System Statistics
+{Fore.WHITE}7.{Fore.CYAN} 💾 Export Project
+{Fore.WHITE}0.{Fore.RED} 🚪 Exit
+
+{Fore.BLUE}└─────────────────────────────────────────────────────────┘{Style.RESET_ALL}
+"""
+        print(menu)
+
+        # Show project status if available
+        if self.current_project:
+            print(
+                f"{Fore.GREEN}📋 Current Project: {Fore.WHITE}{self.current_project.name} {Fore.YELLOW}({self.current_project.phase} phase)")
+
+    def _create_new_project(self):
+        """Create new project with enhanced flow"""
+        print(f"\n{Fore.YELLOW}🆕 Creating New Project")
+        print("=" * 30)
+
+        project_name = input(f"{Fore.CYAN}Project name: {Style.RESET_ALL}").strip()
+        if not project_name:
+            print(f"{Fore.RED}Project name required.")
+            return
+
+        session = self.orchestrator.session_manager.get_session(self.current_session)
+
+        # Create project through Project Manager Agent
+        result = self.orchestrator.project_manager.process({
+            'action': 'create_project',
+            'project_name': project_name,
+            'owner': session['username']
+        })
+
+        if result['status'] == 'success':
+            self.current_project = result['project']
+            self.orchestrator.session_manager.update_session(
+                self.current_session,
+                self.current_project.project_id
+            )
+
+            print(f"{Fore.GREEN}✅ Project '{project_name}' created successfully!")
+            print(f"{Fore.BLUE}🆔 Project ID: {self.current_project.project_id}")
+
+            # Start Socratic questioning
+            self._start_socratic_session()
+        else:
+            print(f"{Fore.RED}❌ Failed to create project: {result.get('message')}")
+
+    def _load_existing_project(self):
+        """Load existing project"""
+        print(f"\n{Fore.YELLOW}📂 Loading Existing Project")
+        print("=" * 35)
+
+        session = self.orchestrator.session_manager.get_session(self.current_session)
+
+        # Get user's projects
+        result = self.orchestrator.project_manager.process({
+            'action': 'list_projects',
+            'username': session['username']
+        })
+
+        if result['status'] == 'success' and result['projects']:
+            print(f"{Fore.CYAN}Your Projects:")
+            for i, project in enumerate(result['projects'], 1):
+                print(
+                    f"{Fore.WHITE}{i}. {Fore.GREEN}{project['name']} {Fore.YELLOW}({project['phase']}) {Fore.BLUE}[{project['updated_at']}]")
+
+            try:
+                choice = int(input(f"\n{Fore.CYAN}Select project (number): {Style.RESET_ALL}"))
+                if 1 <= choice <= len(result['projects']):
+                    selected_project = result['projects'][choice - 1]
+
+                    # Load project details
+                    load_result = self.orchestrator.project_manager.process({
+                        'action': 'load_project',
+                        'project_id': selected_project['project_id']
+                    })
+
+                    if load_result['status'] == 'success':
+                        self.current_project = load_result['project']
+                        self.orchestrator.session_manager.update_session(
+                            self.current_session,
+                            self.current_project.project_id
+                        )
+                        print(f"{Fore.GREEN}✅ Project loaded successfully!")
+                    else:
+                        print(f"{Fore.RED}❌ Failed to load project.")
+                else:
+                    print(f"{Fore.RED}Invalid selection.")
+            except ValueError:
+                print(f"{Fore.RED}Invalid input.")
+        else:
+            print(f"{Fore.YELLOW}No projects found. Create a new project first.")
+
+    def _continue_project(self):
+        """Continue current project conversation"""
+        if not self.current_project:
+            print(f"{Fore.RED}❌ No active project. Load or create a project first.")
+            return
+
+        print(f"\n{Fore.GREEN}▶️  Continuing Project: {self.current_project.name}")
+        print(f"{Fore.BLUE}Phase: {self.current_project.phase}")
+        print("=" * 50)
+
+        self._start_socratic_session()
+
+    def _start_socratic_session(self):
+        """Start interactive Socratic questioning session"""
+        print(f"\n{Fore.YELLOW}🤖 Starting Socratic Session...")
+        print(f"{Fore.BLUE}Type 'summary' to see project overview")
+        print(f"{Fore.BLUE}Type 'next' to advance to next phase")
+        print(f"{Fore.BLUE}Type 'done' to finish session")
+        print("-" * 50)
+
+        while True:
+            try:
+                # Check token limits
+                limit_check = self.orchestrator.system_monitor.process({'action': 'check_limits'})
+                if limit_check.get('warnings'):
+                    for warning in limit_check['warnings']:
+                        print(f"{Fore.YELLOW}⚠️  {warning}")
+
+                # Generate question
+                question_result = self.orchestrator.socratic_counselor.process({
+                    'action': 'generate_question',
+                    'project': self.current_project
+                })
+
+                if question_result['status'] == 'success':
+                    question = question_result['question']
+                    print(f"\n{Fore.CYAN}🤖 Socratic Counselor: {Fore.WHITE}{question}")
+
+                    # Get user response
+                    user_response = input(f"\n{Fore.GREEN}You: {Style.RESET_ALL}").strip()
+
+                    if user_response.lower() == 'done':
+                        break
+                    elif user_response.lower() == 'summary':
+                        self._show_project_summary()
+                        continue
+                    elif user_response.lower() == 'next':
+                        self._advance_phase()
+                        continue
+                    elif not user_response:
+                        continue
+
+                    # Process response
+                    response_result = self.orchestrator.socratic_counselor.process({
+                        'action': 'process_response',
+                        'project': self.current_project,
+                        'response': user_response
+                    })
+
+                    if response_result['status'] == 'success':
+                        # Save updated project
+                        self.orchestrator.project_manager.process({
+                            'action': 'save_project',
+                            'project': self.current_project
+                        })
+
+                        # Show insights if any
+                        insights = response_result.get('insights', {})
+                        if insights:
+                            print(f"{Fore.BLUE}💡 Insights captured: {', '.join(insights.keys())}")
+
+            except KeyboardInterrupt:
+                print(f"\n{Fore.YELLOW}Session paused. Your progress is saved.")
+                break
+            except Exception as e:
+                print(f"{Fore.RED}Error in session: {e}")
+
+        # Save final state
+        self._save_current_state()
+
+    def _show_project_summary(self):
+        """Show comprehensive project summary"""
+        print(f"\n{Fore.YELLOW}📋 PROJECT SUMMARY")
+        print("=" * 40)
+
+        print(f"{Fore.CYAN}Name: {Fore.WHITE}{self.current_project.name}")
+        print(f"{Fore.CYAN}Phase: {Fore.WHITE}{self.current_project.phase}")
+        print(f"{Fore.CYAN}Owner: {Fore.WHITE}{self.current_project.owner}")
+
+        if self.current_project.collaborators:
+            print(f"{Fore.CYAN}Collaborators: {Fore.WHITE}{', '.join(self.current_project.collaborators)}")
+
+        if self.current_project.goals:
+            print(f"{Fore.CYAN}Goals: {Fore.WHITE}{self.current_project.goals}")
+
+        if self.current_project.requirements:
+            print(f"{Fore.CYAN}Requirements:")
+            for req in self.current_project.requirements:
+                print(f"  {Fore.WHITE}• {req}")
+
+        if self.current_project.tech_stack:
+            print(f"{Fore.CYAN}Tech Stack: {Fore.WHITE}{', '.join(self.current_project.tech_stack)}")
+
+        if self.current_project.constraints:
+            print(f"{Fore.CYAN}Constraints:")
+            for constraint in self.current_project.constraints:
+                print(f"  {Fore.WHITE}• {constraint}")
+
+        print(f"{Fore.CYAN}Conversation Messages: {Fore.WHITE}{len(self.current_project.conversation_history)}")
+        print(f"{Fore.CYAN}Last Updated: {Fore.WHITE}{self.current_project.updated_at}")
+
+    def _advance_phase(self):
+        """Advance to next project phase"""
+        result = self.orchestrator.socratic_counselor.process({
+            'action': 'advance_phase',
+            'project': self.current_project
+        })
+
+        if result['status'] == 'success':
+            new_phase = result['new_phase']
+            print(f"{Fore.GREEN}✅ Advanced to {new_phase} phase!")
+
+            # Save project
+            self.orchestrator.project_manager.process({
+                'action': 'save_project',
+                'project': self.current_project
+            })
+        else:
+            print(f"{Fore.RED}❌ Cannot advance phase.")
+
+    def _generate_script(self):
+        """Generate script for current project"""
+        if not self.current_project:
+            print(f"{Fore.RED}❌ No active project.")
+            return
+
+        print(f"\n{Fore.YELLOW}🔨 Generating Script...")
+        print("=" * 30)
+
+        # Show token warning if needed
+        stats = self.orchestrator.system_monitor.process({'action': 'get_stats'})
+        if stats.get('total_tokens', 0) > 40000:
+            print(f"{Fore.YELLOW}⚠️  High token usage detected. This generation will use additional tokens.")
+
+        result = self.orchestrator.code_generator.process({
+            'action': 'generate_script',
+            'project': self.current_project
+        })
+
+        if result['status'] == 'success':
+            script = result['script']
+
+            print(f"{Fore.GREEN}✅ Script generated successfully!")
+            print(f"\n{Fore.CYAN}Generated Script:")
+            print("=" * 50)
+            print(f"{Fore.WHITE}{script}")
+            print("=" * 50)
+
+            # Ask if user wants to save to file
+            save_choice = input(f"\n{Fore.CYAN}Save to file? (y/n): {Style.RESET_ALL}").lower()
+            if save_choice.startswith('y'):
+                filename = f"{self.current_project.name.replace(' ', '_')}_script.py"
+                try:
+                    with open(filename, 'w', encoding='utf-8') as f:
+                        f.write(script)
+                    print(f"{Fore.GREEN}✅ Script saved as '{filename}'")
+                except Exception as e:
+                    print(f"{Fore.RED}❌ Error saving file: {e}")
+
+            # Ask about documentation
+            doc_choice = input(f"{Fore.CYAN}Generate documentation? (y/n): {Style.RESET_ALL}").lower()
+            if doc_choice.startswith('y'):
+                doc_result = self.orchestrator.code_generator.process({
+                    'action': 'generate_documentation',
+                    'project': self.current_project,
+                    'script': script
+                })
+
+                if doc_result['status'] == 'success':
+                    print(f"\n{Fore.CYAN}Generated Documentation:")
+                    print("=" * 50)
+                    print(f"{Fore.WHITE}{doc_result['documentation']}")
+
+        else:
+            print(f"{Fore.RED}❌ Failed to generate script: {result.get('message')}")
+
+    def _manage_collaborators(self):
+        """Manage project collaborators"""
+        if not self.current_project:
+            print(f"{Fore.RED}❌ No active project.")
+            return
+
+        print(f"\n{Fore.YELLOW}👥 Manage Collaborators")
+        print("=" * 30)
+
+        print(f"{Fore.CYAN}Current collaborators:")
+        if self.current_project.collaborators:
+            for collab in self.current_project.collaborators:
+                print(f"  {Fore.WHITE}• {collab}")
+        else:
+            print(f"  {Fore.WHITE}None")
+
+        print(f"\n{Fore.WHITE}1. Add collaborator")
+        print(f"{Fore.WHITE}2. Remove collaborator")
+        print(f"{Fore.WHITE}0. Back to main menu")
+
+        choice = input(f"\n{Fore.CYAN}Choice: {Style.RESET_ALL}").strip()
+
+        if choice == '1':
+            username = input(f"{Fore.CYAN}Username to add: {Style.RESET_ALL}").strip()
+            if username:
+                result = self.orchestrator.project_manager.process({
+                    'action': 'add_collaborator',
+                    'project': self.current_project,
+                    'username': username
+                })
+
+                if result['status'] == 'success':
+                    print(f"{Fore.GREEN}✅ Added collaborator '{username}'")
+                else:
+                    print(f"{Fore.RED}❌ {result.get('message')}")
+
+        elif choice == '2':
+            if self.current_project.collaborators:
+                username = input(f"{Fore.CYAN}Username to remove: {Style.RESET_ALL}").strip()
+                if username in self.current_project.collaborators:
+                    self.current_project.collaborators.remove(username)
+                    self.orchestrator.project_manager.process({
+                        'action': 'save_project',
+                        'project': self.current_project
+                    })
+                    print(f"{Fore.GREEN}✅ Removed collaborator '{username}'")
+                else:
+                    print(f"{Fore.RED}❌ User not found in collaborators")
+            else:
+                print(f"{Fore.YELLOW}No collaborators to remove")
+
+    def _view_system_stats(self):
+        """View comprehensive system statistics"""
+        print(f"\n{Fore.YELLOW}📊 System Statistics")
+        print("=" * 30)
+
+        # Get stats from System Monitor
+        stats = self.orchestrator.system_monitor.process({'action': 'get_stats'})
+        health = self.orchestrator.system_monitor.process({'action': 'check_health'})
+
+        print(
+            f"{Fore.CYAN}API Connection: {Fore.GREEN if health.get('connection') else Fore.RED}{'✅ Online' if health.get('connection') else '❌ Offline'}")
+        print(f"{Fore.CYAN}Total API Calls: {Fore.WHITE}{stats.get('api_calls', 0)}")
+        print(f"{Fore.CYAN}Total Tokens Used: {Fore.WHITE}{stats.get('total_tokens', 0):,}")
+        print(f"{Fore.CYAN}Estimated Cost: {Fore.WHITE}${stats.get('total_cost', 0.0):.6f}")
+
+        if health.get('last_check'):
+            print(f"{Fore.CYAN}Last Health Check: {Fore.WHITE}{health['last_check']}")
+
+        # Session info
+        session = self.orchestrator.session_manager.get_session(self.current_session)
+        if session:
+            print(f"\n{Fore.CYAN}Session Duration: {Fore.WHITE}{datetime.datetime.now() - session['created_at']}")
+
+        # Active projects count
+        if session:
+            projects = self.orchestrator.project_manager.process({
+                'action': 'list_projects',
+                'username': session['username']
+            })
+
+            if projects['status'] == 'success':
+                print(f"{Fore.CYAN}Your Projects: {Fore.WHITE}{len(projects['projects'])}")
+
+    def _export_project(self):
+        """Export project data"""
+        if not self.current_project:
+            print(f"{Fore.RED}❌ No active project.")
+            return
+
+        print(f"\n{Fore.YELLOW}💾 Export Project")
+        print("=" * 20)
+
+        export_data = {
+            'project_info': asdict(self.current_project),
+            'export_date': datetime.datetime.now().isoformat(),
+            'version': '7.0'
+        }
+
+        filename = f"{self.current_project.name.replace(' ', '_')}_export.json"
+
+        try:
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(export_data, f, indent=2, default=str)
+
+            print(f"{Fore.GREEN}✅ Project exported as '{filename}'")
+            print(f"{Fore.BLUE}📝 Contains: Project data, conversation history, and metadata")
+
+        except Exception as e:
+            print(f"{Fore.RED}❌ Export failed: {e}")
+
+    def _save_current_state(self):
+        """Save current state"""
+        if self.current_project:
+            self.orchestrator.project_manager.process({
+                'action': 'save_project',
+                'project': self.current_project
+            })
+            print(f"{Fore.GREEN}💾 Project state saved.")
+
+
+# Main execution
+def main():
+    """Main application entry point"""
+    try:
+        # Get API key
+        api_key = os.getenv('CLAUDE_API_KEY')
+        if not api_key:
+            print(f"{Fore.RED}❌ CLAUDE_API_KEY environment variable not set.")
+            print(f"{Fore.YELLOW}Please set it with your Anthropic API key:")
+            print(f"{Fore.WHITE}export CLAUDE_API_KEY='your_key_here'")
+            return
+
+        # Initialize system
+        orchestrator = AgentOrchestrator(api_key)
+
+        # Start CLI
+        cli = EnhancedCLI(orchestrator)
+        cli.start()
+
+    except KeyboardInterrupt:
+        print(f"\n{Fore.YELLOW}Application interrupted by user.")
+    except Exception as e:
+        print(f"{Fore.RED}❌ Fatal error: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+if __name__ == "__main__":
+    main()
