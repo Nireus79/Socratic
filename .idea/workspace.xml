@@ -4,9 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="CodeCraft">
+    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="load git repo/files">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Socratic6.1.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic6.1.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/socratic_projects.db" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/socratic_rag.db" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_rag.db" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/socratic_session.json" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -164,14 +166,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1750504324591</updated>
-    </task>
-    <task id="LOCAL-00009" summary="Socratic 0">
-      <option name="closed" value="true" />
-      <created>1750850364086</created>
-      <option name="number" value="00009" />
-      <option name="presentableId" value="LOCAL-00009" />
-      <option name="project" value="LOCAL" />
-      <updated>1750850364086</updated>
     </task>
     <task id="LOCAL-00010" summary="Socratic 2">
       <option name="closed" value="true" />
@@ -557,7 +551,15 @@
       <option name="project" value="LOCAL" />
       <updated>1754430415981</updated>
     </task>
-    <option name="localTasksCounter" value="58" />
+    <task id="LOCAL-00058" summary="load git repo/files">
+      <option name="closed" value="true" />
+      <created>1754469370343</created>
+      <option name="number" value="00058" />
+      <option name="presentableId" value="LOCAL-00058" />
+      <option name="project" value="LOCAL" />
+      <updated>1754469370344</updated>
+    </task>
+    <option name="localTasksCounter" value="59" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -578,6 +580,7 @@
     <MESSAGE value="Socratic 6" />
     <MESSAGE value="Socratic 6,1" />
     <MESSAGE value="CodeCraft" />
-    <option name="LAST_COMMIT_MESSAGE" value="CodeCraft" />
+    <MESSAGE value="load git repo/files" />
+    <option name="LAST_COMMIT_MESSAGE" value="load git repo/files" />
   </component>
 </project>
