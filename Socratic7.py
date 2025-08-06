@@ -1004,13 +1004,15 @@ class AgentOrchestrator:
         default_knowledge = [
             {
                 'id': 'sdlc_1',
-                'content': 'Software Development Life Cycle includes planning, analysis, design, implementation, testing, and maintenance phases.',
+                'content': 'Software Development Life Cycle includes planning, analysis, design, implementation, '
+                           'testing, and maintenance phases.',
                 'category': 'methodology',
                 'metadata': {'topic': 'sdlc', 'importance': 'high'}
             },
             {
                 'id': 'arch_1',
-                'content': 'Microservices architecture breaks applications into small, independent services that communicate over APIs.',
+                'content': 'Microservices architecture breaks applications into small, independent services that '
+                           'communicate over APIs.',
                 'category': 'architecture',
                 'metadata': {'topic': 'microservices', 'importance': 'medium'}
             },
@@ -1072,7 +1074,8 @@ class EnhancedCLI:
                 elif choice == '7':
                     self._export_project()
                 elif choice == '0':
-                    print(f"{Fore.GREEN}Goodbye! 👋")
+                    print("..τω Ασκληπιώ οφείλομεν αλετρυόνα, απόδοτε και μη αμελήσετε..")
+                    print(f"{Fore.GREEN}Goodbye!")
                     break
                 else:
                     print(f"{Fore.RED}Invalid choice. Please try again.")
@@ -1088,13 +1091,14 @@ class EnhancedCLI:
         """Print enhanced header"""
         header = f"""
 {Fore.CYAN}╔══════════════════════════════════════════════════════════╗
-║                  🎯 SOCRATIC RAG SYSTEM v7.0             ║
-║              Multi-Agent Project Development              ║
+║                  SOCRATIC RAG SYSTEM v7.0                ║
+║              Multi-Agent Project Development             ║
+║       "Ουδέν οίδα, ούτε διδάσκω τι, αλλά διαπορώ μόνον." ║
 ╚══════════════════════════════════════════════════════════╝{Style.RESET_ALL}
 
-{Fore.GREEN}🤖 Agents Active: {Fore.WHITE}ProjectManager | SocraticCounselor | ContextAnalyzer | CodeGenerator | SystemMonitor
-{Fore.GREEN}💾 Database: {Fore.WHITE}Vector Database + SQLite
-{Fore.GREEN}🔐 Security: {Fore.WHITE}User Authentication Enabled
+{Fore.GREEN} Agents Active: {Fore.WHITE}ProjectManager | SocraticCounselor | ContextAnalyzer | CodeGenerator | SystemMonitor
+{Fore.GREEN} Database: {Fore.WHITE}Vector Database + SQLite
+{Fore.GREEN} Security: {Fore.WHITE}User Authentication Enabled
 """
         print(header)
 
@@ -1115,7 +1119,7 @@ class EnhancedCLI:
                 if input().lower().startswith('y'):
                     passcode = getpass.getpass(f"{Fore.CYAN}Create passcode: {Style.RESET_ALL}")
                     if self.orchestrator.user_manager.create_user(username, passcode):
-                        print(f"{Fore.GREEN}✅ User created successfully!")
+                        print(f"{Fore.GREEN} User created successfully!")
                         self.current_session = self.orchestrator.session_manager.create_session(username)
                         return True
                     else:
@@ -1125,7 +1129,7 @@ class EnhancedCLI:
             passcode = getpass.getpass(f"{Fore.CYAN}Passcode: {Style.RESET_ALL}")
 
             if self.orchestrator.user_manager.authenticate_user(username, passcode):
-                print(f"{Fore.GREEN}✅ Authentication successful!")
+                print(f"{Fore.GREEN} Authentication successful!")
                 self.current_session = self.orchestrator.session_manager.create_session(username)
                 return True
             else:
@@ -1555,11 +1559,11 @@ def main():
     """Main application entry point"""
     try:
         # Get API key
-        api_key = os.getenv('CLAUDE_API_KEY')
+        api_key = os.getenv('API_KEY_CLAUDE')
         if not api_key:
-            print(f"{Fore.RED}❌ CLAUDE_API_KEY environment variable not set.")
+            print(f"{Fore.RED}❌ API_KEY_CLAUDE environment variable not set.")
             print(f"{Fore.YELLOW}Please set it with your Anthropic API key:")
-            print(f"{Fore.WHITE}export CLAUDE_API_KEY='your_key_here'")
+            print(f"{Fore.WHITE}export API_KEY_CLAUDE='your_key_here'")
             return
 
         # Initialize system
