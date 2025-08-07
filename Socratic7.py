@@ -987,19 +987,25 @@ class AgentOrchestrator:
             },
             {
                 'id': 'api_design_principles',
-                'content': 'REST API design principles include using appropriate HTTP methods, meaningful resource URLs, consistent naming conventions, proper status codes, versioning, authentication and authorization, rate limiting, and comprehensive documentation.',
+                'content': 'REST API design principles include using appropriate HTTP methods, meaningful resource '
+                           'URLs, consistent naming conventions, proper status codes, versioning, authentication and '
+                           'authorization, rate limiting, and comprehensive documentation.',
                 'category': 'api_design',
                 'metadata': {'topic': 'rest_api', 'difficulty': 'intermediate'}
             },
             {
                 'id': 'database_design_basics',
-                'content': 'Database design fundamentals include normalization, defining primary and foreign keys, indexing strategy, choosing appropriate data types, avoiding SQL injection, implementing proper backup strategies, and optimizing queries for performance.',
+                'content': 'Database design fundamentals include normalization, defining primary and foreign keys, '
+                           'indexing strategy, choosing appropriate data types, avoiding SQL injection, implementing '
+                           'proper backup strategies, and optimizing queries for performance.',
                 'category': 'database',
                 'metadata': {'topic': 'design', 'difficulty': 'beginner'}
             },
             {
                 'id': 'security_considerations',
-                'content': 'Security considerations in software development include input validation, authentication and authorization, secure communication (HTTPS), data encryption, regular security updates, logging and monitoring, and following the principle of least privilege.',
+                'content': 'Security considerations in software development include input validation, authentication '
+                           'and authorization, secure communication (HTTPS), data encryption, regular security '
+                           'updates, logging and monitoring, and following the principle of least privilege.',
                 'category': 'security',
                 'metadata': {'topic': 'general_security', 'difficulty': 'intermediate'}
             }
@@ -1168,7 +1174,7 @@ class SocraticRAGSystem:
         """Main application loop"""
         while True:
             try:
-                print(f"\n{Fore.CYAN}═" * 50)
+                print(f"\n{Fore.CYAN}═" * 5)
                 print(f"{Fore.CYAN}{Style.BRIGHT}Main Menu")
                 print(f"{Fore.WHITE}Current User: {self.current_user.username}")
                 if self.current_project:
@@ -1350,9 +1356,9 @@ class SocraticRAGSystem:
         if result['status'] == 'success':
             script = result['script']
             print(f"\n{Fore.GREEN}✓ Code Generated Successfully!")
-            print(f"{Fore.YELLOW}{'=' * 60}")
+            print(f"{Fore.YELLOW}{'=' * 5}")
             print(f"{Fore.WHITE}{script}")
-            print(f"{Fore.YELLOW}{'=' * 60}")
+            print(f"{Fore.YELLOW}{'=' * 5}")
 
             # Ask if user wants documentation
             doc_choice = input(f"\n{Fore.CYAN}Generate documentation? (y/n): ").lower()
@@ -1365,9 +1371,9 @@ class SocraticRAGSystem:
 
                 if doc_result['status'] == 'success':
                     print(f"\n{Fore.GREEN}✓ Documentation Generated!")
-                    print(f"{Fore.YELLOW}{'=' * 60}")
+                    print(f"{Fore.YELLOW}{'=' * 5}")
                     print(f"{Fore.WHITE}{doc_result['documentation']}")
-                    print(f"{Fore.YELLOW}{'=' * 60}")
+                    print(f"{Fore.YELLOW}{'=' * 5}")
         else:
             print(f"{Fore.RED}Error generating code: {result['message']}")
 
