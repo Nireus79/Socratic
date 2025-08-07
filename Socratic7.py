@@ -987,25 +987,19 @@ class AgentOrchestrator:
             },
             {
                 'id': 'api_design_principles',
-                'content': 'REST API design principles include using appropriate HTTP methods, meaningful resource '
-                           'URLs, consistent naming conventions, proper status codes, versioning, authentication and '
-                           'authorization, rate limiting, and comprehensive documentation.',
+                'content': 'REST API design principles include using appropriate HTTP methods, meaningful resource URLs, consistent naming conventions, proper status codes, versioning, authentication and authorization, rate limiting, and comprehensive documentation.',
                 'category': 'api_design',
                 'metadata': {'topic': 'rest_api', 'difficulty': 'intermediate'}
             },
             {
                 'id': 'database_design_basics',
-                'content': 'Database design fundamentals include normalization, defining primary and foreign keys, '
-                           'indexing strategy, choosing appropriate data types, avoiding SQL injection, implementing '
-                           'proper backup strategies, and optimizing queries for performance.',
+                'content': 'Database design fundamentals include normalization, defining primary and foreign keys, indexing strategy, choosing appropriate data types, avoiding SQL injection, implementing proper backup strategies, and optimizing queries for performance.',
                 'category': 'database',
                 'metadata': {'topic': 'design', 'difficulty': 'beginner'}
             },
             {
                 'id': 'security_considerations',
-                'content': 'Security considerations in software development include input validation, authentication '
-                           'and authorization, secure communication (HTTPS), data encryption, regular security '
-                           'updates, logging and monitoring, and following the principle of least privilege.',
+                'content': 'Security considerations in software development include input validation, authentication and authorization, secure communication (HTTPS), data encryption, regular security updates, logging and monitoring, and following the principle of least privilege.',
                 'category': 'security',
                 'metadata': {'topic': 'general_security', 'difficulty': 'intermediate'}
             }
@@ -1109,7 +1103,7 @@ class SocraticRAGSystem:
             print(f"{Fore.RED}Username cannot be empty.")
             return False
 
-        passcode = getpass.getpass("Passcode: ").strip()
+        passcode = input(f"{Fore.WHITE}Passcode: ").strip()
         if not passcode:
             print(f"{Fore.RED}Passcode cannot be empty.")
             return False
@@ -1145,12 +1139,12 @@ class SocraticRAGSystem:
             print(f"{Fore.RED}Username already exists.")
             return False
 
-        passcode = getpass.getpass("Passcode: ").strip()
+        passcode = input(f"{Fore.WHITE}Passcode: ").strip()
         if not passcode:
             print(f"{Fore.RED}Passcode cannot be empty.")
             return False
 
-        confirm_passcode = getpass.getpass("Confirm passcode: ").strip()
+        confirm_passcode = input(f"{Fore.WHITE}Confirm passcode: ").strip()
         if passcode != confirm_passcode:
             print(f"{Fore.RED}Passcodes do not match.")
             return False
