@@ -48,7 +48,7 @@ init(autoreset=True)
 CONFIG = {
     'MAX_CONTEXT_LENGTH': 8000,
     'EMBEDDING_MODEL': 'all-MiniLM-L6-v2',
-    'CLAUDE_MODEL': 'claude-3-sonnet-20240229',
+    'CLAUDE_MODEL': 'claude-3-5-sonnet-20241022',
     'MAX_RETRIES': 3,
     'RETRY_DELAY': 1,
     'TOKEN_WARNING_THRESHOLD': 0.8,
@@ -208,11 +208,39 @@ class ProjectManagerAgent(Agent):
 class SocraticCounselorAgent(Agent):
     def __init__(self, orchestrator):
         super().__init__("SocraticCounselor", orchestrator)
-        self.phases = {
-            'discovery': self._discovery_questions,
-            'analysis': self._analysis_questions,
-            'design': self._design_questions,
-            'implementation': self._implementation_questions
+        self.use_dynamic_questions = True  # Toggle for dynamic vs static questions
+        self.max_questions_per_phase = 5
+
+        # Fallback static questions if Claude is unavailable
+        self.static_questions = {
+            'discovery': [
+                "What specific problem does your project solve?",
+                "Who is your target audience or user base?",
+                "What are the core features you envision?",
+                "Are there similar solutions that exist? How will yours differ?",
+                "What are your success criteria for this project?"
+            ],
+            'analysis': [
+                "What technical challenges do you anticipate?",
+                "What are your performance requirements?",
+                "How will you handle user authentication and security?",
+                "What third-party integrations might you need?",
+                "How will you test and validate your solution?"
+            ],
+            'design': [
+                "How will you structure your application architecture?",
+                "What design patterns will you use?",
+                "How will you organize your code and modules?",
+                "What development workflow will you follow?",
+                "How will you handle error cases and edge scenarios?"
+            ],
+            'implementation': [
+                "What will be your first implementation milestone?",
+                "How will you handle deployment and DevOps?",
+                "What monitoring and logging will you implement?",
+                "How will you document your code and API?",
+                "What's your plan for maintenance and updates?"
+            ]
         }
 
     def process(self, request: Dict[str, Any]) -> Dict[str, Any]:
@@ -224,6 +252,9 @@ class SocraticCounselorAgent(Agent):
             return self._process_response(request)
         elif action == 'advance_phase':
             return self._advance_phase(request)
+        elif action == 'toggle_dynamic_questions':
+            self.use_dynamic_questions = not self.use_dynamic_questions
+            return {'status': 'success', 'dynamic_mode': self.use_dynamic_questions}
 
         return {'status': 'error', 'message': 'Unknown action'}
 
@@ -231,20 +262,129 @@ class SocraticCounselorAgent(Agent):
         project = request.get('project')
         context = self.orchestrator.context_analyzer.get_context_summary(project)
 
-        phase_func = self.phases.get(project.phase, self._discovery_questions)
-        question = phase_func(project, context)
+        # Count questions already asked in this phase
+        phase_questions = [msg for msg in project.conversation_history
+                           if msg.get('type') == 'assistant' and msg.get('phase') == project.phase]
+
+        if self.use_dynamic_questions:
+            question = self._generate_dynamic_question(project, context, len(phase_questions))
+        else:
+            question = self._generate_static_question(project, len(phase_questions))
+
+        # Store the question in conversation history
+        project.conversation_history.append({
+            'timestamp': datetime.datetime.now().isoformat(),
+            'type': 'assistant',
+            'content': question,
+            'phase': project.phase,
+            'question_number': len(phase_questions) + 1
+        })
 
         return {'status': 'success', 'question': question}
+
+    def _generate_dynamic_question(self, project: ProjectContext, context: str, question_count: int) -> str:
+        """Generate contextual questions using Claude"""
+
+        # Get conversation history for context
+        recent_conversation = ""
+        if project.conversation_history:
+            recent_messages = project.conversation_history[-4:]  # Last 4 messages
+            for msg in recent_messages:
+                role = "Assistant" if msg['type'] == 'assistant' else "User"
+                recent_conversation += f"{role}: {msg['content']}\n"
+
+        # Get relevant knowledge from vector database
+        relevant_knowledge = ""
+        if context:
+            knowledge_results = self.orchestrator.vector_db.search_similar(context, top_k=3)
+            if knowledge_results:
+                relevant_knowledge = "\n".join([result['content'][:200] + "..." for result in knowledge_results])
+
+        prompt = self._build_question_prompt(project, context, recent_conversation, relevant_knowledge, question_count)
+
+        try:
+            question = self.orchestrator.claude_client.generate_socratic_question(prompt)
+            self.log(f"Generated dynamic question for {project.phase} phase")
+            return question
+        except Exception as e:
+            self.log(f"Failed to generate dynamic question: {e}, falling back to static", "WARN")
+            return self._generate_static_question(project, question_count)
+
+    def _build_question_prompt(self, project: ProjectContext, context: str,
+                               recent_conversation: str, relevant_knowledge: str, question_count: int) -> str:
+        """Build prompt for dynamic question generation"""
+
+        phase_descriptions = {
+            'discovery': "exploring the problem space, understanding user needs, and defining project goals",
+            'analysis': "analyzing technical requirements, identifying challenges, and planning solutions",
+            'design': "designing architecture, choosing patterns, and planning implementation structure",
+            'implementation': "planning development steps, deployment strategy, and maintenance approach"
+        }
+
+        phase_focus = {
+            'discovery': "problem definition, user needs, market research, competitive analysis",
+            'analysis': "technical feasibility, performance requirements, security considerations, integrations",
+            'design': "architecture patterns, code organization, development workflow, error handling",
+            'implementation': "development milestones, deployment pipeline, monitoring, documentation"
+        }
+
+        return f"""You are a Socratic tutor helping a developer think through their software project. 
+
+Project Details:
+- Name: {project.name}
+- Current Phase: {project.phase} ({phase_descriptions.get(project.phase, '')})
+- Goals: {project.goals}
+- Tech Stack: {', '.join(project.tech_stack) if project.tech_stack else 'Not specified'}
+- Requirements: {', '.join(project.requirements) if project.requirements else 'Not specified'}
+
+Project Context:
+{context}
+
+Recent Conversation:
+{recent_conversation}
+
+Relevant Knowledge:
+{relevant_knowledge}
+
+This is question #{question_count + 1} in the {project.phase} phase. Focus on: {phase_focus.get(project.phase, '')}.
+
+Generate ONE insightful Socratic question that:
+1. Builds on what we've discussed so far
+2. Helps the user think deeper about their project
+3. Is specific to the {project.phase} phase
+4. Encourages critical thinking rather than just information gathering
+5. Is relevant to their stated goals and tech stack
+
+The question should be thought-provoking but not overwhelming. Make it conversational and engaging.
+
+Return only the question, no additional text or explanation."""
+
+    def _generate_static_question(self, project: ProjectContext, question_count: int) -> str:
+        """Generate questions from static predefined lists"""
+        questions = self.static_questions.get(project.phase, [])
+
+        if question_count < len(questions):
+            return questions[question_count]
+        else:
+            # Fallback questions when we've exhausted the static list
+            fallbacks = {
+                'discovery': "What other aspects of the problem space should we explore?",
+                'analysis': "What technical considerations haven't we discussed yet?",
+                'design': "What design decisions are you still uncertain about?",
+                'implementation': "What implementation details would you like to work through?"
+            }
+            return fallbacks.get(project.phase, "What would you like to explore further?")
 
     def _process_response(self, request: Dict) -> Dict:
         project = request.get('project')
         user_response = request.get('response')
 
-        # Add to conversation history
+        # Add to conversation history with phase information
         project.conversation_history.append({
             'timestamp': datetime.datetime.now().isoformat(),
             'type': 'user',
-            'content': user_response
+            'content': user_response,
+            'phase': project.phase
         })
 
         # Extract insights using Claude
@@ -252,73 +392,6 @@ class SocraticCounselorAgent(Agent):
         self._update_project_context(project, insights)
 
         return {'status': 'success', 'insights': insights}
-
-    def _discovery_questions(self, project: ProjectContext, context: str) -> str:
-        questions = [
-            "What specific problem does your project solve?",
-            "Who is your target audience or user base?",
-            "What are the core features you envision?",
-            "Are there similar solutions that exist? How will yours differ?",
-            "What are your success criteria for this project?"
-        ]
-
-        # Choose question based on conversation history
-        answered_topics = len(project.conversation_history)
-        if answered_topics < len(questions):
-            return questions[answered_topics]
-        else:
-            return "Based on what you've shared, what aspect would you like to explore deeper?"
-
-    def _analysis_questions(self, project: ProjectContext, context: str) -> str:
-        questions = [
-            "What technical challenges do you anticipate?",
-            "What are your performance requirements?",
-            "How will you handle user authentication and security?",
-            "What third-party integrations might you need?",
-            "How will you test and validate your solution?"
-        ]
-
-        phase_responses = [msg for msg in project.conversation_history
-                           if msg.get('phase') == 'analysis']
-
-        if len(phase_responses) < len(questions):
-            return questions[len(phase_responses)]
-        else:
-            return "What technical aspect concerns you most at this stage?"
-
-    def _design_questions(self, project: ProjectContext, context: str) -> str:
-        questions = [
-            "How will you structure your application architecture?",
-            "What design patterns will you use?",
-            "How will you organize your code and modules?",
-            "What development workflow will you follow?",
-            "How will you handle error cases and edge scenarios?"
-        ]
-
-        phase_responses = [msg for msg in project.conversation_history
-                           if msg.get('phase') == 'design']
-
-        if len(phase_responses) < len(questions):
-            return questions[len(phase_responses)]
-        else:
-            return "What design decision would you like to validate?"
-
-    def _implementation_questions(self, project: ProjectContext, context: str) -> str:
-        questions = [
-            "What will be your first implementation milestone?",
-            "How will you handle deployment and DevOps?",
-            "What monitoring and logging will you implement?",
-            "How will you document your code and API?",
-            "What's your plan for maintenance and updates?"
-        ]
-
-        phase_responses = [msg for msg in project.conversation_history
-                           if msg.get('phase') == 'implementation']
-
-        if len(phase_responses) < len(questions):
-            return questions[len(phase_responses)]
-        else:
-            return "Ready to generate your implementation plan?"
 
     def _advance_phase(self, request: Dict) -> Dict:
         project = request.get('project')
@@ -929,6 +1002,31 @@ class ClaudeClient:
         output_cost = (usage.output_tokens / 1000) * output_cost_per_1k
 
         return input_cost + output_cost
+
+    def generate_socratic_question(self, prompt: str) -> str:
+        """Generate a Socratic question using Claude"""
+        try:
+            response = self.client.messages.create(
+                model=CONFIG['CLAUDE_MODEL'],
+                max_tokens=200,  # Questions should be concise
+                temperature=0.7,  # Some creativity for varied questions
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            # Track token usage
+            self.orchestrator.system_monitor.process({
+                'action': 'track_tokens',
+                'input_tokens': response.usage.input_tokens,
+                'output_tokens': response.usage.output_tokens,
+                'total_tokens': response.usage.input_tokens + response.usage.output_tokens,
+                'cost_estimate': self._calculate_cost(response.usage)
+            })
+
+            return response.content[0].text.strip()
+
+        except Exception as e:
+            print(f"{Fore.RED}Error generating Socratic question: {e}")
+            raise e
 
 
 # Agent Orchestrator

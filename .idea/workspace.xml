@@ -7,12 +7,6 @@
     <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Socratic7.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic7.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/projects.db" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/projects.db" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/4be8c2fc-eeec-4822-8106-0aab30a218a8/data_level0.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/fb5e4621-1e5d-46b0-8ff5-061ec00f436d/data_level0.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/4be8c2fc-eeec-4822-8106-0aab30a218a8/header.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/fb5e4621-1e5d-46b0-8ff5-061ec00f436d/header.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/4be8c2fc-eeec-4822-8106-0aab30a218a8/length.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/fb5e4621-1e5d-46b0-8ff5-061ec00f436d/length.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/4be8c2fc-eeec-4822-8106-0aab30a218a8/link_lists.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/fb5e4621-1e5d-46b0-8ff5-061ec00f436d/link_lists.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/chroma.sqlite3" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/chroma.sqlite3" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -52,27 +46,27 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ASKED_ADD_EXTERNAL_FILES": "true",
-    "Python.Socratic0.executor": "Run",
-    "Python.Socratic2.executor": "Run",
-    "Python.Socratic3.executor": "Run",
-    "Python.Socratic5.1.executor": "Run",
-    "Python.Socratic5.2.executor": "Run",
-    "Python.Socratic5.3.executor": "Run",
-    "Python.Socratic5.executor": "Run",
-    "Python.Socratic6.1.executor": "Run",
-    "Python.Socratic6.executor": "Run",
-    "Python.Socratic7.executor": "Run",
-    "Python.main.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "git-widget-placeholder": "master",
-    "ignore.virus.scanning.warn.message": "true",
-    "last_opened_file_path": "C:/Users/themi/PycharmProjects/Socratic",
-    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_ADD_EXTERNAL_FILES&quot;: &quot;true&quot;,
+    &quot;Python.Socratic0.executor&quot;: &quot;Run&quot;,
+    &quot;Python.Socratic2.executor&quot;: &quot;Run&quot;,
+    &quot;Python.Socratic3.executor&quot;: &quot;Run&quot;,
+    &quot;Python.Socratic5.1.executor&quot;: &quot;Run&quot;,
+    &quot;Python.Socratic5.2.executor&quot;: &quot;Run&quot;,
+    &quot;Python.Socratic5.3.executor&quot;: &quot;Run&quot;,
+    &quot;Python.Socratic5.executor&quot;: &quot;Run&quot;,
+    &quot;Python.Socratic6.1.executor&quot;: &quot;Run&quot;,
+    &quot;Python.Socratic6.executor&quot;: &quot;Run&quot;,
+    &quot;Python.Socratic7.executor&quot;: &quot;Run&quot;,
+    &quot;Python.main.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/themi/PycharmProjects/Socratic&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\themi\PycharmProjects\Socratic" />
@@ -244,30 +238,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1750504324591</updated>
-    </task>
-    <task id="LOCAL-00015" summary="collaborative_socratic">
-      <option name="closed" value="true" />
-      <created>1752031497388</created>
-      <option name="number" value="00015" />
-      <option name="presentableId" value="LOCAL-00015" />
-      <option name="project" value="LOCAL" />
-      <updated>1752031497388</updated>
-    </task>
-    <task id="LOCAL-00016" summary="collaborative_socratic">
-      <option name="closed" value="true" />
-      <created>1752032898054</created>
-      <option name="number" value="00016" />
-      <option name="presentableId" value="LOCAL-00016" />
-      <option name="project" value="LOCAL" />
-      <updated>1752032898054</updated>
-    </task>
-    <task id="LOCAL-00017" summary="collaborative_socratic">
-      <option name="closed" value="true" />
-      <created>1752034097960</created>
-      <option name="number" value="00017" />
-      <option name="presentableId" value="LOCAL-00017" />
-      <option name="project" value="LOCAL" />
-      <updated>1752034097960</updated>
     </task>
     <task id="LOCAL-00018" summary="Socratic 3">
       <option name="closed" value="true" />
@@ -637,7 +607,31 @@
       <option name="project" value="LOCAL" />
       <updated>1754548064809</updated>
     </task>
-    <option name="localTasksCounter" value="64" />
+    <task id="LOCAL-00064" summary="7">
+      <option name="closed" value="true" />
+      <created>1754549227367</created>
+      <option name="number" value="00064" />
+      <option name="presentableId" value="LOCAL-00064" />
+      <option name="project" value="LOCAL" />
+      <updated>1754549227367</updated>
+    </task>
+    <task id="LOCAL-00065" summary="7">
+      <option name="closed" value="true" />
+      <created>1754549415920</created>
+      <option name="number" value="00065" />
+      <option name="presentableId" value="LOCAL-00065" />
+      <option name="project" value="LOCAL" />
+      <updated>1754549415920</updated>
+    </task>
+    <task id="LOCAL-00066" summary="7">
+      <option name="closed" value="true" />
+      <created>1754549586060</created>
+      <option name="number" value="00066" />
+      <option name="presentableId" value="LOCAL-00066" />
+      <option name="project" value="LOCAL" />
+      <updated>1754549586060</updated>
+    </task>
+    <option name="localTasksCounter" value="67" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
