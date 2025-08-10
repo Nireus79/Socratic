@@ -405,15 +405,47 @@ Return only the question, no additional text or explanation."""
         return {'status': 'success', 'new_phase': project.phase}
 
     def _update_project_context(self, project: ProjectContext, insights: Dict):
-        """Update project context based on extracted insights"""
-        if 'goals' in insights:
-            project.goals = insights['goals']
-        if 'requirements' in insights:
-            project.requirements.extend(insights.get('requirements', []))
-        if 'tech_stack' in insights:
-            project.tech_stack.extend(insights.get('tech_stack', []))
-        if 'constraints' in insights:
-            project.constraints.extend(insights.get('constraints', []))
+        """Update project context based on extracted insights - with better error handling"""
+        if not insights or not isinstance(insights, dict):
+            return  # Skip if insights is None or not a dict
+
+        try:
+            if 'goals' in insights and insights['goals']:
+                if isinstance(insights['goals'], str):
+                    project.goals = insights['goals']
+
+            if 'requirements' in insights and insights['requirements']:
+                if isinstance(insights['requirements'], list):
+                    # Filter out empty strings and duplicates
+                    new_requirements = [req for req in insights['requirements']
+                                        if req and isinstance(req, str) and req not in project.requirements]
+                    project.requirements.extend(new_requirements)
+                elif isinstance(insights['requirements'], str):
+                    if insights['requirements'] not in project.requirements:
+                        project.requirements.append(insights['requirements'])
+
+            if 'tech_stack' in insights and insights['tech_stack']:
+                if isinstance(insights['tech_stack'], list):
+                    new_tech = [tech for tech in insights['tech_stack']
+                                if tech and isinstance(tech, str) and tech not in project.tech_stack]
+                    project.tech_stack.extend(new_tech)
+                elif isinstance(insights['tech_stack'], str):
+                    if insights['tech_stack'] not in project.tech_stack:
+                        project.tech_stack.append(insights['tech_stack'])
+
+            if 'constraints' in insights and insights['constraints']:
+                if isinstance(insights['constraints'], list):
+                    new_constraints = [constraint for constraint in insights['constraints']
+                                       if constraint and isinstance(constraint,
+                                                                    str) and constraint not in project.constraints]
+                    project.constraints.extend(new_constraints)
+                elif isinstance(insights['constraints'], str):
+                    if insights['constraints'] not in project.constraints:
+                        project.constraints.append(insights['constraints'])
+
+        except Exception as e:
+            print(f"{Fore.YELLOW}Warning: Error updating project context: {e}")
+            # Continue execution even if context update fails
 
 
 class ContextAnalyzerAgent(Agent):
@@ -847,13 +879,24 @@ class ClaudeClient:
 
     def extract_insights(self, user_response: str, project: ProjectContext) -> Dict:
         """Extract insights from user response using Claude"""
+
+        # Handle empty or non-informative responses
+        if not user_response or len(user_response.strip()) < 3:
+            return {}
+
+        # Handle common non-informative responses
+        non_informative = ["i don't know", "idk", "not sure", "no idea", "dunno", "unsure"]
+        if user_response.lower().strip() in non_informative:
+            return {'note': 'User expressed uncertainty - may need more guidance'}
+
+        # Build prompt using string concatenation to avoid brace issues
         prompt = f"""
         Analyze this user response in the context of their project and extract structured insights:
 
         Project Context:
-        - Goals: {project.goals}
+        - Goals: {project.goals or 'Not specified'}
         - Phase: {project.phase}
-        - Tech Stack: {', '.join(project.tech_stack)}
+        - Tech Stack: {', '.join(project.tech_stack) if project.tech_stack else 'Not specified'}
 
         User Response: "{user_response}"
 
@@ -864,7 +907,8 @@ class ClaudeClient:
         4. Constraints or limitations
         5. Team structure preferences
 
-        Return as JSON with keys: goals, requirements, tech_stack, constraints, team_structure
+        """ + """Return as valid JSON with keys: goals, requirements, tech_stack, constraints, team_structure
+        If no insights found, return empty JSON object {}.
         """
 
         try:
@@ -887,14 +931,39 @@ class ClaudeClient:
             # Try to parse JSON response
             try:
                 import json
-                return json.loads(response.content[0].text)
-            except:
+                response_text = response.content[0].text.strip()
+
+                # Clean up the response - sometimes Claude adds extra text
+                if response_text.startswith('```json'):
+                    response_text = response_text.replace('```json', '').replace('```', '').strip()
+                elif response_text.startswith('```'):
+                    response_text = response_text.replace('```', '').strip()
+
+                # Find JSON object in the response
+                start = response_text.find('{')
+                end = response_text.rfind('}') + 1
+
+                if start >= 0 and end > start:
+                    json_text = response_text[start:end]
+                    parsed_insights = json.loads(json_text)
+
+                    # Ensure it's a dictionary
+                    if isinstance(parsed_insights, dict):
+                        return parsed_insights
+                    else:
+                        return {}
+                else:
+                    # No JSON found, return empty dict
+                    return {}
+
+            except (json.JSONDecodeError, ValueError, IndexError) as json_error:
+                print(f"{Fore.YELLOW}Warning: Could not parse JSON response: {json_error}")
                 # Fallback to simple text analysis
                 return {'extracted_text': response.content[0].text}
 
         except Exception as e:
             print(f"{Fore.RED}Error extracting insights: {e}")
-            return {}
+            return {}  # Return empty dict instead of None
 
     def generate_code(self, context: str) -> str:
         """Generate code based on project context"""
