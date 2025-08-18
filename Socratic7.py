@@ -943,7 +943,7 @@ class ClaudeClient:
                 start = response_text.find('{')
                 end = response_text.rfind('}') + 1
 
-                if start >= 0 and end > start:
+                if 0 <= start < end:
                     json_text = response_text[start:end]
                     parsed_insights = json.loads(json_text)
 
