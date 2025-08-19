@@ -4,7 +4,20 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7.1" />
+    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7 new">
+      <change afterPath="$PROJECT_DIR$/chroma_db/0fd1830b-5bc8-4565-97be-7c0515960909/data_level0.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/chroma_db/0fd1830b-5bc8-4565-97be-7c0515960909/header.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/chroma_db/0fd1830b-5bc8-4565-97be-7c0515960909/length.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/chroma_db/0fd1830b-5bc8-4565-97be-7c0515960909/link_lists.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/chroma_db/384a946e-cf6e-493c-8cf8-ab7bdde4ed9c/data_level0.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/chroma_db/384a946e-cf6e-493c-8cf8-ab7bdde4ed9c/header.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/chroma_db/384a946e-cf6e-493c-8cf8-ab7bdde4ed9c/length.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/chroma_db/384a946e-cf6e-493c-8cf8-ab7bdde4ed9c/link_lists.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/chroma_db/chroma.sqlite3" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/chroma_db/users.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Socratic7.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic7.py" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -71,7 +84,7 @@
       <recent name="C:\Users\themi\PycharmProjects\Socratic" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.main">
+  <component name="RunManager" selected="Python.Socratic7">
     <configuration name="Socratic6.2" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="Socratic" />
       <option name="ENV_FILES" value="" />
@@ -145,6 +158,7 @@
     </list>
     <recent_temporary>
       <list>
+        <item itemvalue="Python.Socratic7" />
         <item itemvalue="Python.Socratic6.2" />
       </list>
     </recent_temporary>
@@ -164,22 +178,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1750504324591</updated>
-    </task>
-    <task id="LOCAL-00030" summary="Read me">
-      <option name="closed" value="true" />
-      <created>1752572796842</created>
-      <option name="number" value="00030" />
-      <option name="presentableId" value="LOCAL-00030" />
-      <option name="project" value="LOCAL" />
-      <updated>1752572796842</updated>
-    </task>
-    <task id="LOCAL-00031" summary="Socratic 5.1">
-      <option name="closed" value="true" />
-      <created>1752575374964</created>
-      <option name="number" value="00031" />
-      <option name="presentableId" value="LOCAL-00031" />
-      <option name="project" value="LOCAL" />
-      <updated>1752575374964</updated>
     </task>
     <task id="LOCAL-00032" summary="Socratic 5.1">
       <option name="closed" value="true" />
@@ -557,7 +555,23 @@
       <option name="project" value="LOCAL" />
       <updated>1755623529051</updated>
     </task>
-    <option name="localTasksCounter" value="79" />
+    <task id="LOCAL-00079" summary="7 new">
+      <option name="closed" value="true" />
+      <created>1755623757525</created>
+      <option name="number" value="00079" />
+      <option name="presentableId" value="LOCAL-00079" />
+      <option name="project" value="LOCAL" />
+      <updated>1755623757526</updated>
+    </task>
+    <task id="LOCAL-00080" summary="7 new">
+      <option name="closed" value="true" />
+      <created>1755623786394</created>
+      <option name="number" value="00080" />
+      <option name="presentableId" value="LOCAL-00080" />
+      <option name="project" value="LOCAL" />
+      <updated>1755623786395</updated>
+    </task>
+    <option name="localTasksCounter" value="81" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -583,6 +597,7 @@
     <MESSAGE value="7 dynamic" />
     <MESSAGE value="generated code pst" />
     <MESSAGE value="7.1" />
-    <option name="LAST_COMMIT_MESSAGE" value="7.1" />
+    <MESSAGE value="7 new" />
+    <option name="LAST_COMMIT_MESSAGE" value="7 new" />
   </component>
 </project>

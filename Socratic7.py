@@ -9,17 +9,14 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import uuid
 import shutil
-import hashlib
 
 
 class ProjectContext:
     """Manages project context and state"""
 
-    def __init__(self, project_id: str = None, owner: str = None):
+    def __init__(self, project_id: str = None):
         self.project_id = project_id or str(uuid.uuid4())
         self.name = "Unnamed Project"
-        self.owner = owner  # User ID of the project owner
-        self.authorized_users = [owner] if owner else []  # List of user IDs with access
         self.goals = []
         self.requirements = []
         self.tech_stack = []
@@ -50,29 +47,11 @@ class ProjectContext:
             self.constraints.append(item)
         self.last_updated = datetime.now().isoformat()
 
-    def add_user(self, user_id: str):
-        """Add user to authorized users list"""
-        if user_id not in self.authorized_users:
-            self.authorized_users.append(user_id)
-            self.last_updated = datetime.now().isoformat()
-            return True
-        return False
-
-    def remove_user(self, user_id: str):
-        """Remove user from authorized users list (except owner)"""
-        if user_id in self.authorized_users and user_id != self.owner:
-            self.authorized_users.remove(user_id)
-            self.last_updated = datetime.now().isoformat()
-            return True
-        return False
-
     def to_dict(self):
         """Convert to dictionary for storage"""
         return {
             "project_id": self.project_id,
             "name": self.name,
-            "owner": self.owner,
-            "authorized_users": self.authorized_users,
             "goals": self.goals,
             "requirements": self.requirements,
             "tech_stack": self.tech_stack,
@@ -90,7 +69,7 @@ class ProjectContext:
     @classmethod
     def from_dict(cls, data: dict):
         """Create from dictionary"""
-        project = cls(data.get("project_id"), data.get("owner"))
+        project = cls(data["project_id"])
         for key, value in data.items():
             setattr(project, key, value)
         return project
@@ -266,7 +245,6 @@ class VectorStore:
                     "project_id": project.project_id,
                     "name": project.name,
                     "phase": project.phase,
-                    "owner": project.owner,
                     "type": "project",
                     "last_updated": project.last_updated,
                     "data": json.dumps(project_data)
@@ -280,7 +258,6 @@ class VectorStore:
                     "project_id": project.project_id,
                     "name": project.name,
                     "phase": project.phase,
-                    "owner": project.owner,
                     "type": "project",
                     "last_updated": project.last_updated,
                     "data": json.dumps(project_data)
@@ -315,7 +292,6 @@ class VectorStore:
                 "project_id": metadata["project_id"],
                 "name": metadata["name"],
                 "phase": metadata["phase"],
-                "owner": metadata["owner"],
                 "last_updated": metadata["last_updated"]
             } for metadata in results["metadatas"]]
         except Exception:
@@ -368,7 +344,7 @@ class SocraticRAG:
         self.users = {}
         self.current_user = None
 
-        # Core Socratic questioning templates
+        # Core Socratic questioning templates (from branch 5 logic)
         self.socratic_templates = {
             "discovery": [
                 "What exactly do you want to achieve with this project?",
@@ -450,21 +426,11 @@ class SocraticRAG:
         except Exception:
             pass
 
-    def _hash_password(self, password: str) -> str:
-        """Hash password using SHA-256"""
-        return hashlib.sha256(password.encode()).hexdigest()
-
-    def create_user(self, username: str, password: str) -> str:
-        """Create new user with password"""
-        # Check if username already exists
-        for user_data in self.users.values():
-            if user_data['username'] == username:
-                return None
-
+    def create_user(self, username: str) -> str:
+        """Create new user"""
         user_id = str(uuid.uuid4())
         self.users[user_id] = {
             "username": username,
-            "password_hash": self._hash_password(password),
             "created_at": datetime.now().isoformat(),
             "projects": [],
             "preferences": {}
@@ -472,31 +438,15 @@ class SocraticRAG:
         self._save_users()
         return user_id
 
-    def login_user(self, username: str, password: str) -> bool:
-        """Login user with username and password"""
-        password_hash = self._hash_password(password)
-        for user_id, user_data in self.users.items():
-            if (user_data['username'] == username and
-                    user_data['password_hash'] == password_hash):
-                self.current_user = user_id
-                return True
-        return False
-
-    def logout_user(self):
-        """Logout current user"""
-        self.current_user = None
-        self.current_project = None
-
     def delete_user(self, user_id: str) -> bool:
         """Delete user and all their projects"""
         if user_id not in self.users:
             return False
 
-        # Delete all user's owned projects
-        all_projects = self.list_projects()
-        for project in all_projects:
-            if project['owner'] == user_id:
-                self.vector_store.delete_project(project['project_id'])
+        # Delete all user's projects
+        user_projects = self.users[user_id]["projects"].copy()
+        for project_id in user_projects:
+            self.vector_store.delete_project(project_id)
 
         # Delete user
         del self.users[user_id]
@@ -508,7 +458,7 @@ class SocraticRAG:
 
     def create_project(self, project_name: str) -> str:
         """Create new project"""
-        project = ProjectContext(owner=self.current_user)
+        project = ProjectContext()
         project.name = project_name
 
         # Store in vector database
@@ -521,12 +471,8 @@ class SocraticRAG:
         return project.project_id
 
     def delete_project(self, project_id: str) -> bool:
-        """Delete project (owner only)"""
-        project = self.vector_store.get_project(project_id)
-        if not project or project.owner != self.current_user:
-            return False
-
-        # Remove from all users' project lists
+        """Delete project"""
+        # Remove from user's project list
         for user_id, user_data in self.users.items():
             if project_id in user_data["projects"]:
                 user_data["projects"].remove(project_id)
@@ -542,85 +488,10 @@ class SocraticRAG:
 
         return success
 
-    def add_user_to_project(self, project_id: str, username: str) -> bool:
-        """Add user to project by username (owner only)"""
-        project = self.vector_store.get_project(project_id)
-        if not project or project.owner != self.current_user:
-            return False
-
-        # Find user by username
-        target_user_id = None
-        for user_id, user_data in self.users.items():
-            if user_data['username'] == username:
-                target_user_id = user_id
-                break
-
-        if not target_user_id:
-            return False
-
-        # Add user to project
-        if project.add_user(target_user_id):
-            # Add project to user's project list
-            if project_id not in self.users[target_user_id]["projects"]:
-                self.users[target_user_id]["projects"].append(project_id)
-
-            # Save changes
-            self.vector_store.store_project(project)
-            self._save_users()
-            return True
-
-        return False
-
-    def remove_user_from_project(self, project_id: str, username: str) -> bool:
-        """Remove user from project by username (owner only)"""
-        project = self.vector_store.get_project(project_id)
-        if not project or project.owner != self.current_user:
-            return False
-
-        # Find user by username
-        target_user_id = None
-        for user_id, user_data in self.users.items():
-            if user_data['username'] == username:
-                target_user_id = user_id
-                break
-
-        if not target_user_id or target_user_id == project.owner:
-            return False
-
-        # Remove user from project
-        if project.remove_user(target_user_id):
-            # Remove project from user's project list
-            if project_id in self.users[target_user_id]["projects"]:
-                self.users[target_user_id]["projects"].remove(project_id)
-
-            # Save changes
-            self.vector_store.store_project(project)
-            self._save_users()
-            return True
-
-        return False
-
-    def list_user_projects(self) -> List[Dict]:
-        """List projects accessible to current user"""
-        if not self.current_user:
-            return []
-
-        all_projects = self.list_projects()
-        user_projects = []
-
-        for project in all_projects:
-            project_obj = self.vector_store.get_project(project['project_id'])
-            if project_obj and self.current_user in project_obj.authorized_users:
-                project_info = project.copy()
-                project_info['is_owner'] = (project['owner'] == self.current_user)
-                user_projects.append(project_info)
-
-        return user_projects
-
     def set_current_project(self, project_id: str):
-        """Set current active project (if user has access)"""
+        """Set current active project"""
         project = self.vector_store.get_project(project_id)
-        if project and self.current_user in project.authorized_users:
+        if project:
             self.current_project = project
 
     def list_projects(self) -> List[Dict]:
@@ -824,8 +695,6 @@ Provide clean, well-commented code with explanations. Follow the best practices 
         self.vector_store.add_knowledge_entry(content, category, context)
         return "Knowledge entry added successfully."
 
-        # Completion of the Socratic7.py script from the last line
-
     def search_project_insights(self, query: str) -> str:
         """Search for insights across projects and conversations"""
         # Search knowledge base
@@ -840,397 +709,553 @@ Provide clean, well-commented code with explanations. Follow the best practices 
         insights = []
 
         if knowledge_results:
-            insights.append("**Relevant Knowledge:**")
+            insights.append("📚 Relevant Knowledge:")
             for result in knowledge_results:
-                insights.append(f"- {result['content']}")
-                if result.get('context'):
-                    insights.append(f"  Context: {result['context']}")
+                insights.append(f"  • {result['content']}")
 
         if conversation_results:
-            insights.append("\n**Similar Conversations:**")
-            for result in conversation_results:
-                insights.append(f"- User: {result['user_input'][:100]}...")
-                insights.append(f"  Response: {result['assistant_response'][:100]}...")
-                insights.append(f"  Phase: {result['phase']}")
+            insights.append("\n💬 Similar Past Discussions:")
+            for result in conversation_results[:2]:
+                insights.append(f"  • In {result['phase']} phase: {result['assistant_response'][:100]}...")
 
         if project_results:
-            insights.append("\n**Similar Projects:**")
+            insights.append("\n🔍 Similar Projects:")
             for result in project_results:
-                insights.append(f"- {result['name']} (Phase: {result['phase']})")
+                insights.append(f"  • {result['name']} (Phase: {result['phase']})")
 
-        if not insights:
-            return f"No insights found for: {query}"
+        return "\n".join(insights) if insights else "No relevant insights found for this query."
 
-        return "\n".join(insights)
+    def show_menu(self) -> str:
+        """Enhanced menu system with vector capabilities"""
+        menu = """
+╔═══════════════════════════════════════════╗
+║        ENHANCED SOCRATIC RAG SYSTEM       ║
+║                Version 7.1                ║
+║       Ουδέν οίδα, ούτε διδάσκω τι,        ║
+║            αλλά διαπορώ μόνον.            ║
+╠═══════════════════════════════════════════╣
+║ PROJECT MANAGEMENT:                       ║
+║   1. Create new project                   ║
+║   2. List projects                        ║
+║   3. Select project                       ║
+║   4. Delete project                       ║
+║   5. Project summary                      ║
+║   6. Search project insights              ║
+║                                           ║
+║ USER MANAGEMENT:                          ║
+║   7. Create user                          ║
+║   8. Delete user                          ║
+║   9. Switch user                          ║
+║                                           ║
+║ CONVERSATION:                             ║
+║   10. Start/Continue Socratic dialogue    ║
+║   11. Ask for suggestions                 ║
+║   12. Change project phase                ║
+║   13. Search conversation history         ║
+║                                           ║
+║ KNOWLEDGE & CODE:                         ║
+║   14. Generate code                       ║
+║   15. Add knowledge entry                 ║
+║   16. Search knowledge base               ║
+║                                           ║
+║ DATA MANAGEMENT:                          ║
+║   17. Export project data                 ║
+║   18. Database statistics                 ║
+║   19. Help                                ║
+║   0. Exit                                 ║
+╚═══════════════════════════════════════════╝
+"""
+        current_info = ""
+        if self.current_user:
+            current_info += f"Current User: {self.users[self.current_user]['username']}\n"
+        if self.current_project:
+            current_info += f"Current Project: {self.current_project.name} (Phase: {self.current_project.phase})\n"
 
-    def update_project_context(self, category: str, item: str) -> str:
-        """Update project context with new information"""
-        if not self.current_project:
-            return "No active project. Please create or select a project first."
+        return current_info + menu
 
-        self.current_project.add_context_item(category, item)
-        self.vector_store.store_project(self.current_project)
-
-        return f"Added to {category}: {item}"
-
-    def advance_phase(self) -> str:
-        """Advance project to next phase"""
-        if not self.current_project:
-            return "No active project to advance."
-
-        phase_progression = {
-            "discovery": "analysis",
-            "analysis": "design",
-            "design": "implementation",
-            "implementation": "implementation"  # Stay in implementation
-        }
-
-        current_phase = self.current_project.phase
-        next_phase = phase_progression.get(current_phase, current_phase)
-
-        if current_phase == next_phase and current_phase == "implementation":
-            return "Project is already in the final implementation phase."
-
-        self.current_project.update_phase(next_phase)
-        self.vector_store.store_project(self.current_project)
-
-        return f"Advanced from {current_phase} to {next_phase} phase."
-
-    def get_project_summary(self) -> str:
-        """Get summary of current project"""
-        if not self.current_project:
-            return "No active project."
-
-        summary = [
-            f"**Project:** {self.current_project.name}",
-            f"**Phase:** {self.current_project.phase}",
-            f"**Owner:** {self.users.get(self.current_project.owner, {}).get('username', 'Unknown')}",
-        ]
-
-        if self.current_project.goals:
-            summary.append(f"**Goals:** {', '.join(self.current_project.goals)}")
-
-        if self.current_project.requirements:
-            summary.append(f"**Requirements:** {', '.join(self.current_project.requirements)}")
-
-        if self.current_project.tech_stack:
-            summary.append(f"**Tech Stack:** {', '.join(self.current_project.tech_stack)}")
-
-        if self.current_project.constraints:
-            summary.append(f"**Constraints:** {', '.join(self.current_project.constraints)}")
-
-        if len(self.current_project.authorized_users) > 1:
-            authorized_usernames = []
-            for user_id in self.current_project.authorized_users:
-                username = self.users.get(user_id, {}).get('username', 'Unknown')
-                authorized_usernames.append(username)
-            summary.append(f"**Team Members:** {', '.join(authorized_usernames)}")
-
-        summary.append(f"**Created:** {self.current_project.created_at}")
-        summary.append(f"**Last Updated:** {self.current_project.last_updated}")
-
-        return "\n".join(summary)
-
-    def get_conversation_history(self, limit: int = 10) -> str:
-        """Get recent conversation history for current project"""
-        if not self.current_project:
-            return "No active project."
-
-        history = self.current_project.conversation_history[-limit:]
-
-        if not history:
-            return "No conversation history yet."
-
-        formatted_history = []
-        for exchange in history:
-            formatted_history.append(f"**User:** {exchange['user']}")
-            formatted_history.append(f"**Assistant:** {exchange['assistant']}")
-            formatted_history.append(f"*Phase: {exchange['phase']} | {exchange['timestamp']}*")
-            formatted_history.append("---")
-
-        return "\n".join(formatted_history)
-
-    def export_project_data(self, project_id: str = None) -> dict:
-        """Export project data for backup or sharing"""
-        target_project = self.current_project
-
-        if project_id:
-            target_project = self.vector_store.get_project(project_id)
-            if not target_project or self.current_user not in target_project.authorized_users:
-                return {"error": "Project not found or access denied"}
-
-        if not target_project:
-            return {"error": "No project to export"}
-
-        # Get conversations for this project
-        conversations = self.vector_store.search_conversations(
-            "", project_id=target_project.project_id, n_results=1000
-        )
-
-        export_data = {
-            "project_data": target_project.to_dict(),
-            "conversations": conversations,
-            "export_timestamp": datetime.now().isoformat(),
-            "export_version": "1.0"
-        }
-
-        return export_data
-
-    def import_project_data(self, import_data: dict) -> str:
-        """Import project data from backup"""
+    def get_database_stats(self) -> str:
+        """Get vector database statistics"""
         try:
-            if "project_data" not in import_data:
-                return "Invalid import data format."
-
-            project_data = import_data["project_data"]
-
-            # Create new project ID to avoid conflicts
-            old_project_id = project_data["project_id"]
-            project_data["project_id"] = str(uuid.uuid4())
-            project_data["owner"] = self.current_user
-            project_data["authorized_users"] = [self.current_user]
-            project_data["imported_at"] = datetime.now().isoformat()
-
-            # Create project
-            project = ProjectContext.from_dict(project_data)
-            self.vector_store.store_project(project)
-
-            # Import conversations if available
-            if "conversations" in import_data:
-                for conv in import_data["conversations"]:
-                    self.vector_store.add_conversation(
-                        project.project_id,
-                        conv["user_input"],
-                        conv["assistant_response"],
-                        conv["phase"]
-                    )
-
-            # Add to user's project list
-            if self.current_user:
-                self.users[self.current_user]["projects"].append(project.project_id)
-                self._save_users()
-
-            return f"Successfully imported project '{project.name}' with ID: {project.project_id}"
-
-        except Exception as e:
-            return f"Import failed: {str(e)}"
-
-    def reset_vector_store(self) -> str:
-        """Reset vector store (admin function)"""
-        try:
-            # Delete the persist directory
-            if os.path.exists(self.vector_store.persist_directory):
-                shutil.rmtree(self.vector_store.persist_directory)
-
-            # Reinitialize vector store
-            self.vector_store = VectorStore(self.vector_store.persist_directory)
-
-            # Clear current project
-            self.current_project = None
-
-            return "Vector store reset successfully."
-
-        except Exception as e:
-            return f"Reset failed: {str(e)}"
-
-    def get_system_stats(self) -> str:
-        """Get system statistics"""
-        try:
-            total_projects = len(self.list_projects())
-            total_users = len(self.users)
-
             knowledge_count = self.vector_store.knowledge_collection.count()
             conversation_count = self.vector_store.conversation_collection.count()
+            project_count = self.vector_store.project_collection.count()
 
-            user_projects = len(self.list_user_projects()) if self.current_user else 0
+            return f"""
+📊 Vector Database Statistics:
+═══════════════════════════════
+Knowledge Entries: {knowledge_count}
+Conversation Records: {conversation_count}
+Stored Projects: {project_count}
+Total Users: {len(self.users)}
 
-            stats = [
-                f"**System Statistics:**",
-                f"Total Users: {total_users}",
-                f"Total Projects: {total_projects}",
-                f"Your Projects: {user_projects}",
-                f"Knowledge Entries: {knowledge_count}",
-                f"Total Conversations: {conversation_count}",
-                f"Database Location: {self.vector_store.persist_directory}"
-            ]
-
-            return "\n".join(stats)
-
+Database Location: {self.vector_store.persist_directory}
+"""
         except Exception as e:
-            return f"Could not retrieve stats: {str(e)}"
+            return f"Could not retrieve database statistics: {str(e)}"
 
-    # Example usage and CLI interface
+    def export_project_data(self, project_id: str) -> str:
+        """Export project data to JSON (enhanced with vector data)"""
+        project = self.vector_store.get_project(project_id)
+        if not project:
+            return "Project not found"
+
+        # Get related conversations
+        conversations = self.vector_store.search_conversations(
+            "", project_id=project_id, n_results=100
+        )
+
+        export_data = project.to_dict()
+        export_data["vector_conversations"] = conversations
+
+        filename = f"project_{project_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        try:
+            with open(filename, 'w') as f:
+                json.dump(export_data, f, indent=2)
+            return f"Enhanced project data exported to {filename}"
+        except Exception as e:
+            return f"Export failed: {str(e)}"
 
 
 def main():
-    """Simple CLI interface for the Socratic RAG system"""
-    import getpass
+    """Main application loop with vector database"""
+    print("🤖 Enhanced Socratic Counselor with Vector Database")
+    print("=" * 60)
 
-    # Initialize system
-    api_key = os.getenv("ANTHROPIC_API_KEY")
+    # Get API key
+    api_key = os.getenv('API_KEY_CLAUDE')
+
     if not api_key:
-        api_key = getpass.getpass("Enter your Anthropic API key: ")
+        print("❌ API key is required to run the system.")
+        return
 
-    rag = SocraticRAG(api_key)
+    try:
+        # Initialize the enhanced RAG system
+        rag = SocraticRAG(api_key)
+        print("✅ Enhanced Socratic RAG system initialized successfully!")
+        print(f"📁 Vector database location: {rag.vector_store.persist_directory}")
+        print()
 
-    print("Welcome to Socratic RAG - AI-Powered Project Development Assistant")
-    print("Type 'help' for commands or 'quit' to exit")
+    except Exception as e:
+        print(f"❌ Failed to initialize system: {str(e)}")
+        return
+
+        # Main interaction loop
 
     while True:
         try:
-            user_input = input("\n> ").strip()
+            print(rag.show_menu())
 
-            if user_input.lower() in ['quit', 'exit', 'q']:
-                print("Goodbye!")
-                break
+            if not rag.current_user:
+                # Authentication menu
+                choice = input("👉 Select an option (0-3): ").strip()
 
-            elif user_input.lower() == 'help':
-                print("""
-    Commands:
-    - login <username> <password>    : Login to account
-    - register <username> <password> : Create new account
-    - logout                         : Logout current user
-    - create <project_name>          : Create new project
-    - select <project_id>            : Select active project
-    - list                          : List your projects
-    - delete <project_id>           : Delete project
-    - summary                       : Show project summary
-    - history                       : Show conversation history
-    - phase                         : Advance to next phase
-    - add <category> <item>         : Add context item
-    - code <requirements>           : Generate code
-    - search <query>                : Search insights
-    - stats                         : System statistics
-    - export                        : Export current project
-    - help                          : Show this help
-    - quit                          : Exit system
-                    """)
+                if choice == "0":
+                    print("                         Goodbye!")
+                    print("..τω Ασκληπιώ οφείλομεν αλετρυόνα, απόδοτε και μη αμελήσετε..")
+                    break
 
-            elif user_input.lower().startswith('register '):
-                parts = user_input.split(' ', 2)
-                if len(parts) == 3:
-                    username, password = parts[1], parts[2]
-                    user_id = rag.create_user(username, password)
-                    if user_id:
-                        print(f"User '{username}' created successfully!")
+                elif choice == "1":
+                    # Login
+                    username = input("Enter your username: ").strip()
+                    if username:
+                        if rag.login_user(username):
+                            print(f"✅ Welcome back, {username}!")
+                        else:
+                            print("❌ Username not found.")
                     else:
-                        print("Username already exists.")
-                else:
-                    print("Usage: register <username> <password>")
+                        print("❌ Username cannot be empty.")
 
-            elif user_input.lower().startswith('login '):
-                parts = user_input.split(' ', 2)
-                if len(parts) == 3:
-                    username, password = parts[1], parts[2]
-                    if rag.login_user(username, password):
-                        print(f"Logged in as {username}")
+                elif choice == "2":
+                    # Create user
+                    username = input("Enter new username: ").strip()
+                    if username:
+                        # Check if username already exists
+                        if any(user_data["username"] == username for user_data in rag.users.values()):
+                            print("❌ Username already exists.")
+                        else:
+                            user_id = rag.create_user(username)
+                            rag.current_user = user_id
+                            print(f"✅ User '{username}' created and logged in successfully!")
                     else:
-                        print("Invalid credentials.")
+                        print("❌ Username cannot be empty.")
+
+                elif choice == "3":
+                    # List users
+                    if rag.users:
+                        print("\n👥 Existing Users:")
+                        for user_data in rag.users.values():
+                            print(f"  • {user_data['username']}")
+                    else:
+                        print("❌ No users found.")
+
                 else:
-                    print("Usage: login <username> <password>")
-
-            elif user_input.lower() == 'logout':
-                rag.logout_user()
-                print("Logged out.")
-
-            elif not rag.current_user:
-                print("Please login first.")
-                continue
-
-            elif user_input.lower().startswith('create '):
-                project_name = user_input[7:].strip()
-                if project_name:
-                    project_id = rag.create_project(project_name)
-                    rag.set_current_project(project_id)
-                    print(f"Created and selected project: {project_name}")
-                else:
-                    print("Please provide a project name.")
-
-            elif user_input.lower().startswith('select '):
-                project_id = user_input[7:].strip()
-                old_project = rag.current_project
-                rag.set_current_project(project_id)
-                if rag.current_project != old_project:
-                    print(f"Selected project: {rag.current_project.name}")
-                else:
-                    print("Project not found or access denied.")
-
-            elif user_input.lower() == 'list':
-                projects = rag.list_user_projects()
-                if projects:
-                    print("\nYour Projects:")
-                    for p in projects:
-                        owner_flag = " (Owner)" if p['is_owner'] else " (Member)"
-                        print(f"- {p['name']} [{p['project_id']}] - {p['phase']}{owner_flag}")
-                else:
-                    print("No projects found.")
-
-            elif user_input.lower().startswith('delete '):
-                project_id = user_input[7:].strip()
-                if rag.delete_project(project_id):
-                    print("Project deleted successfully.")
-                else:
-                    print("Could not delete project (not found or not owner).")
-
-            elif user_input.lower() == 'summary':
-                print(rag.get_project_summary())
-
-            elif user_input.lower() == 'history':
-                print(rag.get_conversation_history())
-
-            elif user_input.lower() == 'phase':
-                print(rag.advance_phase())
-
-            elif user_input.lower().startswith('add '):
-                parts = user_input[4:].split(' ', 1)
-                if len(parts) == 2:
-                    category, item = parts
-                    print(rag.update_project_context(category, item))
-                else:
-                    print("Usage: add <category> <item>")
-
-            elif user_input.lower().startswith('code '):
-                requirements = user_input[5:].strip()
-                if requirements:
-                    print("\nGenerating code...")
-                    print(rag.generate_code(requirements))
-                else:
-                    print("Please provide code requirements.")
-
-            elif user_input.lower().startswith('search '):
-                query = user_input[7:].strip()
-                if query:
-                    print(rag.search_project_insights(query))
-                else:
-                    print("Please provide a search query.")
-
-            elif user_input.lower() == 'stats':
-                print(rag.get_system_stats())
-
-            elif user_input.lower() == 'export':
-                data = rag.export_project_data()
-                if 'error' not in data:
-                    filename = f"project_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-                    with open(filename, 'w') as f:
-                        json.dump(data, f, indent=2)
-                    print(f"Project exported to {filename}")
-                else:
-                    print(data['error'])
+                    print("❌ Invalid option. Please select 0-3.")
 
             else:
-                # Regular Socratic questioning
-                if not rag.current_project:
-                    print("Please create or select a project first.")
-                    continue
+                # Main menu (user is logged in)
+                choice = input("👉 Select an option (0-17): ").strip()
 
-                response = rag.generate_socratic_question(user_input)
-                print(f"\n{response}")
+                if choice == "0":
+                    print("👋 Goodbye! Your data is safely stored in the vector database.")
+                    break
+
+                elif choice == "1":
+                    # Create new project
+                    name = input("Enter project name: ").strip()
+                    if name:
+                        try:
+                            project_id = rag.create_project(name)
+                            rag.set_current_project(project_id)
+                            print(f"✅ Project '{name}' created successfully! You are the owner.")
+                        except Exception as e:
+                            print(f"❌ Failed to create project: {str(e)}")
+                    else:
+                        print("❌ Project name cannot be empty.")
+
+                elif choice == "2":
+                    # Select project from list
+                    projects = rag.list_user_projects()
+                    if projects:
+                        print("\n📋 Your Projects:")
+                        print("=" * 60)
+                        for i, project in enumerate(projects, 1):
+                            owner_indicator = " (Owner)" if project.get("is_owner") else " (Member)"
+                            print(f"  {i}. {project['name']}{owner_indicator}")
+                            print(f"     Phase: {project['phase']} | Updated: {project['last_updated'][:10]}")
+                            print()
+
+                        try:
+                            choice_num = int(input(f"Select project (1-{len(projects)}): ").strip())
+                            if 1 <= choice_num <= len(projects):
+                                selected_project = projects[choice_num - 1]
+                                rag.set_current_project(selected_project['project_id'])
+                                print(f"✅ Selected project: {selected_project['name']}")
+                            else:
+                                print("❌ Invalid choice.")
+                        except ValueError:
+                            print("❌ Please enter a number.")
+                        except Exception as e:
+                            print(f"❌ Error selecting project: {str(e)}")
+                    else:
+                        print("📭 No projects found. Create one with option 1!")
+
+                elif choice == "3":
+                    # Delete project (owner only)
+                    if not rag.current_project:
+                        print("❌ No project selected.")
+                        continue
+
+                    if rag.current_project.owner != rag.current_user:
+                        print("❌ Only the project owner can delete projects.")
+                        continue
+
+                    confirm = input(
+                        f"⚠️  Are you sure you want to delete '{rag.current_project.name}'? (yes/no): ").strip().lower()
+                    if confirm == "yes":
+                        if rag.delete_project(rag.current_project.project_id):
+                            print("✅ Project deleted successfully.")
+                        else:
+                            print("❌ Failed to delete project.")
+                    else:
+                        print("❌ Deletion cancelled.")
+
+                elif choice == "4":
+                    # Project summary
+                    if rag.current_project:
+                        project = rag.current_project
+                        owner_name = rag.users.get(project.owner, {}).get('username', 'Unknown')
+
+                        print(f"\n📊 Project Summary: {project.name}")
+                        print("=" * 50)
+                        print(f"Owner: {owner_name}")
+                        print(f"Phase: {project.phase}")
+
+                        # Show authorized users
+                        if hasattr(project, 'authorized_users') and len(project.authorized_users) > 1:
+                            other_users = [rag.users.get(uid, {}).get('username', 'Unknown')
+                                           for uid in project.authorized_users if uid != project.owner]
+                            print(f"Other Users: {', '.join(other_users)}")
+
+                        print(f"Goals: {', '.join(project.goals) if project.goals else 'None specified'}")
+                        print(
+                            f"Requirements: {', '.join(project.requirements) if project.requirements else 'None specified'}")
+                        print(
+                            f"Tech Stack: {', '.join(project.tech_stack) if project.tech_stack else 'None specified'}")
+                        print(
+                            f"Constraints: {', '.join(project.constraints) if project.constraints else 'None specified'}")
+                        print(f"Created: {project.created_at}")
+                        print(f"Last Updated: {project.last_updated}")
+                        print(f"Conversation History: {len(project.conversation_history)} exchanges")
+                    else:
+                        print("❌ No project selected. Use option 2 to select a project.")
+
+                elif choice == "5":
+                    # Manage project users (owner only)
+                    if not rag.current_project:
+                        print("❌ No project selected.")
+                        continue
+
+                    if rag.current_project.owner != rag.current_user:
+                        print("❌ Only the project owner can manage users.")
+                        continue
+
+                    print(f"\n👥 Manage Users - {rag.current_project.name}")
+                    print("1. Add user to project")
+                    print("2. Remove user from project")
+                    print("3. List project users")
+
+                    sub_choice = input("Select option (1-3): ").strip()
+
+                    if sub_choice == "1":
+                        username = input("Enter username to add: ").strip()
+                        if rag.add_user_to_project(rag.current_project.project_id, username):
+                            print(f"✅ User '{username}' added to project.")
+                        else:
+                            print(f"❌ Failed to add user (user not found or already has access).")
+
+                    elif sub_choice == "2":
+                        username = input("Enter username to remove: ").strip()
+                        if rag.remove_user_from_project(rag.current_project.project_id, username):
+                            print(f"✅ User '{username}' removed from project.")
+                        else:
+                            print(f"❌ Failed to remove user (user not found, not in project, or is owner).")
+
+                    elif sub_choice == "3":
+                        if hasattr(rag.current_project, 'authorized_users'):
+                            print(f"\n👥 Project Users:")
+                            for user_id in rag.current_project.authorized_users:
+                                username = rag.users.get(user_id, {}).get('username', 'Unknown')
+                                role = "(Owner)" if user_id == rag.current_project.owner else "(Member)"
+                                print(f"  • {username} {role}")
+                        else:
+                            print("No users found.")
+
+                elif choice == "6":
+                    # Start/Continue Socratic dialogue
+                    if not rag.current_project:
+                        print("❌ No project selected. Use option 2 to select a project or option 1 to create one.")
+                        continue
+
+                    print(f"\n🧠 Socratic Dialogue - Project: {rag.current_project.name}")
+                    print("=" * 60)
+                    print("💡 Tip: Say 'exit' to return to menu, 'I don't know' for suggestions")
+                    print()
+
+                    while True:
+                        user_input = input("You: ").strip()
+                        if user_input.lower() in ['exit', 'quit', 'back']:
+                            break
+                        if not user_input:
+                            continue
+
+                        response = rag.generate_socratic_question(user_input)
+                        print(f"🤔 Counselor: {response}")
+                        print()
+
+                elif choice == "7":
+                    # Ask for suggestions
+                    if not rag.current_project:
+                        print("❌ No project selected.")
+                        continue
+
+                    suggestion = rag._generate_enhanced_suggestion("I need suggestions")
+                    print(f"\n💡 Suggestion for {rag.current_project.phase} phase:")
+                    print("=" * 50)
+                    print(suggestion)
+
+                elif choice == "8":
+                    # Change project phase
+                    if not rag.current_project:
+                        print("❌ No project selected.")
+                        continue
+
+                    phases = ["discovery", "analysis", "design", "implementation"]
+                    print("\n🔄 Available Phases:")
+                    for i, phase in enumerate(phases, 1):
+                        marker = "👈 Current" if phase == rag.current_project.phase else ""
+                        print(f"  {i}. {phase.capitalize()} {marker}")
+
+                    try:
+                        choice_num = int(input("Select phase (1-4): ").strip())
+                        if 1 <= choice_num <= 4:
+                            new_phase = phases[choice_num - 1]
+                            rag.current_project.update_phase(new_phase)
+                            rag.vector_store.store_project(rag.current_project)
+                            print(f"✅ Project phase updated to: {new_phase}")
+                        else:
+                            print("❌ Invalid choice.")
+                    except ValueError:
+                        print("❌ Please enter a number.")
+
+                elif choice == "9":
+                    # Search conversation history
+                    if not rag.current_project:
+                        print("❌ No project selected.")
+                        continue
+
+                    query = input("Enter search query for conversation history: ").strip()
+                    if query:
+                        results = rag.vector_store.search_conversations(
+                            query, project_id=rag.current_project.project_id, n_results=5
+                        )
+
+                        if results:
+                            print(f"\n💬 Conversation Search Results for '{query}':")
+                            print("=" * 60)
+                            for i, result in enumerate(results, 1):
+                                print(f"{i}. Phase: {result['phase']} | {result['timestamp']}")
+                                print(f"   You: {result['user_input'][:80]}...")
+                                print(f"   Counselor: {result['assistant_response'][:80]}...")
+                                print()
+                        else:
+                            print("❌ No matching conversations found.")
+                    else:
+                        print("❌ Search query cannot be empty.")
+
+                elif choice == "10":
+                    # Generate code
+                    requirements = input("Enter code requirements: ").strip()
+                    if requirements:
+                        print("\n⚙️  Generating code...")
+                        code = rag.generate_code(requirements)
+                        print("=" * 60)
+                        print(code)
+                        print("=" * 60)
+                    else:
+                        print("❌ Requirements cannot be empty.")
+
+                elif choice == "11":
+                    # Add knowledge entry
+                    content = input("Enter knowledge content: ").strip()
+                    category = input("Enter category (e.g., methodology, development, architecture): ").strip()
+                    context = input("Enter additional context (optional): ").strip()
+
+                    if content and category:
+                        result = rag.add_knowledge(content, category, context)
+                        print(f"✅ {result}")
+                    else:
+                        print("❌ Content and category are required.")
+
+                elif choice == "12":
+                    # Search knowledge base
+                    query = input("Enter search query for knowledge base: ").strip()
+                    category = input("Enter category filter (optional): ").strip()
+
+                    if query:
+                        results = rag.vector_store.search_knowledge(
+                            query, category=category if category else None, n_results=5
+                        )
+
+                        if results:
+                            print(f"\n📚 Knowledge Search Results for '{query}':")
+                            print("=" * 60)
+                            for i, result in enumerate(results, 1):
+                                print(f"{i}. Category: {result['category']}")
+                                print(f"   Content: {result['content']}")
+                                if result['context']:
+                                    print(f"   Context: {result['context']}")
+                                print(f"   Relevance: {1 - result['distance']:.2%}")
+                                print()
+                        else:
+                            print("❌ No matching knowledge found.")
+                    else:
+                        print("❌ Search query cannot be empty.")
+
+                elif choice == "13":
+                    # Search project insights
+                    query = input("Enter search query for insights: ").strip()
+                    if query:
+                        insights = rag.search_project_insights(query)
+                        print(f"\n🔍 Insights for '{query}':")
+                        print("=" * 50)
+                        print(insights)
+                    else:
+                        print("❌ Search query cannot be empty.")
+
+                elif choice == "14":
+                    # Export project data
+                    if not rag.current_project:
+                        print("❌ No project selected.")
+                        continue
+
+                    result = rag.export_project_data(rag.current_project.project_id)
+                    print(f"📁 {result}")
+
+                elif choice == "15":
+                    # Database statistics
+                    stats = rag.get_database_stats()
+                    print(stats)
+
+                elif choice == "16":
+                    # Logout
+                    username = rag.users[rag.current_user]['username']
+                    rag.logout_user()
+                    print(f"👋 Goodbye, {username}! You have been logged out.")
+
+                elif choice == "17":
+                    # Help
+                    print("""
+    🆘 ENHANCED SOCRATIC RAG SYSTEM HELP
+    ═══════════════════════════════════════════════════════════
+    
+    🔐 AUTHENTICATION & SECURITY:
+      • Must login before accessing projects
+      • Project owners control access permissions  
+      • Only owners can delete projects or manage users
+    
+    📋 GETTING STARTED:
+      1. Login or create a user account
+      2. Create a project (you become the owner)
+      3. Start a Socratic dialogue to explore your ideas
+      4. Invite team members if needed (owners only)
+    
+    🤔 SOCRATIC METHOD:
+      The system uses guided questioning through four phases:
+      • Discovery: Understanding what you want to build
+      • Analysis: Examining challenges and approaches  
+      • Design: Planning the structure and flow
+      • Implementation: Deciding how to build and deploy
+    
+    👥 PROJECT COLLABORATION:
+      • Project owners can add/remove team members
+      • All authorized users can participate in conversations
+      • Project data is shared among team members
+      • Vector search works across all accessible projects
+    
+    🔍 VECTOR SEARCH FEATURES:
+      • Knowledge base learns from conversations
+      • Smart suggestions based on similar situations
+      • Cross-project insights and patterns
+      • Semantic search across all stored data
+    
+    💡 TIPS:
+      • Be specific in your responses for better questions
+      • Say "I don't know" to get targeted suggestions
+      • Change phases as your understanding evolves
+      • Export projects to save your progress
+      • Use insights search to find relevant patterns
+    
+    🔧 ADVANCED FEATURES:
+      • Vector database stores semantic relationships
+      • Code generation with project context
+      • Knowledge base grows with each conversation
+      • Multi-user project management with permissions
+      • Comprehensive search and export capabilities
+    
+    For more help, visit the project repository or contact support.
+    """)
+
+                else:
+                    print("❌ Invalid option. Please select a number from 0-17.")
+
+            print("\n" + "─" * 60 + "\n")
 
         except KeyboardInterrupt:
-            print("\nGoodbye!")
+            print("\n\n👋 Goodbye! Your data is safely stored in the vector database.")
             break
         except Exception as e:
-            print(f"Error: {str(e)}")
+            print(f"❌ An error occurred: {str(e)}")
+            print("Please try again or contact support if the problem persists.")
 
 
 if __name__ == "__main__":
