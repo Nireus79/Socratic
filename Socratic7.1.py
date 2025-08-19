@@ -820,7 +820,6 @@ def main():
 
     if not api_key:
         print("❌ API key is required to run the system.")
-        api_key = input("Enter your Claude API key: ").strip()
         return
 
     try:
