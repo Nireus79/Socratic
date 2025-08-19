@@ -5,11 +5,17 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7.1">
-      <change afterPath="$PROJECT_DIR$/chroma_db/f7d22038-ac46-4048-b630-afa31f93d7e0/data_level0.bin" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/chroma_db/f7d22038-ac46-4048-b630-afa31f93d7e0/header.bin" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/chroma_db/f7d22038-ac46-4048-b630-afa31f93d7e0/length.bin" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/chroma_db/f7d22038-ac46-4048-b630-afa31f93d7e0/link_lists.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/chroma_db/chroma.sqlite3" beforeDir="false" afterPath="$PROJECT_DIR$/chroma_db/chroma.sqlite3" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Socratic7.1.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic7.1.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/chroma_db/b8597d6a-f20d-419e-b06c-b012ca25db16/data_level0.bin" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/chroma_db/b8597d6a-f20d-419e-b06c-b012ca25db16/header.bin" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/chroma_db/b8597d6a-f20d-419e-b06c-b012ca25db16/length.bin" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/chroma_db/b8597d6a-f20d-419e-b06c-b012ca25db16/link_lists.bin" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/chroma_db/chroma.sqlite3" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/chroma_db/f7d22038-ac46-4048-b630-afa31f93d7e0/data_level0.bin" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/chroma_db/f7d22038-ac46-4048-b630-afa31f93d7e0/header.bin" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/chroma_db/f7d22038-ac46-4048-b630-afa31f93d7e0/length.bin" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/chroma_db/f7d22038-ac46-4048-b630-afa31f93d7e0/link_lists.bin" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -171,14 +177,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1750504324591</updated>
-    </task>
-    <task id="LOCAL-00026" summary="Socratic 5">
-      <option name="closed" value="true" />
-      <created>1752557286926</created>
-      <option name="number" value="00026" />
-      <option name="presentableId" value="LOCAL-00026" />
-      <option name="project" value="LOCAL" />
-      <updated>1752557286926</updated>
     </task>
     <task id="LOCAL-00027" summary="Socratic 5">
       <option name="closed" value="true" />
@@ -564,7 +562,15 @@
       <option name="project" value="LOCAL" />
       <updated>1755585977633</updated>
     </task>
-    <option name="localTasksCounter" value="75" />
+    <task id="LOCAL-00075" summary="7.1">
+      <option name="closed" value="true" />
+      <created>1755586444192</created>
+      <option name="number" value="00075" />
+      <option name="presentableId" value="LOCAL-00075" />
+      <option name="project" value="LOCAL" />
+      <updated>1755586444192</updated>
+    </task>
+    <option name="localTasksCounter" value="76" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
