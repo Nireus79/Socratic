@@ -726,7 +726,9 @@ Provide clean, well-commented code with explanations. Follow the best practices 
         menu = """
 ╔═══════════════════════════════════════════╗
 ║        ENHANCED SOCRATIC RAG SYSTEM       ║
-║     With Vector Database & Smart Search   ║
+║                Version 7.1                ║
+║       Ουδέν οίδα, ούτε διδάσκω τι,        ║
+║            αλλά διαπορώ μόνον.            ║
 ╠═══════════════════════════════════════════╣
 ║ PROJECT MANAGEMENT:                       ║
 ║   1. Create new project                   ║
@@ -756,7 +758,7 @@ Provide clean, well-commented code with explanations. Follow the best practices 
 ║   17. Export project data                 ║
 ║   18. Database statistics                 ║
 ║   19. Help                                ║
-║   0. Exit                                ║
+║   0. Exit                                 ║
 ╚═══════════════════════════════════════════╝
 """
         current_info = ""
@@ -841,6 +843,7 @@ def main():
 
             if choice == "0":
                 print("👋 Goodbye! Your data is safely stored in the vector database.")
+                print("..τω Ασκληπιώ οφείλομεν αλετρυόνα, απόδοτε και μη αμελήσετε..")
                 break
 
             elif choice == "1":
