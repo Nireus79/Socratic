@@ -1,1585 +1,1261 @@
-#!/usr/bin/env python3
-"""
-Enhanced Socratic RAG System v7.0
-Multi-agent architecture with vector database and improved user experience
-FIXED VERSION - Addresses duplicate knowledge entries and user creation issues
-"""
-
-import os
 import json
-import hashlib
-import getpass
-import datetime
-import pickle
-import uuid
-from typing import Dict, List, Optional, Tuple, Any
-from dataclasses import dataclass, asdict
-from abc import ABC, abstractmethod
-import sqlite3
-import threading
-import time
-
-# Third-party imports
-try:
-    import chromadb
-    from chromadb.config import Settings
-except ImportError:
-    print("ChromaDB not found. Install with: pip install chromadb")
-    exit(1)
-
-try:
-    import anthropic
-except ImportError:
-    print("Anthropic package not found. Install with: pip install anthropic")
-    exit(1)
-
-try:
-    from sentence_transformers import SentenceTransformer
-except ImportError:
-    print("Sentence Transformers not found. Install with: pip install sentence-transformers")
-    exit(1)
-
+import os
 import numpy as np
-from colorama import init, Fore, Back, Style
-
-init(autoreset=True)
-
-# Configuration
-CONFIG = {
-    'MAX_CONTEXT_LENGTH': 8000,
-    'EMBEDDING_MODEL': 'all-MiniLM-L6-v2',
-    'CLAUDE_MODEL': 'claude-3-5-sonnet-20241022',
-    'MAX_RETRIES': 3,
-    'RETRY_DELAY': 1,
-    'TOKEN_WARNING_THRESHOLD': 0.8,
-    'SESSION_TIMEOUT': 3600,  # 1 hour
-    'DATA_DIR': 'socratic_data'
-}
+from sentence_transformers import SentenceTransformer
+import chromadb
+from chromadb.config import Settings
+from anthropic import Anthropic
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple
+import uuid
+import shutil
 
 
-# Data Models
-@dataclass
-class User:
-    username: str
-    passcode_hash: str
-    created_at: datetime.datetime
-    projects: List[str]
-
-
-@dataclass
 class ProjectContext:
-    project_id: str
-    name: str
-    owner: str
-    collaborators: List[str]
-    goals: str
-    requirements: List[str]
-    tech_stack: List[str]
-    constraints: List[str]
-    team_structure: str
-    language_preferences: str
-    deployment_target: str
-    code_style: str
-    phase: str
-    conversation_history: List[Dict]
-    created_at: datetime.datetime
-    updated_at: datetime.datetime
+    """Manages project context and state"""
+
+    def __init__(self, project_id: str = None):
+        self.project_id = project_id or str(uuid.uuid4())
+        self.name = "Unnamed Project"
+        self.goals = []
+        self.requirements = []
+        self.tech_stack = []
+        self.constraints = []
+        self.team_structure = ""
+        self.language_preference = ""
+        self.deployment_target = ""
+        self.code_style = ""
+        self.phase = "discovery"  # discovery, analysis, design, implementation
+        self.conversation_history = []
+        self.created_at = datetime.now().isoformat()
+        self.last_updated = datetime.now().isoformat()
+
+    def update_phase(self, new_phase: str):
+        """Update project phase"""
+        self.phase = new_phase
+        self.last_updated = datetime.now().isoformat()
+
+    def add_context_item(self, category: str, item: str):
+        """Add item to specific context category"""
+        if category == "goals":
+            self.goals.append(item)
+        elif category == "requirements":
+            self.requirements.append(item)
+        elif category == "tech_stack":
+            self.tech_stack.append(item)
+        elif category == "constraints":
+            self.constraints.append(item)
+        self.last_updated = datetime.now().isoformat()
+
+    def to_dict(self):
+        """Convert to dictionary for storage"""
+        return {
+            "project_id": self.project_id,
+            "name": self.name,
+            "goals": self.goals,
+            "requirements": self.requirements,
+            "tech_stack": self.tech_stack,
+            "constraints": self.constraints,
+            "team_structure": self.team_structure,
+            "language_preference": self.language_preference,
+            "deployment_target": self.deployment_target,
+            "code_style": self.code_style,
+            "phase": self.phase,
+            "conversation_history": self.conversation_history,
+            "created_at": self.created_at,
+            "last_updated": self.last_updated
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        """Create from dictionary"""
+        project = cls(data["project_id"])
+        for key, value in data.items():
+            setattr(project, key, value)
+        return project
 
 
-@dataclass
-class KnowledgeEntry:
-    id: str
-    content: str
-    category: str
-    metadata: Dict[str, Any]
-    embedding: Optional[List[float]] = None
+class VectorStore:
+    """Vector database manager using ChromaDB"""
 
+    def __init__(self, persist_directory: str = "./chroma_db"):
+        self.persist_directory = persist_directory
+        self.client = chromadb.PersistentClient(path=persist_directory)
 
-@dataclass
-class TokenUsage:
-    input_tokens: int
-    output_tokens: int
-    total_tokens: int
-    cost_estimate: float
-    timestamp: datetime.datetime
+        # Initialize collections
+        self.knowledge_collection = self._get_or_create_collection("knowledge_base")
+        self.conversation_collection = self._get_or_create_collection("conversations")
+        self.project_collection = self._get_or_create_collection("projects")
 
+        # Initialize with base knowledge if empty
+        if self.knowledge_collection.count() == 0:
+            self._initialize_knowledge_base()
 
-# Base Agent Class
-class Agent(ABC):
-    def __init__(self, name: str, orchestrator: 'AgentOrchestrator'):
-        self.name = name
-        self.orchestrator = orchestrator
+    def _get_or_create_collection(self, name: str):
+        """Get or create a collection"""
+        try:
+            return self.client.get_collection(name)
+        except ValueError:
+            return self.client.create_collection(name)
 
-    @abstractmethod
-    def process(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        pass
+    def _initialize_knowledge_base(self):
+        """Initialize knowledge base with software development best practices"""
+        knowledge_entries = [
+            ("Start with user needs and work backwards to technical solutions", "methodology",
+             "Always prioritize understanding the actual problem before jumping to solutions"),
+            ("Break large problems into smaller, manageable pieces", "methodology",
+             "Complex projects become manageable when decomposed into smaller tasks"),
+            ("Build the minimum viable version first, then iterate", "development",
+             "Start simple and add complexity based on real feedback and needs"),
+            ("Test early and often to catch problems quickly", "development",
+             "Early testing prevents expensive fixes later in development"),
+            ("Document decisions and assumptions for future reference", "documentation",
+             "Clear documentation helps team members understand context and reasoning"),
+            ("Consider scalability, security, and maintainability from the start", "architecture",
+             "These concerns are harder to add later than to build in from the beginning"),
+            ("Choose technologies your team knows well unless there's a compelling reason to change", "technology",
+             "Team expertise is often more valuable than using the latest technology"),
+            ("Plan for deployment and monitoring from day one", "operations",
+             "Production considerations should influence development decisions early"),
+            ("User feedback is more valuable than internal assumptions", "methodology",
+             "Real user input trumps theoretical requirements"),
+            ("Simple solutions are often better than complex ones", "architecture",
+             "Complexity should be justified by clear benefits"),
+            ("Automate repetitive tasks to reduce human error", "development",
+             "Automation improves consistency and frees up time for creative work"),
+            ("Version control everything, including documentation and configuration", "development",
+             "Track all changes to understand evolution and enable rollbacks"),
+        ]
 
-    def log(self, message: str, level: str = "INFO"):
-        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-        color = Fore.GREEN if level == "INFO" else Fore.RED if level == "ERROR" else Fore.YELLOW
-        print(f"{color}[{timestamp}] {self.name}: {message}")
+        documents = []
+        metadatas = []
+        ids = []
 
+        for i, (content, category, context) in enumerate(knowledge_entries):
+            documents.append(f"{content}. {context}")
+            metadatas.append({
+                "category": category,
+                "type": "knowledge",
+                "content": content,
+                "context": context
+            })
+            ids.append(f"knowledge_{i}")
 
-# Specialized Agents
-class ProjectManagerAgent(Agent):
-    def __init__(self, orchestrator):
-        super().__init__("ProjectManager", orchestrator)
-
-    def process(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        action = request.get('action')
-
-        if action == 'create_project':
-            return self._create_project(request)
-        elif action == 'load_project':
-            return self._load_project(request)
-        elif action == 'save_project':
-            return self._save_project(request)
-        elif action == 'add_collaborator':
-            return self._add_collaborator(request)
-        elif action == 'list_projects':
-            return self._list_projects(request)
-
-        return {'status': 'error', 'message': 'Unknown action'}
-
-    def _create_project(self, request: Dict) -> Dict:
-        project_name = request.get('project_name')
-        owner = request.get('owner')
-
-        project_id = str(uuid.uuid4())
-        project = ProjectContext(
-            project_id=project_id,
-            name=project_name,
-            owner=owner,
-            collaborators=[],
-            goals="",
-            requirements=[],
-            tech_stack=[],
-            constraints=[],
-            team_structure="individual",
-            language_preferences="python",
-            deployment_target="local",
-            code_style="documented",
-            phase="discovery",
-            conversation_history=[],
-            created_at=datetime.datetime.now(),
-            updated_at=datetime.datetime.now()
+        self.knowledge_collection.add(
+            documents=documents,
+            metadatas=metadatas,
+            ids=ids
         )
 
-        self.orchestrator.database.save_project(project)
-        self.log(f"Created project '{project_name}' with ID {project_id}")
+    def add_knowledge_entry(self, content: str, category: str, context: str = ""):
+        """Add new knowledge entry"""
+        entry_id = f"knowledge_{uuid.uuid4()}"
+        document = f"{content}. {context}" if context else content
 
-        return {'status': 'success', 'project': project}
+        self.knowledge_collection.add(
+            documents=[document],
+            metadatas=[{
+                "category": category,
+                "type": "knowledge",
+                "content": content,
+                "context": context,
+                "added_at": datetime.now().isoformat()
+            }],
+            ids=[entry_id]
+        )
 
-    def _load_project(self, request: Dict) -> Dict:
-        project_id = request.get('project_id')
-        project = self.orchestrator.database.load_project(project_id)
+    def search_knowledge(self, query: str, category: str = None, n_results: int = 3) -> List[Dict]:
+        """Search knowledge base"""
+        where_clause = {"type": "knowledge"}
+        if category:
+            where_clause["category"] = category
 
-        if project:
-            self.log(f"Loaded project '{project.name}'")
-            return {'status': 'success', 'project': project}
-        else:
-            return {'status': 'error', 'message': 'Project not found'}
+        results = self.knowledge_collection.query(
+            query_texts=[query],
+            n_results=n_results,
+            where=where_clause
+        )
 
-    def _save_project(self, request: Dict) -> Dict:
-        project = request.get('project')
-        project.updated_at = datetime.datetime.now()
-        self.orchestrator.database.save_project(project)
-        self.log(f"Saved project '{project.name}'")
-        return {'status': 'success'}
+        return [{
+            "content": metadata["content"],
+            "category": metadata["category"],
+            "context": metadata.get("context", ""),
+            "distance": distance
+        } for metadata, distance in zip(results["metadatas"][0], results["distances"][0])]
 
-    def _add_collaborator(self, request: Dict) -> Dict:
-        project = request.get('project')
-        username = request.get('username')
+    def add_conversation(self, project_id: str, user_input: str, assistant_response: str, phase: str):
+        """Add conversation exchange to vector store"""
+        conversation_id = f"conv_{project_id}_{uuid.uuid4()}"
 
-        if username not in project.collaborators:
-            project.collaborators.append(username)
-            self.orchestrator.database.save_project(project)
-            self.log(f"Added collaborator '{username}' to project '{project.name}'")
-            return {'status': 'success'}
-        else:
-            return {'status': 'error', 'message': 'User already a collaborator'}
+        # Combine user input and response for better semantic search
+        document = f"User: {user_input} Assistant: {assistant_response}"
 
-    def _list_projects(self, request: Dict) -> Dict:
-        username = request.get('username')
-        projects = self.orchestrator.database.get_user_projects(username)
-        return {'status': 'success', 'projects': projects}
+        self.conversation_collection.add(
+            documents=[document],
+            metadatas=[{
+                "project_id": project_id,
+                "user_input": user_input,
+                "assistant_response": assistant_response,
+                "phase": phase,
+                "timestamp": datetime.now().isoformat(),
+                "type": "conversation"
+            }],
+            ids=[conversation_id]
+        )
+
+    def search_conversations(self, query: str, project_id: str = None, phase: str = None, n_results: int = 5) -> List[
+        Dict]:
+        """Search conversation history"""
+        where_clause = {"type": "conversation"}
+        if project_id:
+            where_clause["project_id"] = project_id
+        if phase:
+            where_clause["phase"] = phase
+
+        try:
+            results = self.conversation_collection.query(
+                query_texts=[query],
+                n_results=n_results,
+                where=where_clause
+            )
+
+            return [{
+                "user_input": metadata["user_input"],
+                "assistant_response": metadata["assistant_response"],
+                "phase": metadata["phase"],
+                "timestamp": metadata["timestamp"],
+                "distance": distance
+            } for metadata, distance in zip(results["metadatas"][0], results["distances"][0])]
+        except Exception:
+            return []
+
+    def store_project(self, project: ProjectContext):
+        """Store project data"""
+        project_data = project.to_dict()
+        document = (f"Project: {project.name} "
+                    f"Goals: {', '.join(project.goals)} "
+                    f"Requirements: {', '.join(project.requirements)} "
+                    f"Tech: {', '.join(project.tech_stack)}")
+
+        # Try to update existing, otherwise add new
+        try:
+            self.project_collection.upsert(
+                documents=[document],
+                metadatas=[{
+                    "project_id": project.project_id,
+                    "name": project.name,
+                    "phase": project.phase,
+                    "type": "project",
+                    "last_updated": project.last_updated,
+                    "data": json.dumps(project_data)
+                }],
+                ids=[f"project_{project.project_id}"]
+            )
+        except Exception:
+            self.project_collection.add(
+                documents=[document],
+                metadatas=[{
+                    "project_id": project.project_id,
+                    "name": project.name,
+                    "phase": project.phase,
+                    "type": "project",
+                    "last_updated": project.last_updated,
+                    "data": json.dumps(project_data)
+                }],
+                ids=[f"project_{project.project_id}"]
+            )
+
+    def get_project(self, project_id: str) -> Optional[ProjectContext]:
+        """Retrieve project by ID"""
+        try:
+            results = self.project_collection.get(
+                ids=[f"project_{project_id}"],
+                include=["metadatas"]
+            )
+
+            if results["metadatas"]:
+                project_data = json.loads(results["metadatas"][0]["data"])
+                return ProjectContext.from_dict(project_data)
+        except Exception:
+            pass
+        return None
+
+    def list_projects(self) -> List[Dict]:
+        """List all projects"""
+        try:
+            results = self.project_collection.get(
+                where={"type": "project"},
+                include=["metadatas"]
+            )
+
+            return [{
+                "project_id": metadata["project_id"],
+                "name": metadata["name"],
+                "phase": metadata["phase"],
+                "last_updated": metadata["last_updated"]
+            } for metadata in results["metadatas"]]
+        except Exception:
+            return []
+
+    def delete_project(self, project_id: str) -> bool:
+        """Delete project and related conversations"""
+        try:
+            # Delete project
+            self.project_collection.delete(ids=[f"project_{project_id}"])
+
+            # Delete related conversations
+            conv_results = self.conversation_collection.get(
+                where={"project_id": project_id},
+                include=["ids"]
+            )
+            if conv_results["ids"]:
+                self.conversation_collection.delete(ids=conv_results["ids"])
+
+            return True
+        except Exception:
+            return False
+
+    def search_similar_projects(self, query: str, n_results: int = 3) -> List[Dict]:
+        """Search for similar projects"""
+        try:
+            results = self.project_collection.query(
+                query_texts=[query],
+                n_results=n_results,
+                where={"type": "project"}
+            )
+
+            return [{
+                "project_id": metadata["project_id"],
+                "name": metadata["name"],
+                "phase": metadata["phase"],
+                "distance": distance
+            } for metadata, distance in zip(results["metadatas"][0], results["distances"][0])]
+        except Exception:
+            return []
 
 
-class SocraticCounselorAgent(Agent):
-    def __init__(self, orchestrator):
-        super().__init__("SocraticCounselor", orchestrator)
-        self.use_dynamic_questions = True  # Toggle for dynamic vs static questions
-        self.max_questions_per_phase = 5
+class SocraticRAG:
+    """Enhanced Socratic RAG system with vector database"""
 
-        # Fallback static questions if Claude is unavailable
-        self.static_questions = {
-            'discovery': [
-                "What specific problem does your project solve?",
-                "Who is your target audience or user base?",
-                "What are the core features you envision?",
-                "Are there similar solutions that exist? How will yours differ?",
-                "What are your success criteria for this project?"
+    def __init__(self, api_key: str, persist_directory: str = "./chroma_db"):
+        self.client = Anthropic(api_key=api_key)
+        self.vector_store = VectorStore(persist_directory)
+        self.current_project = None
+        self.users = {}
+        self.current_user = None
+
+        # Core Socratic questioning templates (from branch 5 logic)
+        self.socratic_templates = {
+            "discovery": [
+                "What exactly do you want to achieve with this project?",
+                "Who will be using this system and how?",
+                "What problems are you trying to solve?",
+                "What would success look like for this project?",
+                "What constraints or limitations do you need to work within?"
             ],
-            'analysis': [
-                "What technical challenges do you anticipate?",
-                "What are your performance requirements?",
-                "How will you handle user authentication and security?",
-                "What third-party integrations might you need?",
-                "How will you test and validate your solution?"
+            "analysis": [
+                "What challenges do you anticipate with this approach?",
+                "How does this compare to existing solutions?",
+                "What are the most critical aspects to get right?",
+                "What could go wrong and how would you handle it?",
+                "What assumptions are you making?"
             ],
-            'design': [
-                "How will you structure your application architecture?",
-                "What design patterns will you use?",
-                "How will you organize your code and modules?",
-                "What development workflow will you follow?",
-                "How will you handle error cases and edge scenarios?"
+            "design": [
+                "How would you break this down into smaller components?",
+                "What would the user experience flow look like?",
+                "How will different parts of your system communicate?",
+                "What data will you need to store and how?",
+                "How will you ensure your system can scale?"
             ],
-            'implementation': [
-                "What will be your first implementation milestone?",
-                "How will you handle deployment and DevOps?",
-                "What monitoring and logging will you implement?",
-                "How will you document your code and API?",
-                "What's your plan for maintenance and updates?"
+            "implementation": [
+                "What would you build first and why?",
+                "How will you test that each part works correctly?",
+                "What tools and technologies will you use?",
+                "How will you deploy and maintain this system?",
+                "What documentation will your team need?"
             ]
         }
 
-    def process(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        action = request.get('action')
+        # Enhanced suggestions with vector search context
+        self.suggestion_templates = {
+            "discovery": [
+                "Consider starting with: What specific pain point does this solve?",
+                "Think about: Who would benefit most from this solution?",
+                "Ask yourself: What would happen if this problem isn't solved?",
+                "Reflect on: What similar solutions exist and what's missing?"
+            ],
+            "analysis": [
+                "Consider: What are the technical risks and how severe are they?",
+                "Think about: What resources (time, people, money) do you have?",
+                "Ask yourself: What's the minimum viable version of this?",
+                "Reflect on: What expertise do you need that you don't have?"
+            ],
+            "design": [
+                "Consider: What are the core functions this system must perform?",
+                "Think about: How will users interact with your system?",
+                "Ask yourself: What's the simplest architecture that could work?",
+                "Reflect on: What parts can you reuse or buy instead of building?"
+            ],
+            "implementation": [
+                "Consider: What can you prototype quickly to test your assumptions?",
+                "Think about: What's the riskiest part to build first?",
+                "Ask yourself: How will you know if it's working correctly?",
+                "Reflect on: What could you automate to save time later?"
+            ]
+        }
 
-        if action == 'generate_question':
-            return self._generate_question(request)
-        elif action == 'process_response':
-            return self._process_response(request)
-        elif action == 'advance_phase':
-            return self._advance_phase(request)
-        elif action == 'toggle_dynamic_questions':
-            self.use_dynamic_questions = not self.use_dynamic_questions
-            return {'status': 'success', 'dynamic_mode': self.use_dynamic_questions}
+        self._load_users()
 
-        return {'status': 'error', 'message': 'Unknown action'}
+    def _load_users(self):
+        """Load users from file if exists"""
+        users_file = os.path.join(self.vector_store.persist_directory, "users.json")
+        if os.path.exists(users_file):
+            try:
+                with open(users_file, 'r') as f:
+                    self.users = json.load(f)
+            except Exception:
+                pass
 
-    def _generate_question(self, request: Dict) -> Dict:
-        project = request.get('project')
-        context = self.orchestrator.context_analyzer.get_context_summary(project)
-
-        # Count questions already asked in this phase
-        phase_questions = [msg for msg in project.conversation_history
-                           if msg.get('type') == 'assistant' and msg.get('phase') == project.phase]
-
-        if self.use_dynamic_questions:
-            question = self._generate_dynamic_question(project, context, len(phase_questions))
-        else:
-            question = self._generate_static_question(project, len(phase_questions))
-
-        # Store the question in conversation history
-        project.conversation_history.append({
-            'timestamp': datetime.datetime.now().isoformat(),
-            'type': 'assistant',
-            'content': question,
-            'phase': project.phase,
-            'question_number': len(phase_questions) + 1
-        })
-
-        return {'status': 'success', 'question': question}
-
-    def _generate_dynamic_question(self, project: ProjectContext, context: str, question_count: int) -> str:
-        """Generate contextual questions using Claude"""
-
-        # Get conversation history for context
-        recent_conversation = ""
-        if project.conversation_history:
-            recent_messages = project.conversation_history[-4:]  # Last 4 messages
-            for msg in recent_messages:
-                role = "Assistant" if msg['type'] == 'assistant' else "User"
-                recent_conversation += f"{role}: {msg['content']}\n"
-
-        # Get relevant knowledge from vector database
-        relevant_knowledge = ""
-        if context:
-            knowledge_results = self.orchestrator.vector_db.search_similar(context, top_k=3)
-            if knowledge_results:
-                relevant_knowledge = "\n".join([result['content'][:200] + "..." for result in knowledge_results])
-
-        prompt = self._build_question_prompt(project, context, recent_conversation, relevant_knowledge, question_count)
-
+    def _save_users(self):
+        """Save users to file"""
+        users_file = os.path.join(self.vector_store.persist_directory, "users.json")
+        os.makedirs(self.vector_store.persist_directory, exist_ok=True)
         try:
-            question = self.orchestrator.claude_client.generate_socratic_question(prompt)
-            self.log(f"Generated dynamic question for {project.phase} phase")
-            return question
-        except Exception as e:
-            self.log(f"Failed to generate dynamic question: {e}, falling back to static", "WARN")
-            return self._generate_static_question(project, question_count)
-
-    def _build_question_prompt(self, project: ProjectContext, context: str,
-                               recent_conversation: str, relevant_knowledge: str, question_count: int) -> str:
-        """Build prompt for dynamic question generation"""
-
-        phase_descriptions = {
-            'discovery': "exploring the problem space, understanding user needs, and defining project goals",
-            'analysis': "analyzing technical requirements, identifying challenges, and planning solutions",
-            'design': "designing architecture, choosing patterns, and planning implementation structure",
-            'implementation': "planning development steps, deployment strategy, and maintenance approach"
-        }
-
-        phase_focus = {
-            'discovery': "problem definition, user needs, market research, competitive analysis",
-            'analysis': "technical feasibility, performance requirements, security considerations, integrations",
-            'design': "architecture patterns, code organization, development workflow, error handling",
-            'implementation': "development milestones, deployment pipeline, monitoring, documentation"
-        }
-
-        return f"""You are a Socratic tutor helping a developer think through their software project. 
-
-Project Details:
-- Name: {project.name}
-- Current Phase: {project.phase} ({phase_descriptions.get(project.phase, '')})
-- Goals: {project.goals}
-- Tech Stack: {', '.join(project.tech_stack) if project.tech_stack else 'Not specified'}
-- Requirements: {', '.join(project.requirements) if project.requirements else 'Not specified'}
-
-Project Context:
-{context}
-
-Recent Conversation:
-{recent_conversation}
-
-Relevant Knowledge:
-{relevant_knowledge}
-
-This is question #{question_count + 1} in the {project.phase} phase. Focus on: {phase_focus.get(project.phase, '')}.
-
-Generate ONE insightful Socratic question that:
-1. Builds on what we've discussed so far
-2. Helps the user think deeper about their project
-3. Is specific to the {project.phase} phase
-4. Encourages critical thinking rather than just information gathering
-5. Is relevant to their stated goals and tech stack
-
-The question should be thought-provoking but not overwhelming. Make it conversational and engaging.
-
-Return only the question, no additional text or explanation."""
-
-    def _generate_static_question(self, project: ProjectContext, question_count: int) -> str:
-        """Generate questions from static predefined lists"""
-        questions = self.static_questions.get(project.phase, [])
-
-        if question_count < len(questions):
-            return questions[question_count]
-        else:
-            # Fallback questions when we've exhausted the static list
-            fallbacks = {
-                'discovery': "What other aspects of the problem space should we explore?",
-                'analysis': "What technical considerations haven't we discussed yet?",
-                'design': "What design decisions are you still uncertain about?",
-                'implementation': "What implementation details would you like to work through?"
-            }
-            return fallbacks.get(project.phase, "What would you like to explore further?")
-
-    def _process_response(self, request: Dict) -> Dict:
-        project = request.get('project')
-        user_response = request.get('response')
-
-        # Add to conversation history with phase information
-        project.conversation_history.append({
-            'timestamp': datetime.datetime.now().isoformat(),
-            'type': 'user',
-            'content': user_response,
-            'phase': project.phase
-        })
-
-        # Extract insights using Claude
-        insights = self.orchestrator.claude_client.extract_insights(user_response, project)
-        self._update_project_context(project, insights)
-
-        return {'status': 'success', 'insights': insights}
-
-    def _advance_phase(self, request: Dict) -> Dict:
-        project = request.get('project')
-        phases = ['discovery', 'analysis', 'design', 'implementation']
-
-        current_index = phases.index(project.phase)
-        if current_index < len(phases) - 1:
-            project.phase = phases[current_index + 1]
-            self.log(f"Advanced project to {project.phase} phase")
-
-        return {'status': 'success', 'new_phase': project.phase}
-
-    def _update_project_context(self, project: ProjectContext, insights: Dict):
-        """Update project context based on extracted insights - with better error handling"""
-        if not insights or not isinstance(insights, dict):
-            return  # Skip if insights is None or not a dict
-
-        try:
-            if 'goals' in insights and insights['goals']:
-                if isinstance(insights['goals'], str):
-                    project.goals = insights['goals']
-
-            if 'requirements' in insights and insights['requirements']:
-                if isinstance(insights['requirements'], list):
-                    # Filter out empty strings and duplicates
-                    new_requirements = [req for req in insights['requirements']
-                                        if req and isinstance(req, str) and req not in project.requirements]
-                    project.requirements.extend(new_requirements)
-                elif isinstance(insights['requirements'], str):
-                    if insights['requirements'] not in project.requirements:
-                        project.requirements.append(insights['requirements'])
-
-            if 'tech_stack' in insights and insights['tech_stack']:
-                if isinstance(insights['tech_stack'], list):
-                    new_tech = [tech for tech in insights['tech_stack']
-                                if tech and isinstance(tech, str) and tech not in project.tech_stack]
-                    project.tech_stack.extend(new_tech)
-                elif isinstance(insights['tech_stack'], str):
-                    if insights['tech_stack'] not in project.tech_stack:
-                        project.tech_stack.append(insights['tech_stack'])
-
-            if 'constraints' in insights and insights['constraints']:
-                if isinstance(insights['constraints'], list):
-                    new_constraints = [constraint for constraint in insights['constraints']
-                                       if constraint and isinstance(constraint,
-                                                                    str) and constraint not in project.constraints]
-                    project.constraints.extend(new_constraints)
-                elif isinstance(insights['constraints'], str):
-                    if insights['constraints'] not in project.constraints:
-                        project.constraints.append(insights['constraints'])
-
-        except Exception as e:
-            print(f"{Fore.YELLOW}Warning: Error updating project context: {e}")
-            # Continue execution even if context update fails
-
-
-class ContextAnalyzerAgent(Agent):
-    def __init__(self, orchestrator):
-        super().__init__("ContextAnalyzer", orchestrator)
-
-    def process(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        action = request.get('action')
-
-        if action == 'analyze_context':
-            return self._analyze_context(request)
-        elif action == 'get_summary':
-            return self._get_summary(request)
-        elif action == 'find_similar':
-            return self._find_similar(request)
-
-        return {'status': 'error', 'message': 'Unknown action'}
-
-    def _analyze_context(self, request: Dict) -> Dict:
-        project = request.get('project')
-
-        # Analyze conversation patterns
-        patterns = self._identify_patterns(project.conversation_history)
-
-        # Get relevant knowledge
-        relevant_knowledge = self.orchestrator.vector_db.search_similar(
-            project.goals, top_k=5
-        )
-
-        return {
-            'status': 'success',
-            'patterns': patterns,
-            'relevant_knowledge': relevant_knowledge
-        }
-
-    def get_context_summary(self, project: ProjectContext) -> str:
-        """Generate comprehensive project summary"""
-        summary_parts = []
-
-        if project.goals:
-            summary_parts.append(f"Goals: {project.goals}")
-        if project.requirements:
-            summary_parts.append(f"Requirements: {', '.join(project.requirements)}")
-        if project.tech_stack:
-            summary_parts.append(f"Tech Stack: {', '.join(project.tech_stack)}")
-        if project.constraints:
-            summary_parts.append(f"Constraints: {', '.join(project.constraints)}")
-
-        return "\n".join(summary_parts)
-
-    def _get_summary(self, request: Dict) -> Dict:
-        project = request.get('project')
-        summary = self.get_context_summary(project)
-        return {'status': 'success', 'summary': summary}
-
-    def _find_similar(self, request: Dict) -> Dict:
-        query = request.get('query')
-        results = self.orchestrator.vector_db.search_similar(query, top_k=3)
-        return {'status': 'success', 'similar_projects': results}
-
-    def _identify_patterns(self, history: List[Dict]) -> Dict:
-        """Analyze conversation history for patterns"""
-        patterns = {
-            'question_count': len([msg for msg in history if msg.get('type') == 'assistant']),
-            'response_count': len([msg for msg in history if msg.get('type') == 'user']),
-            'topics_covered': [],
-            'engagement_level': 'high' if len(history) > 10 else 'medium' if len(history) > 5 else 'low'
-        }
-
-        return patterns
-
-
-class CodeGeneratorAgent(Agent):
-    def __init__(self, orchestrator):
-        super().__init__("CodeGenerator", orchestrator)
-
-    def process(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        action = request.get('action')
-
-        if action == 'generate_script':
-            return self._generate_script(request)
-        elif action == 'generate_documentation':
-            return self._generate_documentation(request)
-
-        return {'status': 'error', 'message': 'Unknown action'}
-
-    def _generate_script(self, request: Dict) -> Dict:
-        project = request.get('project')
-
-        # Build comprehensive context
-        context = self._build_generation_context(project)
-
-        # Generate using Claude
-        script = self.orchestrator.claude_client.generate_code(context)
-
-        self.log(f"Generated script for project '{project.name}'")
-
-        return {
-            'status': 'success',
-            'script': script,
-            'context_used': context
-        }
-
-    def _generate_documentation(self, request: Dict) -> Dict:
-        project = request.get('project')
-        script = request.get('script')
-
-        documentation = self.orchestrator.claude_client.generate_documentation(
-            project, script
-        )
-
-        return {
-            'status': 'success',
-            'documentation': documentation
-        }
-
-    def _build_generation_context(self, project: ProjectContext) -> str:
-        """Build comprehensive context for code generation"""
-        context_parts = [
-            f"Project: {project.name}",
-            f"Phase: {project.phase}",
-            f"Goals: {project.goals}",
-            f"Tech Stack: {', '.join(project.tech_stack)}",
-            f"Requirements: {', '.join(project.requirements)}",
-            f"Constraints: {', '.join(project.constraints)}",
-            f"Target: {project.deployment_target}",
-            f"Style: {project.code_style}"
-        ]
-
-        # Add conversation insights
-        if project.conversation_history:
-            recent_responses = project.conversation_history[-5:]
-            context_parts.append("Recent Discussion:")
-            for msg in recent_responses:
-                if msg.get('type') == 'user':
-                    context_parts.append(f"- {msg['content']}")
-
-        return "\n".join(context_parts)
-
-
-class SystemMonitorAgent(Agent):
-    def __init__(self, orchestrator):
-        super().__init__("SystemMonitor", orchestrator)
-        self.token_usage = []
-        self.connection_status = True
-        self.last_health_check = datetime.datetime.now()
-
-    def process(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        action = request.get('action')
-
-        if action == 'track_tokens':
-            return self._track_tokens(request)
-        elif action == 'check_health':
-            return self._check_health(request)
-        elif action == 'get_stats':
-            return self._get_stats(request)
-        elif action == 'check_limits':
-            return self._check_limits(request)
-
-        return {'status': 'error', 'message': 'Unknown action'}
-
-    def _track_tokens(self, request: Dict) -> Dict:
-        usage = TokenUsage(
-            input_tokens=request.get('input_tokens', 0),
-            output_tokens=request.get('output_tokens', 0),
-            total_tokens=request.get('total_tokens', 0),
-            cost_estimate=request.get('cost_estimate', 0.0),
-            timestamp=datetime.datetime.now()
-        )
-
-        self.token_usage.append(usage)
-
-        # Check if approaching limits
-        total_tokens = sum(u.total_tokens for u in self.token_usage[-10:])
-        warning = total_tokens > 50000  # Warning threshold
-
-        return {
-            'status': 'success',
-            'current_usage': usage,
-            'warning': warning,
-            'total_recent': total_tokens
-        }
-
-    def _check_health(self, request: Dict) -> Dict:
-        # Test Claude API connection
-        try:
-            self.orchestrator.claude_client.test_connection()
-            self.connection_status = True
-            self.last_health_check = datetime.datetime.now()
-
-            return {
-                'status': 'success',
-                'connection': True,
-                'last_check': self.last_health_check
-            }
-        except Exception as e:
-            self.connection_status = False
-            self.log(f"Health check failed: {e}", "ERROR")
-
-            return {
-                'status': 'error',
-                'connection': False,
-                'error': str(e)
-            }
-
-    def _get_stats(self, request: Dict) -> Dict:
-        total_tokens = sum(u.total_tokens for u in self.token_usage)
-        total_cost = sum(u.cost_estimate for u in self.token_usage)
-
-        return {
-            'status': 'success',
-            'total_tokens': total_tokens,
-            'total_cost': total_cost,
-            'api_calls': len(self.token_usage),
-            'connection_status': self.connection_status
-        }
-
-    def _check_limits(self, request: Dict) -> Dict:
-        recent_usage = sum(u.total_tokens for u in self.token_usage[-5:])
-        warnings = []
-
-        if recent_usage > 40000:
-            warnings.append("High token usage detected")
-        if not self.connection_status:
-            warnings.append("API connection issues")
-
-        return {
-            'status': 'success',
-            'warnings': warnings,
-            'recent_usage': recent_usage
-        }
-
-
-# Database and Storage Classes
-class VectorDatabase:
-    def __init__(self, db_path: str):
-        self.db_path = db_path
-        self.client = chromadb.PersistentClient(path=db_path)
-        self.collection = self.client.get_or_create_collection("socratic_knowledge")
-        self.embedding_model = SentenceTransformer(CONFIG['EMBEDDING_MODEL'])
-        self.knowledge_loaded = False  # FIX: Track if knowledge is already loaded
-
-    def add_knowledge(self, entry: KnowledgeEntry):
-        """Add knowledge entry to vector database"""
-        # FIX: Check if entry already exists before adding
-        try:
-            existing = self.collection.get(ids=[entry.id])
-            if existing['ids']:
-                print(f"Knowledge entry '{entry.id}' already exists, skipping...")
-                return
+            with open(users_file, 'w') as f:
+                json.dump(self.users, f, indent=2)
         except Exception:
-            pass  # Entry doesn't exist, proceed with adding
+            pass
 
-        if not entry.embedding:
-            entry.embedding = self.embedding_model.encode(entry.content).tolist()
+    def create_user(self, username: str) -> str:
+        """Create new user"""
+        user_id = str(uuid.uuid4())
+        self.users[user_id] = {
+            "username": username,
+            "created_at": datetime.now().isoformat(),
+            "projects": [],
+            "preferences": {}
+        }
+        self._save_users()
+        return user_id
 
-        try:
-            self.collection.add(
-                documents=[entry.content],
-                metadatas=[entry.metadata],
-                ids=[entry.id],
-                embeddings=[entry.embedding]
-            )
-            print(f"Added knowledge entry: {entry.id}")
-        except Exception as e:
-            print(f"Warning: Could not add knowledge entry {entry.id}: {e}")
+    def delete_user(self, user_id: str) -> bool:
+        """Delete user and all their projects"""
+        if user_id not in self.users:
+            return False
 
-    def search_similar(self, query: str, top_k: int = 5) -> List[Dict]:
-        """Search for similar knowledge entries"""
-        if not query.strip():
-            return []
+        # Delete all user's projects
+        user_projects = self.users[user_id]["projects"].copy()
+        for project_id in user_projects:
+            self.vector_store.delete_project(project_id)
 
-        try:
-            query_embedding = self.embedding_model.encode(query).tolist()
+        # Delete user
+        del self.users[user_id]
+        if self.current_user == user_id:
+            self.current_user = None
 
-            results = self.collection.query(
-                query_embeddings=[query_embedding],
-                n_results=min(top_k, self.collection.count())
-            )
+        self._save_users()
+        return True
 
-            if not results['documents'] or not results['documents'][0]:
-                return []
+    def create_project(self, project_name: str) -> str:
+        """Create new project"""
+        project = ProjectContext()
+        project.name = project_name
 
-            return [{
-                'content': doc,
-                'metadata': meta,
-                'score': dist
-            } for doc, meta, dist in zip(
-                results['documents'][0],
-                results['metadatas'][0],
-                results['distances'][0]
-            )]
-        except Exception as e:
-            print(f"Warning: Search failed: {e}")
-            return []
+        # Store in vector database
+        self.vector_store.store_project(project)
 
-    def delete_entry(self, entry_id: str):
-        """Delete knowledge entry"""
-        try:
-            self.collection.delete(ids=[entry_id])
-        except Exception as e:
-            print(f"Warning: Could not delete entry {entry_id}: {e}")
+        if self.current_user:
+            self.users[self.current_user]["projects"].append(project.project_id)
+            self._save_users()
 
+        return project.project_id
 
-class ProjectDatabase:
-    def __init__(self, db_path: str):
-        self.db_path = db_path
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
-        self._init_database()
+    def delete_project(self, project_id: str) -> bool:
+        """Delete project"""
+        # Remove from user's project list
+        for user_id, user_data in self.users.items():
+            if project_id in user_data["projects"]:
+                user_data["projects"].remove(project_id)
 
-    def _init_database(self):
-        """Initialize SQLite database for project metadata"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        # Delete from vector store
+        success = self.vector_store.delete_project(project_id)
 
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS projects (
-                project_id TEXT PRIMARY KEY,
-                data BLOB,
-                created_at TIMESTAMP,
-                updated_at TIMESTAMP
-            )
-        ''')
+        if self.current_project and self.current_project.project_id == project_id:
+            self.current_project = None
 
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                username TEXT PRIMARY KEY,
-                passcode_hash TEXT,
-                data BLOB,
-                created_at TIMESTAMP
-            )
-        ''')
+        if success:
+            self._save_users()
 
-        conn.commit()
-        conn.close()
+        return success
 
-    def save_project(self, project: ProjectContext):
-        """Save project to database"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+    def set_current_project(self, project_id: str):
+        """Set current active project"""
+        project = self.vector_store.get_project(project_id)
+        if project:
+            self.current_project = project
 
-        data = pickle.dumps(asdict(project))
+    def list_projects(self) -> List[Dict]:
+        """List all projects"""
+        return self.vector_store.list_projects()
 
-        cursor.execute('''
-            INSERT OR REPLACE INTO projects (project_id, data, created_at, updated_at)
-            VALUES (?, ?, ?, ?)
-        ''', (project.project_id, data, project.created_at, project.updated_at))
+    def generate_socratic_question(self, user_input: str) -> str:
+        """Generate Socratic question using enhanced vector search"""
+        if not self.current_project:
+            return "What exactly do you want to achieve with this project?"
 
-        conn.commit()
-        conn.close()
+        # Handle "I don't know" responses with enhanced suggestions
+        if self._is_uncertain_response(user_input):
+            return self._generate_enhanced_suggestion(user_input)
 
-    def load_project(self, project_id: str) -> Optional[ProjectContext]:
-        """Load project from database"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        # Handle requests for suggestions
+        if self._is_request_for_suggestions(user_input):
+            return self._generate_enhanced_suggestion(user_input)
 
-        cursor.execute('SELECT data FROM projects WHERE project_id = ?', (project_id,))
-        result = cursor.fetchone()
+        # Search for relevant knowledge using vector similarity
+        relevant_knowledge = self.vector_store.search_knowledge(
+            user_input,
+            category=None,  # Search all categories
+            n_results=3
+        )
 
-        conn.close()
+        # Search for similar past conversations
+        similar_conversations = self.vector_store.search_conversations(
+            user_input,
+            project_id=self.current_project.project_id,
+            n_results=2
+        )
 
-        if result:
-            data = pickle.loads(result[0])
-            return ProjectContext(**data)
-        return None
+        # Search for similar projects for additional context
+        similar_projects = self.vector_store.search_similar_projects(user_input, n_results=2)
 
-    def get_user_projects(self, username: str) -> List[Dict]:
-        """Get all projects for a user"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        # Build enhanced context
+        context = self._build_project_context()
+        knowledge_context = "\n".join([f"- {entry['content']}" for entry in relevant_knowledge[:2]])
 
-        # FIX: Use a simpler query that works with pickle data
-        cursor.execute('SELECT project_id, data FROM projects', ())
-        results = cursor.fetchall()
-        conn.close()
+        # Enhanced Socratic questioning prompt with vector context
+        prompt = f"""You are a Socratic counselor helping a software developer think through their project. 
+Use the Socratic method: ask ONE thoughtful question that helps them discover the next step.
 
-        projects = []
-        for project_id, data in results:
-            try:
-                project_data = pickle.loads(data)
-                # Check if user is owner or collaborator
-                if (project_data['owner'] == username or
-                        username in project_data.get('collaborators', [])):
-                    projects.append({
-                        'project_id': project_id,
-                        'name': project_data['name'],
-                        'phase': project_data['phase'],
-                        'updated_at': project_data['updated_at']
-                    })
-            except Exception as e:
-                print(f"Warning: Could not load project {project_id}: {e}")
+Current project phase: {self.current_project.phase}
+Project context: {context}
+User's latest input: {user_input}
 
-        return projects
+Relevant knowledge from similar situations:
+{knowledge_context}
 
-    def save_user(self, user: User):
-        """Save user to database"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+Guidelines:
+- Ask exactly ONE question
+- Be specific and actionable  
+- Help them think deeper about their approach
+- Focus on discovery through questioning, not giving answers
+- Build on the relevant knowledge to ask more targeted questions
+- If they seem stuck, gently guide them to consider a new angle
+- Use insights from similar situations to ask better questions
 
-        data = pickle.dumps(asdict(user))
-
-        cursor.execute('''
-            INSERT OR REPLACE INTO users (username, passcode_hash, data, created_at)
-            VALUES (?, ?, ?, ?)
-        ''', (user.username, user.passcode_hash, data, user.created_at))
-
-        conn.commit()
-        conn.close()
-
-    def load_user(self, username: str) -> Optional[User]:
-        """Load user from database"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-
-        cursor.execute('SELECT data FROM users WHERE username = ?', (username,))
-        result = cursor.fetchone()
-
-        conn.close()
-
-        if result:
-            data = pickle.loads(result[0])
-            return User(**data)
-        return None
-
-
-# Claude API Client
-class ClaudeClient:
-    def __init__(self, api_key: str, orchestrator: 'AgentOrchestrator'):
-        self.client = anthropic.Anthropic(api_key=api_key)
-        self.orchestrator = orchestrator
-
-    def extract_insights(self, user_response: str, project: ProjectContext) -> Dict:
-        """Extract insights from user response using Claude"""
-
-        # Handle empty or non-informative responses
-        if not user_response or len(user_response.strip()) < 3:
-            return {}
-
-        # Handle common non-informative responses
-        non_informative = ["i don't know", "idk", "not sure", "no idea", "dunno", "unsure"]
-        if user_response.lower().strip() in non_informative:
-            return {'note': 'User expressed uncertainty - may need more guidance'}
-
-        # Build prompt using string concatenation to avoid brace issues
-        prompt = f"""
-        Analyze this user response in the context of their project and extract structured insights:
-
-        Project Context:
-        - Goals: {project.goals or 'Not specified'}
-        - Phase: {project.phase}
-        - Tech Stack: {', '.join(project.tech_stack) if project.tech_stack else 'Not specified'}
-
-        User Response: "{user_response}"
-
-        Please extract and return any mentions of:
-        1. Goals or objectives
-        2. Technical requirements 
-        3. Technology preferences
-        4. Constraints or limitations
-        5. Team structure preferences
-
-        """ + """Return as valid JSON with keys: goals, requirements, tech_stack, constraints, team_structure
-        If no insights found, return empty JSON object {}.
-        """
+Your question:"""
 
         try:
             response = self.client.messages.create(
-                model=CONFIG['CLAUDE_MODEL'],
-                max_tokens=1000,
-                temperature=0.3,
-                messages=[{"role": "user", "content": prompt}]
-            )
-
-            # Track token usage
-            self.orchestrator.system_monitor.process({
-                'action': 'track_tokens',
-                'input_tokens': response.usage.input_tokens,
-                'output_tokens': response.usage.output_tokens,
-                'total_tokens': response.usage.input_tokens + response.usage.output_tokens,
-                'cost_estimate': self._calculate_cost(response.usage)
-            })
-
-            # Try to parse JSON response
-            try:
-                import json
-                response_text = response.content[0].text.strip()
-
-                # Clean up the response - sometimes Claude adds extra text
-                if response_text.startswith('```json'):
-                    response_text = response_text.replace('```json', '').replace('```', '').strip()
-                elif response_text.startswith('```'):
-                    response_text = response_text.replace('```', '').strip()
-
-                # Find JSON object in the response
-                start = response_text.find('{')
-                end = response_text.rfind('}') + 1
-
-                if 0 <= start < end:
-                    json_text = response_text[start:end]
-                    parsed_insights = json.loads(json_text)
-
-                    # Ensure it's a dictionary
-                    if isinstance(parsed_insights, dict):
-                        return parsed_insights
-                    else:
-                        return {}
-                else:
-                    # No JSON found, return empty dict
-                    return {}
-
-            except (json.JSONDecodeError, ValueError, IndexError) as json_error:
-                print(f"{Fore.YELLOW}Warning: Could not parse JSON response: {json_error}")
-                # Fallback to simple text analysis
-                return {'extracted_text': response.content[0].text}
-
-        except Exception as e:
-            print(f"{Fore.RED}Error extracting insights: {e}")
-            return {}  # Return empty dict instead of None
-
-    def generate_code(self, context: str) -> str:
-        """Generate code based on project context"""
-        prompt = f"""
-        Generate a complete, functional script based on this project context:
-
-        {context}
-
-        Please create:
-        1. A well-structured, documented script
-        2. Include proper error handling
-        3. Follow best practices for the chosen technology
-        4. Add helpful comments explaining key functionality
-        5. Include basic testing or validation
-
-        Make it production-ready and maintainable.
-        """
-
-        try:
-            response = self.client.messages.create(
-                model=CONFIG['CLAUDE_MODEL'],
-                max_tokens=4000,
+                model="claude-3-sonnet-20240229",
+                max_tokens=150,
                 temperature=0.7,
                 messages=[{"role": "user", "content": prompt}]
             )
 
-            # Track token usage
-            self.orchestrator.system_monitor.process({
-                'action': 'track_tokens',
-                'input_tokens': response.usage.input_tokens,
-                'output_tokens': response.usage.output_tokens,
-                'total_tokens': response.usage.input_tokens + response.usage.output_tokens,
-                'cost_estimate': self._calculate_cost(response.usage)
-            })
+            question = response.content[0].text.strip()
 
-            return response.content[0].text
-
-        except Exception as e:
-            return f"Error generating code: {e}"
-
-    def generate_documentation(self, project: ProjectContext, script: str) -> str:
-        """Generate documentation for the project and script"""
-        prompt = f"""
-        Create comprehensive documentation for this project:
-
-        Project: {project.name}
-        Goals: {project.goals}
-        Tech Stack: {', '.join(project.tech_stack)}
-
-        Script:
-        {script[:2000]}...  # Truncated for context
-
-        Please include:
-        1. Project overview and purpose
-        2. Installation instructions
-        3. Usage examples
-        4. API documentation (if applicable)
-        5. Configuration options
-        6. Troubleshooting section
-        """
-
-        try:
-            response = self.client.messages.create(
-                model=CONFIG['CLAUDE_MODEL'],
-                max_tokens=3000,
-                temperature=0.5,
-                messages=[{"role": "user", "content": prompt}]
+            # Store conversation in vector database
+            self.vector_store.add_conversation(
+                self.current_project.project_id,
+                user_input,
+                question,
+                self.current_project.phase
             )
 
-            # Track token usage
-            # Track token usage
-            self.orchestrator.system_monitor.process({
-                'action': 'track_tokens',
-                'input_tokens': response.usage.input_tokens,
-                'output_tokens': response.usage.output_tokens,
-                'total_tokens': response.usage.input_tokens + response.usage.output_tokens,
-                'cost_estimate': self._calculate_cost(response.usage)
+            # Update conversation history
+            self.current_project.conversation_history.append({
+                "user": user_input,
+                "assistant": question,
+                "timestamp": datetime.now().isoformat(),
+                "phase": self.current_project.phase
             })
 
-            return response.content[0].text
+            # Save updated project
+            self.vector_store.store_project(self.current_project)
+
+            return question
 
         except Exception as e:
-            return f"Error generating documentation: {e}"
+            return f"I'd like to understand better - could you elaborate on that? (Error: {str(e)})"
 
-    def test_connection(self):
-        """Test connection to Claude API"""
-        try:
-            response = self.client.messages.create(
-                model=CONFIG['CLAUDE_MODEL'],
-                max_tokens=10,
-                temperature=0,
-                messages=[{"role": "user", "content": "Test"}]
-            )
-            return True
-        except Exception as e:
-            raise e
+    def _generate_enhanced_suggestion(self, user_input: str) -> str:
+        """Generate enhanced suggestion using vector search"""
+        if not self.current_project:
+            return "What exactly do you want to achieve with this project?"
 
-    def _calculate_cost(self, usage) -> float:
-        """Calculate estimated cost based on token usage"""
-        # Claude 3 Sonnet pricing (approximate)
-        input_cost_per_1k = 0.003  # $0.003 per 1K input tokens
-        output_cost_per_1k = 0.015  # $0.015 per 1K output tokens
-
-        input_cost = (usage.input_tokens / 1000) * input_cost_per_1k
-        output_cost = (usage.output_tokens / 1000) * output_cost_per_1k
-
-        return input_cost + output_cost
-
-    def generate_socratic_question(self, prompt: str) -> str:
-        """Generate a Socratic question using Claude"""
-        try:
-            response = self.client.messages.create(
-                model=CONFIG['CLAUDE_MODEL'],
-                max_tokens=200,  # Questions should be concise
-                temperature=0.7,  # Some creativity for varied questions
-                messages=[{"role": "user", "content": prompt}]
-            )
-
-            # Track token usage
-            self.orchestrator.system_monitor.process({
-                'action': 'track_tokens',
-                'input_tokens': response.usage.input_tokens,
-                'output_tokens': response.usage.output_tokens,
-                'total_tokens': response.usage.input_tokens + response.usage.output_tokens,
-                'cost_estimate': self._calculate_cost(response.usage)
-            })
-
-            return response.content[0].text.strip()
-
-        except Exception as e:
-            print(f"{Fore.RED}Error generating Socratic question: {e}")
-            raise e
-
-
-# Agent Orchestrator
-class AgentOrchestrator:
-    def __init__(self, api_key: str):
-        self.api_key = api_key
-
-        # Initialize database components
-        data_dir = CONFIG['DATA_DIR']
-        os.makedirs(data_dir, exist_ok=True)
-
-        self.database = ProjectDatabase(os.path.join(data_dir, 'projects.db'))
-        self.vector_db = VectorDatabase(os.path.join(data_dir, 'vector_db'))
-
-        # Initialize Claude client
-        self.claude_client = ClaudeClient(api_key, self)
-        self._initialize_agents()
-
-        # Load default knowledge base
-        self._load_knowledge_base()
-
-        print(f"{Fore.GREEN}✓ Socratic RAG System v7.0 initialized successfully!")
-
-    def _initialize_agents(self):
-        """Initialize agents after orchestrator is fully set up"""
-        self.project_manager = ProjectManagerAgent(self)
-        self.socratic_counselor = SocraticCounselorAgent(self)
-        self.context_analyzer = ContextAnalyzerAgent(self)
-        self.code_generator = CodeGeneratorAgent(self)
-        self.system_monitor = SystemMonitorAgent(self)
-
-    def _load_knowledge_base(self):
-        """Load default knowledge base if not already loaded"""
-        if self.vector_db.knowledge_loaded:
-            return
-
-        print(f"{Fore.YELLOW}Loading knowledge base...")
-
-        default_knowledge = [
-            {
-                'id': 'software_architecture_patterns',
-                'content': 'Common software architecture patterns include MVC (Model-View-Controller), '
-                           'MVP (Model-View-Presenter), MVVM (Model-View-ViewModel), microservices architecture, '
-                           'layered architecture, and event-driven architecture. Each pattern has specific use cases '
-                           'and trade-offs.',
-                'category': 'architecture',
-                'metadata': {'topic': 'patterns', 'difficulty': 'intermediate'}
-            },
-            {
-                'id': 'python_best_practices',
-                'content': 'Python best practices include following PEP 8 style guide, using virtual environments, '
-                           'writing docstrings, implementing proper error handling, using type hints, following the '
-                           'principle of least privilege, and writing unit tests.',
-                'category': 'python',
-                'metadata': {'topic': 'best_practices', 'language': 'python'}
-            },
-            {
-                'id': 'api_design_principles',
-                'content': 'REST API design principles include using appropriate HTTP methods, meaningful resource '
-                           'URLs, consistent naming conventions, proper status codes, versioning, authentication and '
-                           'authorization, rate limiting, and comprehensive documentation.',
-                'category': 'api_design',
-                'metadata': {'topic': 'rest_api', 'difficulty': 'intermediate'}
-            },
-            {
-                'id': 'database_design_basics',
-                'content': 'Database design fundamentals include normalization, defining primary and foreign keys, '
-                           'indexing strategy, choosing appropriate data types, avoiding SQL injection, implementing '
-                           'proper backup strategies, and optimizing queries for performance.',
-                'category': 'database',
-                'metadata': {'topic': 'design', 'difficulty': 'beginner'}
-            },
-            {
-                'id': 'security_considerations',
-                'content': 'Security considerations in software development include input validation, authentication '
-                           'and authorization, secure communication (HTTPS), data encryption, regular security '
-                           'updates, logging and monitoring, and following the principle of least privilege.',
-                'category': 'security',
-                'metadata': {'topic': 'general_security', 'difficulty': 'intermediate'}
-            }
-        ]
-
-        for knowledge_data in default_knowledge:
-            entry = KnowledgeEntry(**knowledge_data)
-            self.vector_db.add_knowledge(entry)
-
-        self.vector_db.knowledge_loaded = True
-        print(f"{Fore.GREEN}✓ Knowledge base loaded ({len(default_knowledge)} entries)")
-
-    def process_request(self, agent_name: str, request: Dict[str, Any]) -> Dict[str, Any]:
-        """Route request to appropriate agent"""
-        agents = {
-            'project_manager': self.project_manager,
-            'socratic_counselor': self.socratic_counselor,
-            'context_analyzer': self.context_analyzer,
-            'code_generator': self.code_generator,
-            'system_monitor': self.system_monitor
-        }
-
-        agent = agents.get(agent_name)
-        if agent:
-            return agent.process(request)
-        else:
-            return {'status': 'error', 'message': f'Unknown agent: {agent_name}'}
-
-
-# Main Application Class
-class SocraticRAGSystem:
-    def __init__(self):
-        self.orchestrator = None
-        self.current_user = None
-        self.current_project = None
-        self.session_start = datetime.datetime.now()
-
-    def start(self):
-        """Start the Socratic RAG System"""
-        print(f"{Fore.CYAN}{Style.BRIGHT}")
-        print("╔═══════════════════════════════════════════════╗")
-        print("║        Enhanced Socratic RAG System           ║")
-        print("║                Version 7.0                    ║")
-        print("║Ουδέν οίδα, ούτε διδάσκω τι, αλλά διαπορώ μόνον║")
-        print("╚═══════════════════════════════════════════════╝")
-        print(f"{Style.RESET_ALL}")
-
-        # Get API key
-        api_key = self._get_api_key()
-        if not api_key:
-            print(f"{Fore.RED}No API key provided. Exiting...")
-            return
-
-        try:
-            # Initialize orchestrator
-            self.orchestrator = AgentOrchestrator(api_key)
-
-            # Login or create user
-            if not self._handle_user_authentication():
-                return
-
-            # Main loop
-            self._main_loop()
-
-        except Exception as e:
-            print(f"{Fore.RED}System error: {e}")
-
-    def _get_api_key(self) -> Optional[str]:
-        """Get Claude API key from environment or user input"""
-        api_key = os.getenv('API_KEY_CLAUDE')
-        if not api_key:
-            print(f"{Fore.YELLOW}Claude API key not found in environment.")
-            api_key = getpass.getpass("Please enter your Claude API key: ")
-        return api_key
-
-    def _handle_user_authentication(self) -> bool:
-        """Handle user login or registration"""
-        while True:
-            print(f"\n{Fore.CYAN}Authentication Options:")
-            print("1. Login with existing account")
-            print("2. Create new account")
-            print("3. Exit")
-
-            choice = input(f"{Fore.WHITE}Choose option (1-3): ").strip()
-
-            if choice == '1':
-                if self._login():
-                    return True
-            elif choice == '2':
-                if self._create_account():
-                    return True
-            elif choice == '3':
-                return False
-            else:
-                print(f"{Fore.RED}Invalid choice. Please try again.")
-
-    def _login(self) -> bool:
-        """Handle user login"""
-        username = input(f"{Fore.WHITE}Username: ").strip()
-        if not username:
-            print(f"{Fore.RED}Username cannot be empty.")
-            return False
-
-        passcode = input(f"{Fore.WHITE}Passcode: ").strip()
-        if not passcode:
-            print(f"{Fore.RED}Passcode cannot be empty.")
-            return False
-
-        # Load user from database
-        user = self.orchestrator.database.load_user(username)
-        if not user:
-            print(f"{Fore.RED}User not found.")
-            return False
-
-        # Verify passcode
-        passcode_hash = hashlib.sha256(passcode.encode()).hexdigest()
-        if user.passcode_hash != passcode_hash:
-            print(f"{Fore.RED}Invalid passcode.")
-            return False
-
-        self.current_user = user
-        print(f"{Fore.GREEN}✓ Welcome back, {username}!")
-        return True
-
-    def _create_account(self) -> bool:
-        """Handle account creation"""
-        print(f"\n{Fore.CYAN}Create New Account")
-
-        username = input(f"{Fore.WHITE}Username: ").strip()
-        if not username:
-            print(f"{Fore.RED}Username cannot be empty.")
-            return False
-
-        # Check if user already exists
-        existing_user = self.orchestrator.database.load_user(username)
-        if existing_user:
-            print(f"{Fore.RED}Username already exists.")
-            return False
-
-        passcode = input(f"{Fore.WHITE}Passcode: ").strip()
-        if not passcode:
-            print(f"{Fore.RED}Passcode cannot be empty.")
-            return False
-
-        confirm_passcode = input(f"{Fore.WHITE}Confirm passcode: ").strip()
-        if passcode != confirm_passcode:
-            print(f"{Fore.RED}Passcodes do not match.")
-            return False
-
-        # Create user
-        passcode_hash = hashlib.sha256(passcode.encode()).hexdigest()
-        user = User(
-            username=username,
-            passcode_hash=passcode_hash,
-            created_at=datetime.datetime.now(),
-            projects=[]
+        # Search for relevant knowledge and past conversations
+        relevant_knowledge = self.vector_store.search_knowledge(
+            f"{user_input} {self.current_project.phase} suggestions help",
+            n_results=2
         )
 
-        self.orchestrator.database.save_user(user)
-        self.current_user = user
+        similar_situations = self.vector_store.search_conversations(
+            f"I don't know suggestions help {self.current_project.phase}",
+            n_results=2
+        )
 
-        print(f"{Fore.GREEN}✓ Account created successfully! Welcome, {username}!")
-        return True
+        # Build context-aware suggestion
+        phase = self.current_project.phase
+        base_suggestions = self.suggestion_templates.get(phase, [])
 
-    def _main_loop(self):
-        """Main application loop"""
-        while True:
-            try:
-                print(f"\n{Fore.CYAN}═" * 5)
-                print(f"{Fore.CYAN}{Style.BRIGHT}Main Menu")
-                print(f"{Fore.WHITE}Current User: {self.current_user.username}")
-                if self.current_project:
-                    print(f"Current Project: {self.current_project.name} ({self.current_project.phase})")
+        knowledge_insights = ""
+        if relevant_knowledge:
+            knowledge_insights = f"\nBased on similar situations: {relevant_knowledge[0]['content']}"
 
-                print(f"\n{Fore.YELLOW}Options:")
-                print("1. Create new project")
-                print("2. Load existing project")
-                print("3. Continue current project")
-                print("4. Generate code")
-                print("5. View system status")
-                print("6. Switch user")
-                print("7. Exit")
+        if base_suggestions:
+            import random
+            base_suggestion = random.choice(base_suggestions)
+            return (f"Here's a way to think about it: {base_suggestion}{knowledge_insights}"
+                    f"\n\nWhich of these approaches feels most relevant to your situation?")
 
-                choice = input(f"{Fore.WHITE}Choose option (1-7): ").strip()
+        return f"What aspect of this would you like to explore first?{knowledge_insights}"
 
-                if choice == '1':
-                    self._create_project()
-                elif choice == '2':
-                    self._load_project()
-                elif choice == '3':
-                    if self.current_project:
-                        self._continue_project()
-                    else:
-                        print(f"{Fore.RED}No current project loaded.")
-                elif choice == '4':
-                    if self.current_project:
-                        self._generate_code()
-                    else:
-                        print(f"{Fore.RED}No current project loaded.")
-                elif choice == '5':
-                    self._show_system_status()
-                elif choice == '6':
-                    if self._handle_user_authentication():
-                        self.current_project = None
-                elif choice == '7':
-                    print(f"{Fore.GREEN}           Thank you for using Socratic RAG System")
-                    print(f"{Fore.GREEN}..τω Ασκληπιώ οφείλομεν αλετρυόνα, απόδοτε και μη αμελήσετε..")
-                    break
-                else:
-                    print(f"{Fore.RED}Invalid choice. Please try again.")
+    def _is_uncertain_response(self, user_input: str) -> bool:
+        """Check if user response indicates uncertainty"""
+        uncertain_phrases = [
+            "i don't know", "not sure", "i'm not sure", "no idea",
+            "don't know", "not certain", "i'm uncertain", "unsure", "confused"
+        ]
+        return any(phrase in user_input.lower() for phrase in uncertain_phrases)
 
-            except KeyboardInterrupt:
-                print(f"\n{Fore.YELLOW}Use option 7 to exit properly.")
-            except Exception as e:
-                print(f"{Fore.RED}Error: {e}")
+    def _is_request_for_suggestions(self, user_input: str) -> bool:
+        """Check if user is asking for suggestions"""
+        suggestion_phrases = [
+            "suggest", "suggestion", "what should i", "what would you",
+            "any ideas", "help me think", "what do you think", "advice", "recommend"
+        ]
+        return any(phrase in user_input.lower() for phrase in suggestion_phrases)
 
-    def _create_project(self):
-        """Create a new project"""
-        print(f"\n{Fore.CYAN}Create New Project")
+    def _build_project_context(self) -> str:
+        """Build project context string"""
+        if not self.current_project:
+            return ""
 
-        project_name = input(f"{Fore.WHITE}Project name: ").strip()
-        if not project_name:
-            print(f"{Fore.RED}Project name cannot be empty.")
-            return
+        context_parts = []
+        if self.current_project.goals:
+            context_parts.append(f"Goals: {', '.join(self.current_project.goals)}")
+        if self.current_project.requirements:
+            context_parts.append(f"Requirements: {', '.join(self.current_project.requirements)}")
+        if self.current_project.tech_stack:
+            context_parts.append(f"Tech Stack: {', '.join(self.current_project.tech_stack)}")
+        if self.current_project.constraints:
+            context_parts.append(f"Constraints: {', '.join(self.current_project.constraints)}")
 
-        # Create project using orchestrator
-        result = self.orchestrator.process_request('project_manager', {
-            'action': 'create_project',
-            'project_name': project_name,
-            'owner': self.current_user.username
-        })
+        return " | ".join(context_parts) if context_parts else "New project - no context yet"
 
-        if result['status'] == 'success':
-            self.current_project = result['project']
-            print(f"{Fore.GREEN}✓ Project '{project_name}' created successfully!")
-            self._continue_project()
-        else:
-            print(f"{Fore.RED}Error creating project: {result['message']}")
+    def generate_code(self, requirements: str) -> str:
+        """Code generation agent with vector-enhanced context"""
+        if not self.current_project:
+            return "Please create or select a project first."
 
-    def _load_project(self):
-        """Load an existing project"""
-        # Get user's projects
-        result = self.orchestrator.process_request('project_manager', {
-            'action': 'list_projects',
-            'username': self.current_user.username
-        })
+        # Search for relevant code patterns and knowledge
+        relevant_knowledge = self.vector_store.search_knowledge(
+            f"{requirements} code implementation {' '.join(self.current_project.tech_stack)}",
+            n_results=3
+        )
 
-        if result['status'] != 'success' or not result['projects']:
-            print(f"{Fore.YELLOW}No projects found.")
-            return
+        context = self._build_project_context()
+        knowledge_context = "\n".join([f"- {entry['content']}: {entry['context']}" for entry in relevant_knowledge])
 
-        print(f"\n{Fore.CYAN}Your Projects:")
-        projects = result['projects']
+        prompt = f"""Generate code based on these requirements:
+Requirements: {requirements}
+Project Context: {context}
+Tech Stack: {', '.join(self.current_project.tech_stack) if self.current_project.tech_stack else 'Not specified'}
 
-        for i, project in enumerate(projects, 1):
-            print(f"{i}. {project['name']} ({project['phase']}) - {project['updated_at']}")
+Relevant best practices:
+{knowledge_context}
+
+Provide clean, well-commented code with explanations. Follow the best practices mentioned above."""
 
         try:
-            choice = int(input(f"{Fore.WHITE}Select project (1-{len(projects)}): ")) - 1
-            if 0 <= choice < len(projects):
-                project_id = projects[choice]['project_id']
+            response = self.client.messages.create(
+                model="claude-3-sonnet-20240229",
+                max_tokens=2000,
+                temperature=0.3,
+                messages=[{"role": "user", "content": prompt}]
+            )
 
-                # Load project
-                result = self.orchestrator.process_request('project_manager', {
-                    'action': 'load_project',
-                    'project_id': project_id
-                })
+            return response.content[0].text
 
-                if result['status'] == 'success':
-                    self.current_project = result['project']
-                    print(f"{Fore.GREEN}✓ Project loaded successfully!")
-                else:
-                    print(f"{Fore.RED}Error loading project: {result['message']}")
-            else:
-                print(f"{Fore.RED}Invalid selection.")
-        except ValueError:
-            print(f"{Fore.RED}Invalid input.")
+        except Exception as e:
+            return f"Code generation failed: {str(e)}"
 
-    def _continue_project(self):
-        """Continue working on current project"""
-        if not self.current_project:
-            return
+    def add_knowledge(self, content: str, category: str, context: str = ""):
+        """Add new knowledge entry to vector store"""
+        self.vector_store.add_knowledge_entry(content, category, context)
+        return "Knowledge entry added successfully."
 
-        print(f"\n{Fore.CYAN}Socratic Guidance Session")
-        print(f"{Fore.WHITE}Project: {self.current_project.name}")
-        print(f"Phase: {self.current_project.phase}")
+    def search_project_insights(self, query: str) -> str:
+        """Search for insights across projects and conversations"""
+        # Search knowledge base
+        knowledge_results = self.vector_store.search_knowledge(query, n_results=3)
 
-        while True:
-            # Generate next question
-            result = self.orchestrator.process_request('socratic_counselor', {
-                'action': 'generate_question',
-                'project': self.current_project
-            })
+        # Search conversations
+        conversation_results = self.vector_store.search_conversations(query, n_results=3)
 
-            if result['status'] != 'success':
-                print(f"{Fore.RED}Error generating question: {result['message']}")
-                return
+        # Search similar projects
+        project_results = self.vector_store.search_similar_projects(query, n_results=2)
 
-            question = result['question']
-            print(f"\n{Fore.BLUE}🤔 {question}")
+        insights = []
 
-            # Get user response
-            print(f"{Fore.YELLOW}Your response (type 'done' to finish, 'advance' to move to next phase):")
-            response = input(f"{Fore.WHITE}> ").strip()
+        if knowledge_results:
+            insights.append("📚 Relevant Knowledge:")
+            for result in knowledge_results:
+                insights.append(f"  • {result['content']}")
 
-            if response.lower() == 'done':
-                break
-            elif response.lower() == 'advance':
-                result = self.orchestrator.process_request('socratic_counselor', {
-                    'action': 'advance_phase',
-                    'project': self.current_project
-                })
-                if result['status'] == 'success':
-                    print(f"{Fore.GREEN}✓ Advanced to {result['new_phase']} phase!")
-                continue
-            elif not response:
-                continue
+        if conversation_results:
+            insights.append("\n💬 Similar Past Discussions:")
+            for result in conversation_results[:2]:
+                insights.append(f"  • In {result['phase']} phase: {result['assistant_response'][:100]}...")
 
-            # Process response
-            result = self.orchestrator.process_request('socratic_counselor', {
-                'action': 'process_response',
-                'project': self.current_project,
-                'response': response
-            })
+        if project_results:
+            insights.append("\n🔍 Similar Projects:")
+            for result in project_results:
+                insights.append(f"  • {result['name']} (Phase: {result['phase']})")
 
-            if result['status'] == 'success' and result['insights']:
-                print(f"{Fore.GREEN}✓ Insights captured and integrated!")
+        return "\n".join(insights) if insights else "No relevant insights found for this query."
 
-        # Save project
-        self.orchestrator.process_request('project_manager', {
-            'action': 'save_project',
-            'project': self.current_project
-        })
-        print(f"{Fore.GREEN}✓ Project saved!")
+    def show_menu(self) -> str:
+        """Enhanced menu system with vector capabilities"""
+        menu = """
+╔═══════════════════════════════════════════╗
+║        ENHANCED SOCRATIC RAG SYSTEM       ║
+║                Version 7.1                ║
+║       Ουδέν οίδα, ούτε διδάσκω τι,        ║
+║            αλλά διαπορώ μόνον.            ║
+╠═══════════════════════════════════════════╣
+║ PROJECT MANAGEMENT:                       ║
+║   1. Create new project                   ║
+║   2. List projects                        ║
+║   3. Select project                       ║
+║   4. Delete project                       ║
+║   5. Project summary                      ║
+║   6. Search project insights              ║
+║                                           ║
+║ USER MANAGEMENT:                          ║
+║   7. Create user                          ║
+║   8. Delete user                          ║
+║   9. Switch user                          ║
+║                                           ║
+║ CONVERSATION:                             ║
+║   10. Start/Continue Socratic dialogue    ║
+║   11. Ask for suggestions                 ║
+║   12. Change project phase                ║
+║   13. Search conversation history         ║
+║                                           ║
+║ KNOWLEDGE & CODE:                         ║
+║   14. Generate code                       ║
+║   15. Add knowledge entry                 ║
+║   16. Search knowledge base               ║
+║                                           ║
+║ DATA MANAGEMENT:                          ║
+║   17. Export project data                 ║
+║   18. Database statistics                 ║
+║   19. Help                                ║
+║   0. Exit                                 ║
+╚═══════════════════════════════════════════╝
+"""
+        current_info = ""
+        if self.current_user:
+            current_info += f"Current User: {self.users[self.current_user]['username']}\n"
+        if self.current_project:
+            current_info += f"Current Project: {self.current_project.name} (Phase: {self.current_project.phase})\n"
 
-    def _generate_code(self):
-        """Generate code for current project"""
-        if not self.current_project:
-            return
+        return current_info + menu
 
-        print(f"\n{Fore.CYAN}Generating Code...")
+    def get_database_stats(self) -> str:
+        """Get vector database statistics"""
+        try:
+            knowledge_count = self.vector_store.knowledge_collection.count()
+            conversation_count = self.vector_store.conversation_collection.count()
+            project_count = self.vector_store.project_collection.count()
 
-        result = self.orchestrator.process_request('code_generator', {
-            'action': 'generate_script',
-            'project': self.current_project
-        })
+            return f"""
+📊 Vector Database Statistics:
+═══════════════════════════════
+Knowledge Entries: {knowledge_count}
+Conversation Records: {conversation_count}
+Stored Projects: {project_count}
+Total Users: {len(self.users)}
 
-        if result['status'] == 'success':
-            script = result['script']
-            print(f"\n{Fore.GREEN}✓ Code Generated Successfully!")
-            print(f"{Fore.YELLOW}{'=' * 5}")
-            print(f"{Fore.WHITE}{script}")
-            print(f"{Fore.YELLOW}{'=' * 5}")
+Database Location: {self.vector_store.persist_directory}
+"""
+        except Exception as e:
+            return f"Could not retrieve database statistics: {str(e)}"
 
-            # Ask if user wants documentation
-            doc_choice = input(f"\n{Fore.CYAN}Generate documentation? (y/n): ").lower()
-            if doc_choice == 'y':
-                doc_result = self.orchestrator.process_request('code_generator', {
-                    'action': 'generate_documentation',
-                    'project': self.current_project,
-                    'script': script
-                })
+    def export_project_data(self, project_id: str) -> str:
+        """Export project data to JSON (enhanced with vector data)"""
+        project = self.vector_store.get_project(project_id)
+        if not project:
+            return "Project not found"
 
-                if doc_result['status'] == 'success':
-                    print(f"\n{Fore.GREEN}✓ Documentation Generated!")
-                    print(f"{Fore.YELLOW}{'=' * 5}")
-                    print(f"{Fore.WHITE}{doc_result['documentation']}")
-                    print(f"{Fore.YELLOW}{'=' * 5}")
-        else:
-            print(f"{Fore.RED}Error generating code: {result['message']}")
+        # Get related conversations
+        conversations = self.vector_store.search_conversations(
+            "", project_id=project_id, n_results=100
+        )
 
-    def _show_system_status(self):
-        """Show system status and statistics"""
-        print(f"\n{Fore.CYAN}System Status")
+        export_data = project.to_dict()
+        export_data["vector_conversations"] = conversations
 
-        # Get system stats
-        result = self.orchestrator.process_request('system_monitor', {
-            'action': 'get_stats'
-        })
-
-        if result['status'] == 'success':
-            stats = result
-            print(f"{Fore.WHITE}Total Tokens Used: {stats['total_tokens']}")
-            print(f"Estimated Cost: ${stats['total_cost']:.4f}")
-            print(f"API Calls Made: {stats['api_calls']}")
-            print(f"Connection Status: {'✓' if stats['connection_status'] else '✗'}")
-
-        # Check for warnings
-        result = self.orchestrator.process_request('system_monitor', {
-            'action': 'check_limits'
-        })
-
-        if result['status'] == 'success' and result['warnings']:
-            print(f"\n{Fore.YELLOW}Warnings:")
-            for warning in result['warnings']:
-                print(f"⚠ {warning}")
+        filename = f"project_{project_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        try:
+            with open(filename, 'w') as f:
+                json.dump(export_data, f, indent=2)
+            return f"Enhanced project data exported to {filename}"
+        except Exception as e:
+            return f"Export failed: {str(e)}"
 
 
-# Entry Point
 def main():
+    """Main application loop with vector database"""
+    print("🤖 Enhanced Socratic Counselor with Vector Database")
+    print("=" * 60)
+
+    # Get API key
+    api_key = os.getenv('API_KEY_CLAUDE')
+
+    if not api_key:
+        print("❌ API key is required to run the system.")
+        return
+
     try:
-        system = SocraticRAGSystem()
-        system.start()
+        # Initialize the enhanced RAG system
+        rag = SocraticRAG(api_key)
+        print("✅ Enhanced Socratic RAG system initialized successfully!")
+        print(f"📁 Vector database location: {rag.vector_store.persist_directory}")
+        print()
+
     except Exception as e:
-        print(f"{Fore.RED}Fatal error: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ Failed to initialize system: {str(e)}")
+        return
+
+        # Main interaction loop
+
+    while True:
+        try:
+            print(rag.show_menu())
+
+            if not rag.current_user:
+                # Authentication menu
+                choice = input("👉 Select an option (0-3): ").strip()
+
+                if choice == "0":
+                    print("                         Goodbye!")
+                    print("..τω Ασκληπιώ οφείλομεν αλετρυόνα, απόδοτε και μη αμελήσετε..")
+                    break
+
+                elif choice == "1":
+                    # Login
+                    username = input("Enter your username: ").strip()
+                    if username:
+                        if rag.login_user(username):
+                            print(f"✅ Welcome back, {username}!")
+                        else:
+                            print("❌ Username not found.")
+                    else:
+                        print("❌ Username cannot be empty.")
+
+                elif choice == "2":
+                    # Create user
+                    username = input("Enter new username: ").strip()
+                    if username:
+                        # Check if username already exists
+                        if any(user_data["username"] == username for user_data in rag.users.values()):
+                            print("❌ Username already exists.")
+                        else:
+                            user_id = rag.create_user(username)
+                            rag.current_user = user_id
+                            print(f"✅ User '{username}' created and logged in successfully!")
+                    else:
+                        print("❌ Username cannot be empty.")
+
+                elif choice == "3":
+                    # List users
+                    if rag.users:
+                        print("\n👥 Existing Users:")
+                        for user_data in rag.users.values():
+                            print(f"  • {user_data['username']}")
+                    else:
+                        print("❌ No users found.")
+
+                else:
+                    print("❌ Invalid option. Please select 0-3.")
+
+            else:
+                # Main menu (user is logged in)
+                choice = input("👉 Select an option (0-17): ").strip()
+
+                if choice == "0":
+                    print("👋 Goodbye! Your data is safely stored in the vector database.")
+                    break
+
+                elif choice == "1":
+                    # Create new project
+                    name = input("Enter project name: ").strip()
+                    if name:
+                        try:
+                            project_id = rag.create_project(name)
+                            rag.set_current_project(project_id)
+                            print(f"✅ Project '{name}' created successfully! You are the owner.")
+                        except Exception as e:
+                            print(f"❌ Failed to create project: {str(e)}")
+                    else:
+                        print("❌ Project name cannot be empty.")
+
+                elif choice == "2":
+                    # Select project from list
+                    projects = rag.list_user_projects()
+                    if projects:
+                        print("\n📋 Your Projects:")
+                        print("=" * 60)
+                        for i, project in enumerate(projects, 1):
+                            owner_indicator = " (Owner)" if project.get("is_owner") else " (Member)"
+                            print(f"  {i}. {project['name']}{owner_indicator}")
+                            print(f"     Phase: {project['phase']} | Updated: {project['last_updated'][:10]}")
+                            print()
+
+                        try:
+                            choice_num = int(input(f"Select project (1-{len(projects)}): ").strip())
+                            if 1 <= choice_num <= len(projects):
+                                selected_project = projects[choice_num - 1]
+                                rag.set_current_project(selected_project['project_id'])
+                                print(f"✅ Selected project: {selected_project['name']}")
+                            else:
+                                print("❌ Invalid choice.")
+                        except ValueError:
+                            print("❌ Please enter a number.")
+                        except Exception as e:
+                            print(f"❌ Error selecting project: {str(e)}")
+                    else:
+                        print("📭 No projects found. Create one with option 1!")
+
+                elif choice == "3":
+                    # Delete project (owner only)
+                    if not rag.current_project:
+                        print("❌ No project selected.")
+                        continue
+
+                    if rag.current_project.owner != rag.current_user:
+                        print("❌ Only the project owner can delete projects.")
+                        continue
+
+                    confirm = input(
+                        f"⚠️  Are you sure you want to delete '{rag.current_project.name}'? (yes/no): ").strip().lower()
+                    if confirm == "yes":
+                        if rag.delete_project(rag.current_project.project_id):
+                            print("✅ Project deleted successfully.")
+                        else:
+                            print("❌ Failed to delete project.")
+                    else:
+                        print("❌ Deletion cancelled.")
+
+                elif choice == "4":
+                    # Project summary
+                    if rag.current_project:
+                        project = rag.current_project
+                        owner_name = rag.users.get(project.owner, {}).get('username', 'Unknown')
+
+                        print(f"\n📊 Project Summary: {project.name}")
+                        print("=" * 50)
+                        print(f"Owner: {owner_name}")
+                        print(f"Phase: {project.phase}")
+
+                        # Show authorized users
+                        if hasattr(project, 'authorized_users') and len(project.authorized_users) > 1:
+                            other_users = [rag.users.get(uid, {}).get('username', 'Unknown')
+                                           for uid in project.authorized_users if uid != project.owner]
+                            print(f"Other Users: {', '.join(other_users)}")
+
+                        print(f"Goals: {', '.join(project.goals) if project.goals else 'None specified'}")
+                        print(
+                            f"Requirements: {', '.join(project.requirements) if project.requirements else 'None specified'}")
+                        print(
+                            f"Tech Stack: {', '.join(project.tech_stack) if project.tech_stack else 'None specified'}")
+                        print(
+                            f"Constraints: {', '.join(project.constraints) if project.constraints else 'None specified'}")
+                        print(f"Created: {project.created_at}")
+                        print(f"Last Updated: {project.last_updated}")
+                        print(f"Conversation History: {len(project.conversation_history)} exchanges")
+                    else:
+                        print("❌ No project selected. Use option 2 to select a project.")
+
+                elif choice == "5":
+                    # Manage project users (owner only)
+                    if not rag.current_project:
+                        print("❌ No project selected.")
+                        continue
+
+                    if rag.current_project.owner != rag.current_user:
+                        print("❌ Only the project owner can manage users.")
+                        continue
+
+                    print(f"\n👥 Manage Users - {rag.current_project.name}")
+                    print("1. Add user to project")
+                    print("2. Remove user from project")
+                    print("3. List project users")
+
+                    sub_choice = input("Select option (1-3): ").strip()
+
+                    if sub_choice == "1":
+                        username = input("Enter username to add: ").strip()
+                        if rag.add_user_to_project(rag.current_project.project_id, username):
+                            print(f"✅ User '{username}' added to project.")
+                        else:
+                            print(f"❌ Failed to add user (user not found or already has access).")
+
+                    elif sub_choice == "2":
+                        username = input("Enter username to remove: ").strip()
+                        if rag.remove_user_from_project(rag.current_project.project_id, username):
+                            print(f"✅ User '{username}' removed from project.")
+                        else:
+                            print(f"❌ Failed to remove user (user not found, not in project, or is owner).")
+
+                    elif sub_choice == "3":
+                        if hasattr(rag.current_project, 'authorized_users'):
+                            print(f"\n👥 Project Users:")
+                            for user_id in rag.current_project.authorized_users:
+                                username = rag.users.get(user_id, {}).get('username', 'Unknown')
+                                role = "(Owner)" if user_id == rag.current_project.owner else "(Member)"
+                                print(f"  • {username} {role}")
+                        else:
+                            print("No users found.")
+
+                elif choice == "6":
+                    # Start/Continue Socratic dialogue
+                    if not rag.current_project:
+                        print("❌ No project selected. Use option 2 to select a project or option 1 to create one.")
+                        continue
+
+                    print(f"\n🧠 Socratic Dialogue - Project: {rag.current_project.name}")
+                    print("=" * 60)
+                    print("💡 Tip: Say 'exit' to return to menu, 'I don't know' for suggestions")
+                    print()
+
+                    while True:
+                        user_input = input("You: ").strip()
+                        if user_input.lower() in ['exit', 'quit', 'back']:
+                            break
+                        if not user_input:
+                            continue
+
+                        response = rag.generate_socratic_question(user_input)
+                        print(f"🤔 Counselor: {response}")
+                        print()
+
+                elif choice == "7":
+                    # Ask for suggestions
+                    if not rag.current_project:
+                        print("❌ No project selected.")
+                        continue
+
+                    suggestion = rag._generate_enhanced_suggestion("I need suggestions")
+                    print(f"\n💡 Suggestion for {rag.current_project.phase} phase:")
+                    print("=" * 50)
+                    print(suggestion)
+
+                elif choice == "8":
+                    # Change project phase
+                    if not rag.current_project:
+                        print("❌ No project selected.")
+                        continue
+
+                    phases = ["discovery", "analysis", "design", "implementation"]
+                    print("\n🔄 Available Phases:")
+                    for i, phase in enumerate(phases, 1):
+                        marker = "👈 Current" if phase == rag.current_project.phase else ""
+                        print(f"  {i}. {phase.capitalize()} {marker}")
+
+                    try:
+                        choice_num = int(input("Select phase (1-4): ").strip())
+                        if 1 <= choice_num <= 4:
+                            new_phase = phases[choice_num - 1]
+                            rag.current_project.update_phase(new_phase)
+                            rag.vector_store.store_project(rag.current_project)
+                            print(f"✅ Project phase updated to: {new_phase}")
+                        else:
+                            print("❌ Invalid choice.")
+                    except ValueError:
+                        print("❌ Please enter a number.")
+
+                elif choice == "9":
+                    # Search conversation history
+                    if not rag.current_project:
+                        print("❌ No project selected.")
+                        continue
+
+                    query = input("Enter search query for conversation history: ").strip()
+                    if query:
+                        results = rag.vector_store.search_conversations(
+                            query, project_id=rag.current_project.project_id, n_results=5
+                        )
+
+                        if results:
+                            print(f"\n💬 Conversation Search Results for '{query}':")
+                            print("=" * 60)
+                            for i, result in enumerate(results, 1):
+                                print(f"{i}. Phase: {result['phase']} | {result['timestamp']}")
+                                print(f"   You: {result['user_input'][:80]}...")
+                                print(f"   Counselor: {result['assistant_response'][:80]}...")
+                                print()
+                        else:
+                            print("❌ No matching conversations found.")
+                    else:
+                        print("❌ Search query cannot be empty.")
+
+                elif choice == "10":
+                    # Generate code
+                    requirements = input("Enter code requirements: ").strip()
+                    if requirements:
+                        print("\n⚙️  Generating code...")
+                        code = rag.generate_code(requirements)
+                        print("=" * 60)
+                        print(code)
+                        print("=" * 60)
+                    else:
+                        print("❌ Requirements cannot be empty.")
+
+                elif choice == "11":
+                    # Add knowledge entry
+                    content = input("Enter knowledge content: ").strip()
+                    category = input("Enter category (e.g., methodology, development, architecture): ").strip()
+                    context = input("Enter additional context (optional): ").strip()
+
+                    if content and category:
+                        result = rag.add_knowledge(content, category, context)
+                        print(f"✅ {result}")
+                    else:
+                        print("❌ Content and category are required.")
+
+                elif choice == "12":
+                    # Search knowledge base
+                    query = input("Enter search query for knowledge base: ").strip()
+                    category = input("Enter category filter (optional): ").strip()
+
+                    if query:
+                        results = rag.vector_store.search_knowledge(
+                            query, category=category if category else None, n_results=5
+                        )
+
+                        if results:
+                            print(f"\n📚 Knowledge Search Results for '{query}':")
+                            print("=" * 60)
+                            for i, result in enumerate(results, 1):
+                                print(f"{i}. Category: {result['category']}")
+                                print(f"   Content: {result['content']}")
+                                if result['context']:
+                                    print(f"   Context: {result['context']}")
+                                print(f"   Relevance: {1 - result['distance']:.2%}")
+                                print()
+                        else:
+                            print("❌ No matching knowledge found.")
+                    else:
+                        print("❌ Search query cannot be empty.")
+
+                elif choice == "13":
+                    # Search project insights
+                    query = input("Enter search query for insights: ").strip()
+                    if query:
+                        insights = rag.search_project_insights(query)
+                        print(f"\n🔍 Insights for '{query}':")
+                        print("=" * 50)
+                        print(insights)
+                    else:
+                        print("❌ Search query cannot be empty.")
+
+                elif choice == "14":
+                    # Export project data
+                    if not rag.current_project:
+                        print("❌ No project selected.")
+                        continue
+
+                    result = rag.export_project_data(rag.current_project.project_id)
+                    print(f"📁 {result}")
+
+                elif choice == "15":
+                    # Database statistics
+                    stats = rag.get_database_stats()
+                    print(stats)
+
+                elif choice == "16":
+                    # Logout
+                    username = rag.users[rag.current_user]['username']
+                    rag.logout_user()
+                    print(f"👋 Goodbye, {username}! You have been logged out.")
+
+                elif choice == "17":
+                    # Help
+                    print("""
+    🆘 ENHANCED SOCRATIC RAG SYSTEM HELP
+    ═══════════════════════════════════════════════════════════
+    
+    🔐 AUTHENTICATION & SECURITY:
+      • Must login before accessing projects
+      • Project owners control access permissions  
+      • Only owners can delete projects or manage users
+    
+    📋 GETTING STARTED:
+      1. Login or create a user account
+      2. Create a project (you become the owner)
+      3. Start a Socratic dialogue to explore your ideas
+      4. Invite team members if needed (owners only)
+    
+    🤔 SOCRATIC METHOD:
+      The system uses guided questioning through four phases:
+      • Discovery: Understanding what you want to build
+      • Analysis: Examining challenges and approaches  
+      • Design: Planning the structure and flow
+      • Implementation: Deciding how to build and deploy
+    
+    👥 PROJECT COLLABORATION:
+      • Project owners can add/remove team members
+      • All authorized users can participate in conversations
+      • Project data is shared among team members
+      • Vector search works across all accessible projects
+    
+    🔍 VECTOR SEARCH FEATURES:
+      • Knowledge base learns from conversations
+      • Smart suggestions based on similar situations
+      • Cross-project insights and patterns
+      • Semantic search across all stored data
+    
+    💡 TIPS:
+      • Be specific in your responses for better questions
+      • Say "I don't know" to get targeted suggestions
+      • Change phases as your understanding evolves
+      • Export projects to save your progress
+      • Use insights search to find relevant patterns
+    
+    🔧 ADVANCED FEATURES:
+      • Vector database stores semantic relationships
+      • Code generation with project context
+      • Knowledge base grows with each conversation
+      • Multi-user project management with permissions
+      • Comprehensive search and export capabilities
+    
+    For more help, visit the project repository or contact support.
+    """)
+
+                else:
+                    print("❌ Invalid option. Please select a number from 0-17.")
+
+            print("\n" + "─" * 60 + "\n")
+
+        except KeyboardInterrupt:
+            print("\n\n👋 Goodbye! Your data is safely stored in the vector database.")
+            break
+        except Exception as e:
+            print(f"❌ An error occurred: {str(e)}")
+            print("Please try again or contact support if the problem persists.")
 
 
 if __name__ == "__main__":
