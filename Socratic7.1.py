@@ -612,7 +612,8 @@ Your question:"""
         if base_suggestions:
             import random
             base_suggestion = random.choice(base_suggestions)
-            return f"Here's a way to think about it: {base_suggestion}{knowledge_insights}\n\nWhich of these approaches feels most relevant to your situation?"
+            return (f"Here's a way to think about it: {base_suggestion}{knowledge_insights}"
+                    f"\n\nWhich of these approaches feels most relevant to your situation?")
 
         return f"What aspect of this would you like to explore first?{knowledge_insights}"
 
@@ -842,7 +843,7 @@ def main():
             choice = input("👉 Select an option (0-19): ").strip()
 
             if choice == "0":
-                print("👋 Goodbye! Your data is safely stored in the vector database.")
+                print("          👋 Goodbye! Your data is safely stored.")
                 print("..τω Ασκληπιώ οφείλομεν αλετρυόνα, απόδοτε και μη αμελήσετε..")
                 break
 
