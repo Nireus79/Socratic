@@ -832,4 +832,414 @@ Provide clean, well-commented code with explanations. Follow the best practices 
         if conversation_results:
             insights.append("\n💬 Similar Past Discussions:")
             for result in conversation_results[:2]:
-                insights.append(f"  • In {
+                insights.append(f"  • In {result['phase']} phase: {result['user_input'][:100]}...")
+
+            if project_results:
+                insights.append("\n🔍 Similar Projects:")
+                for result in project_results:
+                    insights.append(f"  • {result['name']} (Phase: {result['phase']})")
+
+            return "\n".join(insights) if insights else "No relevant insights found."
+
+    def update_project_context(self, field: str, value: str):
+        """Update project context field"""
+        if not self.current_project:
+            return "No active project selected."
+
+        if field == "name":
+            self.current_project.name = value
+        elif field == "team_structure":
+            self.current_project.team_structure = value
+        elif field == "language_preference":
+            self.current_project.language_preference = value
+        elif field == "deployment_target":
+            self.current_project.deployment_target = value
+        elif field == "code_style":
+            self.current_project.code_style = value
+        elif field == "phase":
+            self.current_project.update_phase(value)
+        else:
+            # Handle adding to list fields
+            self.current_project.add_context_item(field, value)
+
+        # Save updated project
+        self.vector_store.store_project(self.current_project)
+        return f"Updated {field}: {value}"
+
+    def get_project_summary(self) -> str:
+        """Get comprehensive project summary"""
+        if not self.current_project:
+            return "No active project selected."
+
+        summary = [f"📋 Project: {self.current_project.name}"]
+        summary.append(f"Phase: {self.current_project.phase}")
+        summary.append(f"Owner: {self.users.get(self.current_project.owner, {}).get('username', 'Unknown')}")
+
+        if len(self.current_project.authorized_users) > 1:
+            usernames = []
+            for user_id in self.current_project.authorized_users:
+                if user_id != self.current_project.owner:
+                    username = self.users.get(user_id, {}).get('username', 'Unknown')
+                    usernames.append(username)
+            if usernames:
+                summary.append(f"Collaborators: {', '.join(usernames)}")
+
+        if self.current_project.goals:
+            summary.append(f"\n🎯 Goals:\n  • " + "\n  • ".join(self.current_project.goals))
+
+        if self.current_project.requirements:
+            summary.append(f"\n📋 Requirements:\n  • " + "\n  • ".join(self.current_project.requirements))
+
+        if self.current_project.tech_stack:
+            summary.append(f"\n💻 Tech Stack:\n  • " + "\n  • ".join(self.current_project.tech_stack))
+
+        if self.current_project.constraints:
+            summary.append(f"\n⚠️ Constraints:\n  • " + "\n  • ".join(self.current_project.constraints))
+
+        if self.current_project.team_structure:
+            summary.append(f"\n👥 Team Structure: {self.current_project.team_structure}")
+
+        if self.current_project.language_preference:
+            summary.append(f"\n🗣️ Language: {self.current_project.language_preference}")
+
+        if self.current_project.deployment_target:
+            summary.append(f"\n🚀 Deployment: {self.current_project.deployment_target}")
+
+        if self.current_project.code_style:
+            summary.append(f"\n✨ Code Style: {self.current_project.code_style}")
+
+        # Add conversation stats
+        conv_count = len(self.current_project.conversation_history)
+        if conv_count > 0:
+            summary.append(f"\n📊 Conversations: {conv_count} exchanges")
+            summary.append(f"Last Updated: {self.current_project.last_updated[:19]}")
+
+        return "\n".join(summary)
+
+    def export_project_data(self, project_id: str = None) -> Optional[Dict]:
+        """Export project data for backup or transfer"""
+        project = self.current_project if not project_id else self.vector_store.get_project(project_id)
+        if not project:
+            return None
+
+        # Check permissions
+        if self.current_user not in project.authorized_users:
+            return None
+
+        # Get related conversations
+        conversations = self.vector_store.search_conversations(
+            query="*",  # Get all conversations
+            project_id=project.project_id,
+            n_results=1000  # Large number to get all
+        )
+
+        return {
+            "project": project.to_dict(),
+            "conversations": conversations,
+            "exported_at": datetime.now().isoformat(),
+            "exported_by": self.current_user
+        }
+
+    def import_project_data(self, project_data: Dict) -> bool:
+        """Import project data from export"""
+        if not self.current_user:
+            return False
+
+        try:
+            # Create project from imported data
+            project_dict = project_data["project"]
+            project_dict["project_id"] = str(uuid.uuid4())  # Generate new ID
+            project_dict["owner"] = self.current_user
+            project_dict["authorized_users"] = [self.current_user]
+            project_dict["imported_at"] = datetime.now().isoformat()
+
+            project = ProjectContext.from_dict(project_dict)
+
+            # Store project
+            self.vector_store.store_project(project)
+
+            # Import conversations (they'll get new IDs automatically)
+            for conv in project_data.get("conversations", []):
+                self.vector_store.add_conversation(
+                    project.project_id,
+                    conv["user_input"],
+                    conv["assistant_response"],
+                    conv["phase"]
+                )
+
+            # Add to user's project list
+            self.users[self.current_user]["projects"].append(project.project_id)
+            self._save_users()
+
+            return True
+
+        except Exception as e:
+            print(f"Import failed: {e}")
+            return False
+
+    def get_conversation_history(self, limit: int = 10) -> List[Dict]:
+        """Get recent conversation history for current project"""
+        if not self.current_project:
+            return []
+
+        history = self.current_project.conversation_history[-limit:]
+        return [
+            {
+                "user_input": conv["user"],
+                "assistant_response": conv["assistant"],
+                "timestamp": conv["timestamp"],
+                "phase": conv["phase"]
+            }
+            for conv in history
+        ]
+
+    def backup_all_data(self, backup_path: str = None) -> str:
+        """Create backup of all user data"""
+        if not backup_path:
+            backup_path = f"socratic_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+        try:
+            os.makedirs(backup_path, exist_ok=True)
+
+            # Backup ChromaDB
+            if os.path.exists(self.vector_store.persist_directory):
+                shutil.copytree(
+                    self.vector_store.persist_directory,
+                    os.path.join(backup_path, "chroma_db"),
+                    dirs_exist_ok=True
+                )
+
+            # Backup users file
+            users_file = os.path.join(self.vector_store.persist_directory, "users.json")
+            if os.path.exists(users_file):
+                shutil.copy2(users_file, os.path.join(backup_path, "users.json"))
+
+            # Create backup manifest
+            manifest = {
+                "backup_created": datetime.now().isoformat(),
+                "version": "1.0",
+                "description": "Socratic RAG system backup"
+            }
+
+            with open(os.path.join(backup_path, "manifest.json"), 'w') as f:
+                json.dump(manifest, f, indent=2)
+
+            return f"Backup created successfully at: {backup_path}"
+
+        except Exception as e:
+            return f"Backup failed: {str(e)}"
+
+    def restore_from_backup(self, backup_path: str) -> str:
+        """Restore data from backup"""
+        try:
+            # Check if backup exists and is valid
+            manifest_file = os.path.join(backup_path, "manifest.json")
+            if not os.path.exists(manifest_file):
+                return "Invalid backup: manifest.json not found"
+
+            # Restore ChromaDB
+            backup_chroma = os.path.join(backup_path, "chroma_db")
+            if os.path.exists(backup_chroma):
+                if os.path.exists(self.vector_store.persist_directory):
+                    shutil.rmtree(self.vector_store.persist_directory)
+                shutil.copytree(backup_chroma, self.vector_store.persist_directory)
+
+            # Restore users file
+            backup_users = os.path.join(backup_path, "users.json")
+            if os.path.exists(backup_users):
+                shutil.copy2(backup_users,
+                             os.path.join(self.vector_store.persist_directory, "users.json"))
+
+            # Reinitialize vector store
+            self.vector_store = VectorStore(self.vector_store.persist_directory)
+            self._load_users()
+
+            return "Restore completed successfully"
+
+        except Exception as e:
+            return f"Restore failed: {str(e)}"
+
+    def get_system_stats(self) -> Dict:
+        """Get system statistics"""
+        stats = {
+            "total_users": len(self.users),
+            "total_projects": len(self.list_projects()),
+            "current_user": self.users.get(self.current_user, {}).get('username') if self.current_user else None,
+            "current_project": self.current_project.name if self.current_project else None,
+            "knowledge_entries": self.vector_store.knowledge_collection.count(),
+            "total_conversations": self.vector_store.conversation_collection.count(),
+        }
+
+        if self.current_project:
+            stats["project_phase"] = self.current_project.phase
+            stats["project_conversations"] = len(self.current_project.conversation_history)
+
+        return stats
+
+
+def main():
+    """Main CLI interface"""
+    import getpass
+
+    print("🤖 Socratic RAG System v7.0")
+    print("=" * 40)
+
+    # Initialize system
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        api_key = getpass.getpass("Enter your Anthropic API key: ")
+
+    rag = SocraticRAG(api_key)
+
+    while True:
+        print("\n📋 Main Menu:")
+        print("1. Login")
+        print("2. Create Account")
+        print("3. Exit")
+
+        choice = input("\nChoice: ").strip()
+
+        if choice == "1":
+            username = input("Username: ")
+            password = getpass.getpass("Password: ")
+
+            if rag.login_user(username, password):
+                print(f"✅ Logged in as {username}")
+                user_session(rag)
+            else:
+                print("❌ Invalid credentials")
+
+        elif choice == "2":
+            username = input("Choose username: ")
+            password = getpass.getpass("Choose password: ")
+
+            user_id = rag.create_user(username, password)
+            if user_id:
+                print(f"✅ Account created successfully!")
+                rag.login_user(username, password)
+                user_session(rag)
+            else:
+                print("❌ Username already exists")
+
+        elif choice == "3":
+            print("👋 Goodbye!")
+            break
+
+
+def user_session(rag):
+    """User session menu"""
+    while True:
+        print(f"\n👤 User Menu ({rag.users[rag.current_user]['username']}):")
+        print("1. List Projects")
+        print("2. Create Project")
+        print("3. Select Project")
+        print("4. Chat (Socratic Mode)")
+        print("5. Generate Code")
+        print("6. Project Summary")
+        print("7. Search Insights")
+        print("8. System Stats")
+        print("9. Backup Data")
+        print("10. Logout")
+
+        choice = input("\nChoice: ").strip()
+
+        if choice == "1":
+            projects = rag.list_user_projects()
+            if projects:
+                print("\n📁 Your Projects:")
+                for i, project in enumerate(projects, 1):
+                    owner_mark = "👑" if project.get("is_owner") else "👥"
+                    print(f"  {i}. {owner_mark} {project['name']} ({project['phase']})")
+            else:
+                print("No projects found.")
+
+        elif choice == "2":
+            name = input("Project name: ")
+            project_id = rag.create_project(name)
+            if project_id:
+                print(f"✅ Project '{name}' created!")
+                rag.set_current_project(project_id)
+                print(f"🎯 Current project set to: {name}")
+            else:
+                print("❌ Failed to create project")
+
+        elif choice == "3":
+            projects = rag.list_user_projects()
+            if projects:
+                print("\n📁 Available Projects:")
+                for i, project in enumerate(projects, 1):
+                    owner_mark = "👑" if project.get("is_owner") else "👥"
+                    print(f"  {i}. {owner_mark} {project['name']} ({project['phase']})")
+
+                try:
+                    idx = int(input("Select project (number): ")) - 1
+                    if 0 <= idx < len(projects):
+                        selected = projects[idx]
+                        if rag.set_current_project(selected['project_id']):
+                            print(f"🎯 Current project: {selected['name']}")
+                        else:
+                            print("❌ Cannot access project")
+                    else:
+                        print("❌ Invalid selection")
+                except ValueError:
+                    print("❌ Please enter a number")
+            else:
+                print("No projects available.")
+
+        elif choice == "4":
+            if not rag.current_project:
+                print("❌ Please select a project first")
+                continue
+
+            print(f"\n💬 Socratic Chat - {rag.current_project.name}")
+            print("Type 'quit' to return to menu")
+            print("-" * 40)
+
+            while True:
+                user_input = input("\n🧑 You: ").strip()
+                if user_input.lower() == 'quit':
+                    break
+
+                if user_input:
+                    response = rag.generate_socratic_question(user_input)
+                    print(f"🤖 Socrates: {response}")
+
+        elif choice == "5":
+            if not rag.current_project:
+                print("❌ Please select a project first")
+                continue
+
+            requirements = input("Code requirements: ")
+            if requirements:
+                print("\n💻 Generating code...")
+                code = rag.generate_code(requirements)
+                print(f"\n{code}")
+
+        elif choice == "6":
+            summary = rag.get_project_summary()
+            print(f"\n{summary}")
+
+        elif choice == "7":
+            query = input("Search query: ")
+            if query:
+                insights = rag.search_project_insights(query)
+                print(f"\n{insights}")
+
+        elif choice == "8":
+            stats = rag.get_system_stats()
+            print("\n📊 System Statistics:")
+            for key, value in stats.items():
+                print(f"  {key.replace('_', ' ').title()}: {value}")
+
+        elif choice == "9":
+            backup_path = rag.backup_all_data()
+            print(f"\n{backup_path}")
+
+        elif choice == "10":
+            rag.logout_user()
+            print("👋 Logged out successfully")
+            break
+
+
+if __name__ == "__main__":
+    main()
