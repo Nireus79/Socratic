@@ -138,6 +138,10 @@ class ProjectManagerAgent(Agent):
             return self._add_collaborator(request)
         elif action == 'list_projects':
             return self._list_projects(request)
+        elif action == 'list_collaborators':
+            return self._list_collaborators(request)
+        elif action == 'remove_collaborator':
+            return self._remove_collaborator(request)
 
         return {'status': 'error', 'message': 'Unknown action'}
 
@@ -204,6 +208,51 @@ class ProjectManagerAgent(Agent):
         projects = self.orchestrator.database.get_user_projects(username)
         return {'status': 'success', 'projects': projects}
 
+    def _list_collaborators(self, request: Dict) -> Dict:
+        """List all collaborators for a project"""
+        project = request.get('project')
+
+        collaborators_info = []
+        # Add owner info
+        collaborators_info.append({
+            'username': project.owner,
+            'role': 'owner'
+        })
+
+        # Add collaborators info
+        for collaborator in project.collaborators:
+            collaborators_info.append({
+                'username': collaborator,
+                'role': 'collaborator'
+            })
+
+        return {
+            'status': 'success',
+            'collaborators': collaborators_info,
+            'total_count': len(collaborators_info)
+        }
+
+    def _remove_collaborator(self, request: Dict) -> Dict:
+        """Remove a collaborator from project"""
+        project = request.get('project')
+        username = request.get('username')
+        requester = request.get('requester')
+
+        # Only owner can remove collaborators
+        if requester != project.owner:
+            return {'status': 'error', 'message': 'Only project owner can remove collaborators'}
+
+        # Cannot remove owner
+        if username == project.owner:
+            return {'status': 'error', 'message': 'Cannot remove project owner'}
+
+        if username in project.collaborators:
+            project.collaborators.remove(username)
+            self.orchestrator.database.save_project(project)
+            self.log(f"Removed collaborator '{username}' from project '{project.name}'")
+            return {'status': 'success'}
+        else:
+            return {'status': 'error', 'message': 'User is not a collaborator'}
 
 class SocraticCounselorAgent(Agent):
     def __init__(self, orchestrator):
@@ -870,6 +919,17 @@ class ProjectDatabase:
             return User(**data)
         return None
 
+    def user_exists(self, username: str) -> bool:
+        """Check if a user exists in the database"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT username FROM users WHERE username = ?', (username,))
+        result = cursor.fetchone()
+
+        conn.close()
+        return result is not None
+
 
 # Claude API Client
 class ClaudeClient:
@@ -1460,11 +1520,12 @@ class SocraticRAGSystem:
                 print("2. Load existing project")
                 print("3. Continue current project")
                 print("4. Generate code")
-                print("5. View system status")
-                print("6. Switch user")
-                print("7. Exit")
+                print("5. Manage collaborators")
+                print("6. View system status")
+                print("7. Switch user")
+                print("8. Exit")
 
-                choice = input(f"{Fore.WHITE}Choose option (1-7): ").strip()
+                choice = input(f"{Fore.WHITE}Choose option (1-8): ").strip()
 
                 if choice == '1':
                     self._create_project()
@@ -1481,11 +1542,16 @@ class SocraticRAGSystem:
                     else:
                         print(f"{Fore.RED}No current project loaded.")
                 elif choice == '5':
-                    self._show_system_status()
+                    if self.current_project:
+                        self._manage_collaborators()
+                    else:
+                        print(f"{Fore.RED}No current project loaded.")
                 elif choice == '6':
+                    self._show_system_status()
+                elif choice == '7':
                     if self._handle_user_authentication():
                         self.current_project = None
-                elif choice == '7':
+                elif choice == '8':
                     print(f"{Fore.GREEN}           Thank you for using Socratic RAG System")
                     print(f"{Fore.GREEN}..τω Ασκληπιώ οφείλομεν αλετρυόνα, απόδοτε και μη αμελήσετε..")
                     break
@@ -1667,6 +1733,117 @@ class SocraticRAGSystem:
             print(f"\n{Fore.YELLOW}Warnings:")
             for warning in result['warnings']:
                 print(f"⚠ {warning}")
+
+    def _manage_collaborators(self):
+        """Manage project collaborators"""
+        if not self.current_project:
+            print(f"{Fore.RED}No current project loaded.")
+            return
+
+        while True:
+            print(f"\n{Fore.CYAN}Collaborator Management")
+            print(f"{Fore.WHITE}Project: {self.current_project.name}")
+
+            # Show current collaborators
+            result = self.orchestrator.process_request('project_manager', {
+                'action': 'list_collaborators',
+                'project': self.current_project
+            })
+
+            if result['status'] == 'success':
+                print(f"\n{Fore.YELLOW}Current Team:")
+                for member in result['collaborators']:
+                    role_color = Fore.GREEN if member['role'] == 'owner' else Fore.WHITE
+                    print(f"{role_color}  • {member['username']} ({member['role']})")
+
+            print(f"\n{Fore.YELLOW}Options:")
+            print("1. Add collaborator")
+            print("2. Remove collaborator")
+            print("3. Back to main menu")
+
+            choice = input(f"{Fore.WHITE}Choose option (1-3): ").strip()
+
+            if choice == '1':
+                self._add_collaborator_ui()
+            elif choice == '2':
+                self._remove_collaborator_ui()
+            elif choice == '3':
+                break
+            else:
+                print(f"{Fore.RED}Invalid choice. Please try again.")
+
+    def _add_collaborator_ui(self):
+        """UI for adding collaborators"""
+        # Only owner can add collaborators
+        if self.current_user.username != self.current_project.owner:
+            print(f"{Fore.RED}Only the project owner can add collaborators.")
+            return
+
+        username = input(f"{Fore.WHITE}Username to add: ").strip()
+        if not username:
+            print(f"{Fore.RED}Username cannot be empty.")
+            return
+
+        # Check if user exists
+        if not self.orchestrator.database.user_exists(username):
+            print(f"{Fore.RED}User '{username}' does not exist in the system.")
+            return
+
+        # Check if already owner
+        if username == self.current_project.owner:
+            print(f"{Fore.RED}User is already the project owner.")
+            return
+
+        # Add collaborator
+        result = self.orchestrator.process_request('project_manager', {
+            'action': 'add_collaborator',
+            'project': self.current_project,
+            'username': username
+        })
+
+        if result['status'] == 'success':
+            print(f"{Fore.GREEN}✓ Added '{username}' as collaborator!")
+        else:
+            print(f"{Fore.RED}Error: {result['message']}")
+
+    def _remove_collaborator_ui(self):
+        """UI for removing collaborators"""
+        # Only owner can remove collaborators
+        if self.current_user.username != self.current_project.owner:
+            print(f"{Fore.RED}Only the project owner can remove collaborators.")
+            return
+
+        if not self.current_project.collaborators:
+            print(f"{Fore.YELLOW}No collaborators to remove.")
+            return
+
+        print(f"\n{Fore.YELLOW}Current Collaborators:")
+        for i, collaborator in enumerate(self.current_project.collaborators, 1):
+            print(f"{i}. {collaborator}")
+
+        try:
+            choice = int(
+                input(f"{Fore.WHITE}Select collaborator to remove (1-{len(self.current_project.collaborators)}): ")) - 1
+            if 0 <= choice < len(self.current_project.collaborators):
+                username = self.current_project.collaborators[choice]
+
+                confirm = input(f"{Fore.YELLOW}Remove '{username}'? (y/n): ").lower()
+                if confirm == 'y':
+                    result = self.orchestrator.process_request('project_manager', {
+                        'action': 'remove_collaborator',
+                        'project': self.current_project,
+                        'username': username,
+                        'requester': self.current_user.username
+                    })
+
+                    if result['status'] == 'success':
+                        print(f"{Fore.GREEN}✓ Removed '{username}' from project!")
+                    else:
+                        print(f"{Fore.RED}Error: {result['message']}")
+            else:
+                print(f"{Fore.RED}Invalid selection.")
+        except ValueError:
+            print(f"{Fore.RED}Invalid input.")
 
 
 # Entry Point

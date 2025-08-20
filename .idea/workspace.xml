@@ -5,6 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7 new">
+      <change afterPath="$PROJECT_DIR$/socratic_rag.db" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Socratic6.2.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic6.2.py" afterDir="false" />
     </list>
@@ -193,14 +194,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1750504324591</updated>
-    </task>
-    <task id="LOCAL-00039" summary="Socratic 5.2">
-      <option name="closed" value="true" />
-      <created>1752643461627</created>
-      <option name="number" value="00039" />
-      <option name="presentableId" value="LOCAL-00039" />
-      <option name="project" value="LOCAL" />
-      <updated>1752643461627</updated>
     </task>
     <task id="LOCAL-00040" summary="Socratic 5.2">
       <option name="closed" value="true" />
@@ -586,7 +579,15 @@
       <option name="project" value="LOCAL" />
       <updated>1755676018975</updated>
     </task>
-    <option name="localTasksCounter" value="88" />
+    <task id="LOCAL-00088" summary="7 new">
+      <option name="closed" value="true" />
+      <created>1755677341380</created>
+      <option name="number" value="00088" />
+      <option name="presentableId" value="LOCAL-00088" />
+      <option name="project" value="LOCAL" />
+      <updated>1755677341380</updated>
+    </task>
+    <option name="localTasksCounter" value="89" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
