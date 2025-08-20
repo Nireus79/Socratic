@@ -4,11 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="sql">
-      <change afterPath="$PROJECT_DIR$/Socratic7.1.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/4c8339b8-8135-4f67-863b-fede73b946f0/length.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/4c8339b8-8135-4f67-863b-fede73b946f0/length.bin" afterDir="false" />
-    </list>
+    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="sql" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -147,14 +143,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1750504324591</updated>
-    </task>
-    <task id="LOCAL-00041" summary="Socratic 5.2">
-      <option name="closed" value="true" />
-      <created>1752652695569</created>
-      <option name="number" value="00041" />
-      <option name="presentableId" value="LOCAL-00041" />
-      <option name="project" value="LOCAL" />
-      <updated>1752652695569</updated>
     </task>
     <task id="LOCAL-00042" summary="Socratic 5.2">
       <option name="closed" value="true" />
@@ -540,7 +528,15 @@
       <option name="project" value="LOCAL" />
       <updated>1755717452477</updated>
     </task>
-    <option name="localTasksCounter" value="90" />
+    <task id="LOCAL-00090" summary="sql">
+      <option name="closed" value="true" />
+      <created>1755724764482</created>
+      <option name="number" value="00090" />
+      <option name="presentableId" value="LOCAL-00090" />
+      <option name="project" value="LOCAL" />
+      <updated>1755724764483</updated>
+    </task>
+    <option name="localTasksCounter" value="91" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">

@@ -827,4 +827,797 @@ Provide a complete, working implementation."""
                 if msg.get('type') == 'user' and len(msg['content']) > 20
             ]
             if recent_user_responses:
-                context_parts.append(f"
+                context_parts.append(f"Recent Context: {' | '.join(recent_user_responses[-3:])}")
+
+        return '\n'.join(context_parts)
+
+
+class KnowledgeManager(BaseAgent):
+    """Enhanced knowledge management with vector search"""
+
+    def __init__(self, orchestrator):
+        super().__init__("KnowledgeManager", orchestrator)
+        self.embedding_model = None
+        self.chroma_client = None
+        self.collection = None
+        self._initialize_knowledge_base()
+
+    def _initialize_knowledge_base(self):
+        """Initialize ChromaDB and embedding model"""
+        try:
+            # Initialize embedding model
+            self.embedding_model = SentenceTransformer(CONFIG.EMBEDDING_MODEL)
+
+            # Initialize ChromaDB
+            chroma_db_path = os.path.join(CONFIG.DATA_DIR, 'chroma_db')
+            os.makedirs(chroma_db_path, exist_ok=True)
+
+            self.chroma_client = chromadb.PersistentClient(path=chroma_db_path)
+
+            # Get or create collection
+            try:
+                self.collection = self.chroma_client.get_collection("socratic_knowledge")
+            except:
+                self.collection = self.chroma_client.create_collection("socratic_knowledge")
+
+            self.log("Knowledge base initialized successfully")
+
+        except Exception as e:
+            self.log(f"Knowledge base initialization failed: {e}", "ERROR")
+            self.embedding_model = None
+            self.chroma_client = None
+
+    async def process(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        action = request.get('action')
+
+        handlers = {
+            'store_knowledge': self._store_knowledge,
+            'retrieve_knowledge': self._retrieve_knowledge,
+            'update_project_knowledge': self._update_project_knowledge,
+            'search_similar_projects': self._search_similar_projects
+        }
+
+        handler = handlers.get(action)
+        if handler:
+            return await handler(request)
+
+        return {'status': 'error', 'message': f'Unknown action: {action}'}
+
+    @measure_time
+    async def _store_knowledge(self, request: Dict) -> Dict:
+        """Store knowledge with embeddings"""
+        if not self.collection:
+            return {'status': 'error', 'message': 'Knowledge base not available'}
+
+        knowledge_id = request.get('id', str(uuid.uuid4()))
+        content = request.get('content')
+        metadata = request.get('metadata', {})
+
+        try:
+            # Generate embedding
+            embedding = self.embedding_model.encode(content).tolist()
+
+            # Store in ChromaDB
+            self.collection.upsert(
+                ids=[knowledge_id],
+                embeddings=[embedding],
+                documents=[content],
+                metadatas=[metadata]
+            )
+
+            return {'status': 'success', 'id': knowledge_id}
+
+        except Exception as e:
+            self.log(f"Knowledge storage failed: {e}", "ERROR")
+            return {'status': 'error', 'message': str(e)}
+
+    @measure_time
+    async def _retrieve_knowledge(self, request: Dict) -> Dict:
+        """Retrieve relevant knowledge using similarity search"""
+        if not self.collection:
+            return {'status': 'success', 'results': []}
+
+        query = request.get('query')
+        limit = request.get('limit', 5)
+
+        try:
+            # Generate query embedding
+            query_embedding = self.embedding_model.encode(query).tolist()
+
+            # Search similar content
+            results = self.collection.query(
+                query_embeddings=[query_embedding],
+                n_results=limit
+            )
+
+            # Format results
+            formatted_results = []
+            if results['documents']:
+                for i, doc in enumerate(results['documents'][0]):
+                    formatted_results.append({
+                        'content': doc,
+                        'metadata': results['metadatas'][0][i] if results['metadatas'] else {},
+                        'distance': results['distances'][0][i] if results['distances'] else 0
+                    })
+
+            return {'status': 'success', 'results': formatted_results}
+
+        except Exception as e:
+            self.log(f"Knowledge retrieval failed: {e}", "ERROR")
+            return {'status': 'success', 'results': []}
+
+
+class ClaudeClient:
+    """Enhanced Claude API client with rate limiting and error handling"""
+
+    def __init__(self, api_key: str):
+        self.client = anthropic.Anthropic(api_key=api_key)
+        self.token_usage: deque = deque(maxlen=CONFIG.MAX_TOKEN_USAGE_HISTORY)
+        self.request_semaphore = asyncio.Semaphore(CONFIG.MAX_CONCURRENT_REQUESTS)
+        self.last_request_time = 0
+        self.min_request_interval = 1.0  # Minimum seconds between requests
+
+    @retry_with_backoff(max_retries=CONFIG.MAX_RETRIES, base_delay=CONFIG.RETRY_DELAY)
+    async def generate_response(self, prompt: str, max_tokens: int = 1000,
+                                temperature: float = 0.7, system_prompt: str = None) -> str:
+        """Generate response with async support and rate limiting"""
+        async with self.request_semaphore:
+            # Rate limiting
+            current_time = time.time()
+            time_since_last = current_time - self.last_request_time
+            if time_since_last < self.min_request_interval:
+                await asyncio.sleep(self.min_request_interval - time_since_last)
+
+            try:
+                messages = [{"role": "user", "content": prompt}]
+
+                kwargs = {
+                    "model": CONFIG.CLAUDE_MODEL,
+                    "messages": messages,
+                    "max_tokens": max_tokens,
+                    "temperature": temperature
+                }
+
+                if system_prompt:
+                    kwargs["system"] = system_prompt
+
+                # Run in executor to avoid blocking
+                loop = asyncio.get_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: self.client.messages.create(**kwargs)
+                )
+
+                # Track usage
+                if hasattr(response, 'usage'):
+                    self.token_usage.append({
+                        'timestamp': datetime.datetime.now(),
+                        'input_tokens': response.usage.input_tokens,
+                        'output_tokens': response.usage.output_tokens
+                    })
+
+                self.last_request_time = time.time()
+                return response.content[0].text
+
+            except Exception as e:
+                logger.error(f"Claude API error: {e}")
+                raise
+
+    def generate_response_sync(self, prompt: str, max_tokens: int = 1000,
+                               temperature: float = 0.7) -> str:
+        """Synchronous version for use in executors"""
+        try:
+            response = self.client.messages.create(
+                model=CONFIG.CLAUDE_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+                temperature=temperature
+            )
+            return response.content[0].text
+        except Exception as e:
+            logger.error(f"Claude API sync error: {e}")
+            raise
+
+    def get_token_usage_stats(self) -> Dict:
+        """Get token usage statistics"""
+        if not self.token_usage:
+            return {'total_input': 0, 'total_output': 0, 'requests': 0}
+
+        total_input = sum(usage['input_tokens'] for usage in self.token_usage)
+        total_output = sum(usage['output_tokens'] for usage in self.token_usage)
+
+        return {
+            'total_input': total_input,
+            'total_output': total_output,
+            'requests': len(self.token_usage),
+            'avg_input': total_input / len(self.token_usage) if self.token_usage else 0,
+            'avg_output': total_output / len(self.token_usage) if self.token_usage else 0
+        }
+
+
+class SystemOrchestrator:
+    """Main orchestrator for the Socratic development system"""
+
+    def __init__(self, data_dir: str = None):
+        self.data_dir = data_dir or CONFIG.DATA_DIR
+        self.metrics = SystemMetrics()
+        self.claude_client: Optional[ClaudeClient] = None
+        self.db_pool: Optional[DatabasePool] = None
+
+        # Initialize agents
+        self.session_manager = SessionManager(self)
+        self.conversation_engine = ConversationEngine(self)
+        self.content_generator = ContentGenerator(self)
+        self.knowledge_manager = KnowledgeManager(self)
+
+        # Auto-save thread
+        self._auto_save_thread = None
+        self._shutdown_flag = threading.Event()
+
+        self._initialize_system()
+
+    def _initialize_system(self):
+        """Initialize the complete system"""
+        try:
+            # Create data directory
+            os.makedirs(self.data_dir, exist_ok=True)
+
+            # Initialize database
+            self._initialize_database()
+
+            # Initialize Claude client if API key available
+            api_key = os.getenv('ANTHROPIC_API_KEY')
+            if api_key:
+                self.claude_client = ClaudeClient(api_key)
+                logger.info("Claude client initialized")
+            else:
+                logger.warning("ANTHROPIC_API_KEY not found. Dynamic features disabled.")
+
+            # Start auto-save thread
+            self._start_auto_save()
+
+            logger.info("System initialization completed successfully")
+
+        except Exception as e:
+            logger.error(f"System initialization failed: {e}")
+            raise
+
+    def _initialize_database(self):
+        """Initialize SQLite database with connection pooling"""
+        db_path = os.path.join(self.data_dir, 'socratic.db')
+        self.db_pool = DatabasePool(db_path, CONFIG.CONNECTION_POOL_SIZE)
+
+        # Create tables
+        with self.db_pool.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Users table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    username TEXT PRIMARY KEY,
+                    passcode_hash TEXT NOT NULL,
+                    data BLOB NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+            ''')
+
+            # Projects table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS projects (
+                    project_id TEXT PRIMARY KEY,
+                    data BLOB NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    version INTEGER DEFAULT 1
+                )
+            ''')
+
+            # Metrics table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS metrics (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    data BLOB NOT NULL
+                )
+            ''')
+
+            # Conversations table for backup
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS conversations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    project_id TEXT NOT NULL,
+                    conversation_data BLOB NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    FOREIGN KEY (project_id) REFERENCES projects (project_id)
+                )
+            ''')
+
+            conn.commit()
+
+        logger.info("Database initialized successfully")
+
+    def _start_auto_save(self):
+        """Start auto-save thread for periodic data persistence"""
+
+        def auto_save_worker():
+            while not self._shutdown_flag.wait(CONFIG.AUTO_SAVE_INTERVAL):
+                try:
+                    self._perform_auto_save()
+                except Exception as e:
+                    logger.error(f"Auto-save failed: {e}")
+
+        self._auto_save_thread = threading.Thread(target=auto_save_worker, daemon=True)
+        self._auto_save_thread.start()
+
+    def _perform_auto_save(self):
+        """Perform automatic data persistence"""
+        # Save metrics
+        with self.db_pool.get_connection() as conn:
+            cursor = conn.cursor()
+            metrics_data = pickle.dumps(asdict(self.metrics))
+            cursor.execute(
+                'INSERT INTO metrics (timestamp, data) VALUES (?, ?)',
+                (datetime.datetime.now().isoformat(), metrics_data)
+            )
+            conn.commit()
+
+    async def process_request(self, agent_name: str, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Route requests to appropriate agents"""
+        agents = {
+            'session': self.session_manager,
+            'conversation': self.conversation_engine,
+            'content': self.content_generator,
+            'knowledge': self.knowledge_manager
+        }
+
+        agent = agents.get(agent_name)
+        if agent:
+            return await agent.process(request)
+
+        return {'status': 'error', 'message': f'Unknown agent: {agent_name}'}
+
+    def get_system_status(self) -> Dict[str, Any]:
+        """Get comprehensive system status"""
+        return {
+            'uptime': datetime.datetime.now() - self.metrics.uptime_start,
+            'active_sessions': len(self.session_manager.active_sessions),
+            'cached_projects': len(self.session_manager.project_cache),
+            'metrics': asdict(self.metrics),
+            'claude_available': self.claude_client is not None,
+            'knowledge_base_available': self.knowledge_manager.collection is not None,
+            'token_usage': self.claude_client.get_token_usage_stats() if self.claude_client else {}
+        }
+
+    def shutdown(self):
+        """Graceful shutdown of the system"""
+        logger.info("Shutting down system...")
+
+        # Signal shutdown
+        self._shutdown_flag.set()
+
+        # Wait for auto-save thread
+        if self._auto_save_thread and self._auto_save_thread.is_alive():
+            self._auto_save_thread.join(timeout=5)
+
+        # Final save
+        self._perform_auto_save()
+
+        # Close content generator executor
+        if hasattr(self.content_generator, 'executor'):
+            self.content_generator.executor.shutdown(wait=True)
+
+        logger.info("System shutdown complete")
+
+
+class SocraticInterface:
+    """Enhanced command-line interface with better UX"""
+
+    def __init__(self):
+        self.orchestrator = SystemOrchestrator()
+        self.current_session = None
+        self.current_project = None
+
+        # Interface state
+        self.show_system_info = True
+        self.auto_advance_phases = False
+        self.conversation_limit = 10
+
+    def print_header(self):
+        """Print enhanced system header"""
+        print(f"{Fore.CYAN}{'=' * 60}")
+        print(f"{Style.BRIGHT}🧠 Socratic Development Assistant v7.1")
+        print(f"{Style.NORMAL}Advanced AI-Powered Project Development")
+        print(f"{'=' * 60}{Style.RESET_ALL}")
+
+        if self.show_system_info:
+            status = self.orchestrator.get_system_status()
+            print(f"{Fore.GREEN}📊 System Status:")
+            print(f"  • Claude API: {'✓ Available' if status['claude_available'] else '✗ Unavailable'}")
+            print(f"  • Knowledge Base: {'✓ Ready' if status['knowledge_base_available'] else '✗ Not Ready'}")
+            print(f"  • Active Sessions: {status['active_sessions']}")
+            print(f"  • Uptime: {str(status['uptime']).split('.')[0]}")
+
+            if status['token_usage']:
+                usage = status['token_usage']
+                print(f"  • API Usage: {usage['requests']} requests, {usage['total_input']} input tokens")
+            print()
+
+    async def run(self):
+        """Enhanced main interface loop"""
+        try:
+            self.print_header()
+
+            # Authentication
+            session_result = await self._handle_authentication()
+            if not session_result:
+                return
+
+            # Main loop
+            while True:
+                try:
+                    if not self.current_project:
+                        await self._handle_project_selection()
+                    else:
+                        await self._handle_conversation()
+
+                except KeyboardInterrupt:
+                    print(
+                        f"\n{Fore.YELLOW}⏸️  Session paused. Type 'exit' to quit or continue conversation.{Style.RESET_ALL}")
+                except Exception as e:
+                    print(f"{Fore.RED}❌ Error: {e}{Style.RESET_ALL}")
+                    logger.error(f"Interface error: {e}")
+
+        except KeyboardInterrupt:
+            print(f"\n{Fore.CYAN}👋 Goodbye!{Style.RESET_ALL}")
+        finally:
+            self.orchestrator.shutdown()
+
+    async def _handle_authentication(self) -> bool:
+        """Enhanced authentication with registration option"""
+        print(f"{Fore.YELLOW}🔐 Authentication Required{Style.RESET_ALL}")
+
+        while True:
+            username = input("Username: ").strip()
+            if not username:
+                continue
+
+            choice = input("(L)ogin or (R)egister? ").strip().lower()
+
+            if choice.startswith('r'):
+                # Registration
+                if len(username) < 2:
+                    print(f"{Fore.RED}Username must be at least 2 characters{Style.RESET_ALL}")
+                    continue
+
+                passcode = getpass.getpass("Create passcode: ")
+                confirm_passcode = getpass.getpass("Confirm passcode: ")
+
+                if passcode != confirm_passcode:
+                    print(f"{Fore.RED}Passcodes don't match{Style.RESET_ALL}")
+                    continue
+
+                # Create user
+                result = await self.orchestrator.process_request('session', {
+                    'action': 'create_user',
+                    'username': username,
+                    'passcode': passcode
+                })
+
+                if result['status'] == 'success':
+                    print(f"{Fore.GREEN}✓ User registered successfully{Style.RESET_ALL}")
+                    # Continue to login
+                    choice = 'l'
+                else:
+                    print(f"{Fore.RED}Registration failed: {result.get('message', 'Unknown error')}{Style.RESET_ALL}")
+                    continue
+
+            if choice.startswith('l'):
+                # Login
+                passcode = getpass.getpass("Passcode: ")
+
+                result = await self.orchestrator.process_request('session', {
+                    'action': 'authenticate_user',
+                    'username': username,
+                    'passcode': passcode
+                })
+
+                if result['status'] == 'success':
+                    self.current_session = result
+                    user = result['user']
+                    print(f"{Fore.GREEN}✓ Welcome back, {user['username']}!{Style.RESET_ALL}")
+                    if user.get('last_login'):
+                        print(f"Last login: {user['last_login']}")
+                    print()
+                    return True
+                else:
+                    print(
+                        f"{Fore.RED}Authentication failed: {result.get('message', 'Invalid credentials')}{Style.RESET_ALL}")
+
+    async def _handle_project_selection(self):
+        """Enhanced project selection with management options"""
+        print(f"{Fore.CYAN}📁 Project Management{Style.RESET_ALL}")
+
+        # List existing projects
+        projects_result = await self.orchestrator.process_request('session', {
+            'action': 'list_projects',
+            'username': self.current_session['user']['username']
+        })
+
+        projects = projects_result.get('projects', [])
+
+        if projects:
+            print("Your projects:")
+            for i, project in enumerate(projects, 1):
+                phase_color = self._get_phase_color(project.get('phase', 'discovery'))
+                print(f"  {i}. {Fore.WHITE}{project['name']}{Style.RESET_ALL} "
+                      f"({phase_color}{project.get('phase', 'discovery')}{Style.RESET_ALL})")
+
+        print("\nOptions:")
+        print("  (N)ew project")
+        if projects:
+            print("  (1-9) Select project")
+        print("  (E)xit")
+
+        choice = input("\nChoice: ").strip().lower()
+
+        if choice == 'n':
+            await self._create_new_project()
+        elif choice == 'e':
+            exit(0)
+        elif choice.isdigit() and 1 <= int(choice) <= len(projects):
+            selected_project = projects[int(choice) - 1]
+            await self._load_project(selected_project['project_id'])
+        else:
+            print(f"{Fore.YELLOW}Invalid choice{Style.RESET_ALL}")
+
+    async def _create_new_project(self):
+        """Create new project with enhanced setup"""
+        print(f"\n{Fore.CYAN}🚀 Create New Project{Style.RESET_ALL}")
+
+        name = input("Project name: ").strip()
+        if not name:
+            print(f"{Fore.RED}Project name is required{Style.RESET_ALL}")
+            return
+
+        result = await self.orchestrator.process_request('session', {
+            'action': 'create_project',
+            'project_name': name,
+            'owner': self.current_session['user']['username']
+        })
+
+        if result['status'] == 'success':
+            self.current_project = result['project']
+            print(f"{Fore.GREEN}✓ Project '{name}' created successfully!{Style.RESET_ALL}")
+
+            # Optional quick setup
+            if input("\nWould you like to do quick setup? (y/n): ").strip().lower() == 'y':
+                await self._quick_project_setup()
+        else:
+            print(f"{Fore.RED}Failed to create project: {result.get('message')}{Style.RESET_ALL}")
+
+    async def _quick_project_setup(self):
+        """Quick project configuration"""
+        project = self.current_project
+
+        print(f"{Fore.YELLOW}Quick Setup for {project['name']}{Style.RESET_ALL}")
+
+        # Goals
+        goals = input("Project goals (optional): ").strip()
+        if goals:
+            project['goals'] = goals
+
+        # Tech stack
+        tech = input("Primary technology (e.g., python, javascript): ").strip()
+        if tech:
+            project['tech_stack'] = [tech]
+
+        # Save project
+        await self.orchestrator.process_request('session', {
+            'action': 'save_project',
+            'project': project
+        })
+
+        print(f"{Fore.GREEN}✓ Quick setup completed{Style.RESET_ALL}\n")
+
+    async def _load_project(self, project_id: str):
+        """Load existing project"""
+        result = await self.orchestrator.process_request('session', {
+            'action': 'load_project',
+            'project_id': project_id
+        })
+
+        if result['status'] == 'success':
+            self.current_project = result['project']
+            project = self.current_project
+            print(f"{Fore.GREEN}✓ Loaded project: {project['name']}{Style.RESET_ALL}")
+
+            # Show project summary
+            print(f"  Phase: {self._get_phase_color(project['phase'])}{project['phase']}{Style.RESET_ALL}")
+            if project.get('goals'):
+                print(f"  Goals: {project['goals'][:100]}...")
+            if project.get('tech_stack'):
+                print(f"  Tech: {', '.join(project['tech_stack'][:3])}")
+            print()
+        else:
+            print(f"{Fore.RED}Failed to load project{Style.RESET_ALL}")
+
+    async def _handle_conversation(self):
+        """Enhanced conversation handling"""
+        project = self.current_project
+
+        # Show conversation header
+        self._print_conversation_header()
+
+        # Handle conversation commands
+        user_input = input(f"{Fore.BLUE}> {Style.RESET_ALL}").strip()
+
+        if not user_input:
+            return
+
+        # Handle commands
+        if user_input.startswith('/'):
+            await self._handle_command(user_input)
+            return
+
+        # Process conversation turn
+        await self._process_conversation_turn(user_input)
+
+    def _print_conversation_header(self):
+        """Print conversation status header"""
+        project = self.current_project
+        phase_color = self._get_phase_color(project['phase'])
+
+        print(f"\n{Fore.CYAN}💬 {project['name']} - {phase_color}{project['phase'].title()} Phase{Style.RESET_ALL}")
+
+        # Show progress
+        conversation_count = len([msg for msg in project.get('conversation_history', [])
+                                  if msg.get('type') == 'user'])
+        print(f"Conversation turns: {conversation_count}")
+
+        if conversation_count == 0:
+            print(f"{Fore.YELLOW}💡 This is your first conversation in this project!{Style.RESET_ALL}")
+
+        print("Commands: /help /save /phase /generate /exit")
+        print()
+
+    async def _handle_command(self, command: str):
+        """Handle special commands"""
+        cmd = command.lower().split()[0]
+
+        if cmd == '/help':
+            self._show_help()
+        elif cmd == '/save':
+            await self._save_project()
+        elif cmd == '/phase':
+            await self._manage_phases()
+        elif cmd == '/generate':
+            await self._generate_content()
+        elif cmd == '/status':
+            self._show_project_status()
+        elif cmd == '/settings':
+            await self._manage_settings()
+        elif cmd == '/exit':
+            if input("Save project before exit? (y/n): ").strip().lower() == 'y':
+                await self._save_project()
+            self.current_project = None
+        else:
+            print(f"{Fore.RED}Unknown command: {cmd}{Style.RESET_ALL}")
+
+    def _show_help(self):
+        """Show help information"""
+        print(f"{Fore.CYAN}Available Commands:{Style.RESET_ALL}")
+        commands = [
+            "/help - Show this help",
+            "/save - Save current project",
+            "/phase - Manage project phases",
+            "/generate - Generate code/docs",
+            "/status - Show project status",
+            "/settings - Manage settings",
+            "/exit - Return to project selection"
+        ]
+        for cmd in commands:
+            print(f"  {cmd}")
+        print()
+
+    async def _process_conversation_turn(self, user_input: str):
+        """Process a complete conversation turn"""
+        project = self.current_project
+
+        # Generate question if needed
+        if len(project.get('conversation_history', [])) == 0 or \
+                project.get('conversation_history', [])[-1].get('type') == 'user':
+
+            print(f"{Fore.YELLOW}🤔 Generating question...{Style.RESET_ALL}")
+
+            question_result = await self.orchestrator.process_request('conversation', {
+                'action': 'generate_question',
+                'project': project,
+                'use_dynamic': True
+            })
+
+            if question_result['status'] == 'success':
+                question = question_result['question']
+                cached = question_result.get('cached', False)
+                cache_indicator = " 📋" if cached else ""
+
+                print(f"\n{Fore.GREEN}🧠 Socratic Question{cache_indicator}:{Style.RESET_ALL}")
+                print(f"{question}\n")
+
+                # Get user response
+                response = input(f"{Fore.BLUE}Your response: {Style.RESET_ALL}").strip()
+                if not response:
+                    return
+
+                user_input = response
+
+        # Process user response
+        print(f"{Fore.YELLOW}🔍 Analyzing response...{Style.RESET_ALL}")
+
+        response_result = await self.orchestrator.process_request('conversation', {
+            'action': 'process_response',
+            'project': project,
+            'response': user_input,
+            'current_user': self.current_session['user']['username']
+        })
+
+        if response_result['status'] == 'success':
+            insights = response_result.get('insights', {})
+            conflicts = response_result.get('conflicts', [])
+
+            # Show insights
+            if insights:
+                print(f"{Fore.GREEN}✨ Insights extracted:{Style.RESET_ALL}")
+                for key, value in insights.items():
+                    if value:
+                        if isinstance(value, list):
+                            print(f"  • {key.title()}: {', '.join(value)}")
+                        else:
+                            print(f"  • {key.title()}: {value}")
+
+            # Handle conflicts
+            if conflicts:
+                print(f"{Fore.RED}⚠️  Conflicts detected:{Style.RESET_ALL}")
+                for conflict in conflicts:
+                    print(f"  • {conflict}")
+
+                if input("Resolve conflicts now? (y/n): ").strip().lower() == 'y':
+                    await self._resolve_conflicts(conflicts)
+
+            # Auto-save
+            await self._save_project(silent=True)
+
+            # Phase advancement check
+            if self.auto_advance_phases:
+                await self._check_phase_advancement()
+
+    def _get_phase_color(self, phase: str) -> str:
+        """Get color for phase display"""
+        colors = {
+            'discovery': Fore.BLUE,
+            'analysis': Fore.YELLOW,
+            'design': Fore.MAGENTA,
+            'implementation': Fore.GREEN
+        }
+        return colors.get(phase, Fore.WHITE)
+
+    async def _save_project(self, silent: bool = False):
+        """Save current project"""
+        if not self.current_project:
+            return
+
+        result = await self.orchestrator.process_request('session', {
+            'action': 'save_project',
+            'project': self.current_project
+        })
+
+        if not silent:
+            if result['status'] == 'success':
+                print(f"{Fore.GREEN}✓ Project saved{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.RED}Save failed: {result.get('message')}{Style.RESET_ALL}")
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    interface = SocraticInterface()
+    asyncio.run(interface.run())
