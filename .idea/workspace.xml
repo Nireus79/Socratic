@@ -4,13 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7 new">
-      <change afterPath="$PROJECT_DIR$/socratic_data/projects.db" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/socratic_data/vector_db/9f1be5b5-74f3-4b5d-a949-c0d1c623b044/data_level0.bin" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/socratic_data/vector_db/9f1be5b5-74f3-4b5d-a949-c0d1c623b044/header.bin" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/socratic_data/vector_db/9f1be5b5-74f3-4b5d-a949-c0d1c623b044/length.bin" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/socratic_data/vector_db/9f1be5b5-74f3-4b5d-a949-c0d1c623b044/link_lists.bin" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/socratic_data/vector_db/chroma.sqlite3" afterDir="false" />
+    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="conflicts">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Socratic6.2.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic6.2.py" afterDir="false" />
     </list>
@@ -152,14 +146,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1750504324591</updated>
-    </task>
-    <task id="LOCAL-00036" summary="Socratic 5.1">
-      <option name="closed" value="true" />
-      <created>1752642297206</created>
-      <option name="number" value="00036" />
-      <option name="presentableId" value="LOCAL-00036" />
-      <option name="project" value="LOCAL" />
-      <updated>1752642297206</updated>
     </task>
     <task id="LOCAL-00037" summary="Socratic 5.1">
       <option name="closed" value="true" />
@@ -545,7 +531,15 @@
       <option name="project" value="LOCAL" />
       <updated>1755636567104</updated>
     </task>
-    <option name="localTasksCounter" value="85" />
+    <task id="LOCAL-00085" summary="conflicts">
+      <option name="closed" value="true" />
+      <created>1755679988218</created>
+      <option name="number" value="00085" />
+      <option name="presentableId" value="LOCAL-00085" />
+      <option name="project" value="LOCAL" />
+      <updated>1755679988218</updated>
+    </task>
+    <option name="localTasksCounter" value="86" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -573,6 +567,7 @@
     <MESSAGE value="7.1" />
     <MESSAGE value="7 new" />
     <MESSAGE value="users" />
-    <option name="LAST_COMMIT_MESSAGE" value="users" />
+    <MESSAGE value="conflicts" />
+    <option name="LAST_COMMIT_MESSAGE" value="conflicts" />
   </component>
 </project>

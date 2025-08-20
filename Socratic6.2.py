@@ -104,6 +104,20 @@ class TokenUsage:
     timestamp: datetime.datetime
 
 
+@dataclass
+class ConflictInfo:
+    conflict_id: str
+    conflict_type: str  # 'tech_stack', 'requirements', 'goals', 'constraints'
+    old_value: str
+    new_value: str
+    old_author: str
+    new_author: str
+    old_timestamp: str
+    new_timestamp: str
+    severity: str  # 'low', 'medium', 'high'
+    suggestions: List[str]
+
+
 # Base Agent Class
 class Agent(ABC):
     def __init__(self, name: str, orchestrator: 'AgentOrchestrator'):
@@ -829,20 +843,6 @@ class SystemMonitorAgent(Agent):
             'warnings': warnings,
             'recent_usage': recent_usage
         }
-
-
-@dataclass
-class ConflictInfo:
-    conflict_id: str
-    conflict_type: str  # 'tech_stack', 'requirements', 'goals', 'constraints'
-    old_value: str
-    new_value: str
-    old_author: str
-    new_author: str
-    old_timestamp: str
-    new_timestamp: str
-    severity: str  # 'low', 'medium', 'high'
-    suggestions: List[str]
 
 
 class ConflictDetectorAgent(Agent):
