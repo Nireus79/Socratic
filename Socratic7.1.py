@@ -9,7 +9,6 @@ import pickle
 import uuid
 import time
 import threading
-import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from collections import deque, defaultdict
 from typing import Dict, List, Optional, Tuple, Any, Union
@@ -21,6 +20,7 @@ import logging
 from functools import wraps, lru_cache
 import numpy as np
 from colorama import init, Fore, Back, Style
+import asyncio
 
 # Third-party imports with better error handling
 try:
@@ -1615,9 +1615,145 @@ class SocraticInterface:
             else:
                 print(f"{Fore.RED}Save failed: {result.get('message')}{Style.RESET_ALL}")
 
+    async def _manage_phases(self):
+        """Manage project phases"""
+        project = self.current_project
+        current_phase = project.get('phase', 'discovery')
+        phases = ['discovery', 'analysis', 'design', 'implementation']
+
+        print(f"{Fore.CYAN}Phase Management{Style.RESET_ALL}")
+        print(f"Current phase: {self._get_phase_color(current_phase)}{current_phase}{Style.RESET_ALL}")
+
+        print("\nAvailable phases:")
+        for i, phase in enumerate(phases, 1):
+            color = self._get_phase_color(phase)
+            marker = "→" if phase == current_phase else " "
+            print(f"  {marker} {i}. {color}{phase.title()}{Style.RESET_ALL}")
+
+        choice = input("\nSelect phase (1-4) or press Enter to cancel: ").strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(phases):
+            new_phase = phases[int(choice) - 1]
+            project['phase'] = new_phase
+            print(f"{Fore.GREEN}✓ Phase changed to {new_phase}{Style.RESET_ALL}")
+            await self._save_project(silent=True)
+
+    async def _generate_content(self):
+        """Generate project content"""
+        print(f"{Fore.CYAN}Content Generation{Style.RESET_ALL}")
+        print("1. Generate code")
+        print("2. Generate documentation")
+        print("3. Generate project report")
+
+        choice = input("Choose option (1-3): ").strip()
+
+        if choice == '1':
+            await self._generate_code_content()
+        elif choice == '2':
+            await self._generate_docs_content()
+        elif choice == '3':
+            await self._generate_report_content()
+        else:
+            print(f"{Fore.YELLOW}Invalid choice{Style.RESET_ALL}")
+
+    async def _generate_code_content(self):
+        """Generate code for the project"""
+        print(f"{Fore.YELLOW}🔧 Generating code...{Style.RESET_ALL}")
+
+        result = await self.orchestrator.process_request('content', {
+            'action': 'generate_code',
+            'project': self.current_project
+        })
+
+        if result['status'] == 'success':
+            code = result['code']
+            cached = result.get('cached', False)
+            cache_indicator = " (cached)" if cached else ""
+
+            print(f"{Fore.GREEN}✓ Code generated{cache_indicator}:{Style.RESET_ALL}\n")
+            print("=" * 60)
+            print(code)
+            print("=" * 60)
+        else:
+            print(f"{Fore.RED}Code generation failed: {result.get('message')}{Style.RESET_ALL}")
+
+    async def _generate_docs_content(self):
+        """Generate documentation"""
+        print(f"{Fore.GREEN}📝 Documentation generation not yet implemented{Style.RESET_ALL}")
+
+    async def _generate_report_content(self):
+        """Generate project report"""
+        print(f"{Fore.GREEN}📊 Report generation not yet implemented{Style.RESET_ALL}")
+
+    def _show_project_status(self):
+        """Show detailed project status"""
+        project = self.current_project
+        print(f"{Fore.CYAN}📊 Project Status: {project['name']}{Style.RESET_ALL}")
+
+        print(f"  Phase: {self._get_phase_color(project['phase'])}{project['phase']}{Style.RESET_ALL}")
+        print(f"  Owner: {project['owner']}")
+        print(f"  Created: {project.get('created_at', 'Unknown')}")
+        print(f"  Updated: {project.get('updated_at', 'Unknown')}")
+        print(f"  Version: {project.get('version', 1)}")
+
+        if project.get('goals'):
+            print(f"  Goals: {project['goals']}")
+
+        if project.get('tech_stack'):
+            print(f"  Tech Stack: {', '.join(project['tech_stack'])}")
+
+        if project.get('requirements'):
+            print(f"  Requirements: {len(project['requirements'])} items")
+
+        conversation_count = len([msg for msg in project.get('conversation_history', [])
+                                  if msg.get('type') == 'user'])
+        print(f"  Conversation Turns: {conversation_count}")
+
+    async def _manage_settings(self):
+        """Manage application settings"""
+        print(f"{Fore.CYAN}⚙️  Settings{Style.RESET_ALL}")
+        print(f"1. Show system info: {'✓' if self.show_system_info else '✗'}")
+        print(f"2. Auto-advance phases: {'✓' if self.auto_advance_phases else '✗'}")
+        print(f"3. Conversation limit: {self.conversation_limit}")
+
+        choice = input("Toggle setting (1-3) or press Enter: ").strip()
+
+        if choice == '1':
+            self.show_system_info = not self.show_system_info
+            print(f"System info display: {'enabled' if self.show_system_info else 'disabled'}")
+        elif choice == '2':
+            self.auto_advance_phases = not self.auto_advance_phases
+            print(f"Auto-advance phases: {'enabled' if self.auto_advance_phases else 'disabled'}")
+        elif choice == '3':
+            try:
+                new_limit = int(input("New conversation limit: "))
+                self.conversation_limit = max(1, min(50, new_limit))
+                print(f"Conversation limit set to: {self.conversation_limit}")
+            except ValueError:
+                print("Invalid number")
+
+    async def _resolve_conflicts(self, conflicts):
+        """Resolve project conflicts"""
+        print(f"{Fore.YELLOW}Conflict resolution not yet implemented{Style.RESET_ALL}")
+
+    async def _check_phase_advancement(self):
+        """Check if project should advance to next phase"""
+        project = self.current_project
+        conversation_count = len([msg for msg in project.get('conversation_history', [])
+                                  if msg.get('type') == 'user'])
+
+        if conversation_count >= self.conversation_limit:
+            result = await self.orchestrator.process_request('conversation', {
+                'action': 'advance_phase',
+                'project': project
+            })
+
+            if result['status'] == 'success':
+                new_phase = result['new_phase']
+                project['phase'] = new_phase
+                print(f"{Fore.GREEN}🎉 Advanced to {new_phase} phase!{Style.RESET_ALL}")
+                await self._save_project(silent=True)
+
 
 if __name__ == "__main__":
-    import asyncio
-
     interface = SocraticInterface()
     asyncio.run(interface.run())
