@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""
-Enhanced Socratic RAG System v7.0
-Multi-agent architecture with vector database and improved user experience
-FIXED VERSION - Addresses duplicate knowledge entries and user creation issues
-"""
 
 import os
 import json
@@ -18,6 +13,8 @@ from abc import ABC, abstractmethod
 import sqlite3
 import threading
 import time
+import numpy as np
+from colorama import init, Fore, Back, Style
 
 # Third-party imports
 try:
@@ -38,9 +35,6 @@ try:
 except ImportError:
     print("Sentence Transformers not found. Install with: pip install sentence-transformers")
     exit(1)
-
-import numpy as np
-from colorama import init, Fore, Back, Style
 
 init(autoreset=True)
 
@@ -2055,12 +2049,10 @@ class SocraticRAGSystem:
         print(f"Phase: {self.current_project.phase}")
 
         while True:
-            # Generate next question
-            # Process response
             result = self.orchestrator.process_request('socratic_counselor', {
                 'action': 'process_response',
                 'project': self.current_project,
-                'response': response,
+                'response': response,  # TODO
                 'current_user': self.current_user.username  # ADD THIS LINE
             })
 
