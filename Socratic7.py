@@ -1180,8 +1180,8 @@ class ProjectDatabase:
             CREATE TABLE IF NOT EXISTS projects (
                 project_id TEXT PRIMARY KEY,
                 data BLOB,
-                created_at TIMESTAMP,
-                updated_at TIMESTAMP
+                created_at TEXT,
+                updated_at TEXT
             )
         ''')
 
@@ -1190,12 +1190,24 @@ class ProjectDatabase:
                 username TEXT PRIMARY KEY,
                 passcode_hash TEXT,
                 data BLOB,
-                created_at TIMESTAMP
+                created_at TEXT
             )
         ''')
 
         conn.commit()
         conn.close()
+
+    def _serialize_datetime(self, dt: datetime.datetime) -> str:
+        """Convert datetime to ISO format string"""
+        return dt.isoformat()
+
+    def _deserialize_datetime(self, dt_string: str) -> datetime.datetime:
+        """Convert ISO format string back to datetime"""
+        try:
+            return datetime.datetime.fromisoformat(dt_string)
+        except (ValueError, AttributeError):
+            # Fallback for older datetime formats
+            return datetime.datetime.strptime(dt_string, "%Y-%m-%d %H:%M:%S.%f")
 
     def save_project(self, project: ProjectContext):
         """Save project to database"""
@@ -1203,11 +1215,13 @@ class ProjectDatabase:
         cursor = conn.cursor()
 
         data = pickle.dumps(asdict(project))
+        created_at_str = self._serialize_datetime(project.created_at)
+        updated_at_str = self._serialize_datetime(project.updated_at)
 
         cursor.execute('''
             INSERT OR REPLACE INTO projects (project_id, data, created_at, updated_at)
             VALUES (?, ?, ?, ?)
-        ''', (project.project_id, data, project.created_at, project.updated_at))
+        ''', (project.project_id, data, created_at_str, updated_at_str))
 
         conn.commit()
         conn.close()
@@ -1224,6 +1238,11 @@ class ProjectDatabase:
 
         if result:
             data = pickle.loads(result[0])
+            # Convert datetime strings back to datetime objects if needed
+            if isinstance(data.get('created_at'), str):
+                data['created_at'] = self._deserialize_datetime(data['created_at'])
+            if isinstance(data.get('updated_at'), str):
+                data['updated_at'] = self._deserialize_datetime(data['updated_at'])
             return ProjectContext(**data)
         return None
 
@@ -1232,8 +1251,7 @@ class ProjectDatabase:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
-        # FIX: Use a simpler query that works with pickle data
-        cursor.execute('SELECT project_id, data FROM projects', ())
+        cursor.execute('SELECT project_id, data FROM projects')
         results = cursor.fetchall()
         conn.close()
 
@@ -1241,6 +1259,11 @@ class ProjectDatabase:
         for project_id, data in results:
             try:
                 project_data = pickle.loads(data)
+
+                # Handle datetime deserialization if needed
+                if isinstance(project_data.get('updated_at'), str):
+                    project_data['updated_at'] = self._deserialize_datetime(project_data['updated_at'])
+
                 # Check if user is owner or collaborator
                 if (project_data['owner'] == username or
                         username in project_data.get('collaborators', [])):
@@ -1248,7 +1271,8 @@ class ProjectDatabase:
                         'project_id': project_id,
                         'name': project_data['name'],
                         'phase': project_data['phase'],
-                        'updated_at': project_data['updated_at']
+                        'updated_at': project_data['updated_at'].strftime("%Y-%m-%d %H:%M:%S") if isinstance(
+                            project_data['updated_at'], datetime.datetime) else str(project_data['updated_at'])
                     })
             except Exception as e:
                 print(f"Warning: Could not load project {project_id}: {e}")
@@ -1261,11 +1285,12 @@ class ProjectDatabase:
         cursor = conn.cursor()
 
         data = pickle.dumps(asdict(user))
+        created_at_str = self._serialize_datetime(user.created_at)
 
         cursor.execute('''
             INSERT OR REPLACE INTO users (username, passcode_hash, data, created_at)
             VALUES (?, ?, ?, ?)
-        ''', (user.username, user.passcode_hash, data, user.created_at))
+        ''', (user.username, user.passcode_hash, data, created_at_str))
 
         conn.commit()
         conn.close()
@@ -1282,6 +1307,9 @@ class ProjectDatabase:
 
         if result:
             data = pickle.loads(result[0])
+            # Convert datetime string back to datetime object if needed
+            if isinstance(data.get('created_at'), str):
+                data['created_at'] = self._deserialize_datetime(data['created_at'])
             return User(**data)
         return None
 
