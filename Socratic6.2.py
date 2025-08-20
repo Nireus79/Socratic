@@ -1097,6 +1097,114 @@ class ClaudeClient:
             print(f"{Fore.RED}Error generating Socratic question: {e}")
             raise e
 
+    def generate_suggestions(self, current_question: str, project: ProjectContext) -> str:
+        """Generate helpful suggestions when user can't answer a question"""
+
+        # Get recent conversation for context
+        recent_conversation = ""
+        if project.conversation_history:
+            recent_messages = project.conversation_history[-6:]  # Last 6 messages
+            for msg in recent_messages:
+                role = "Assistant" if msg['type'] == 'assistant' else "User"
+                recent_conversation += f"{role}: {msg['content']}\n"
+
+        # Get relevant knowledge from vector database
+        relevant_knowledge = ""
+        knowledge_results = self.orchestrator.vector_db.search_similar(current_question, top_k=3)
+        if knowledge_results:
+            relevant_knowledge = "\n".join([result['content'][:300] for result in knowledge_results])
+
+        # Build context summary
+        context_summary = self.orchestrator.context_analyzer.get_context_summary(project)
+
+        prompt = f"""You are helping a developer who is stuck on a Socratic question about their software project.
+
+    Project Details:
+    - Name: {project.name}
+    - Phase: {project.phase}
+    - Context: {context_summary}
+
+    Current Question They Can't Answer:
+    "{current_question}"
+
+    Recent Conversation:
+    {recent_conversation}
+
+    Relevant Knowledge:
+    {relevant_knowledge}
+
+    The user is having difficulty answering this question. Provide 3-4 helpful suggestions that:
+
+    1. Give concrete examples or options they could consider
+    2. Break down the question into smaller, easier parts
+    3. Provide relevant industry examples or common approaches
+    4. Suggest specific things they could research or think about
+
+    Format your response as:
+    Here are some suggestions to help you think through this:
+
+    • [First suggestion with specific example]
+    • [Second suggestion with actionable advice]
+    • [Third suggestion with alternative perspective]
+    • [Optional fourth suggestion]
+
+    Keep suggestions practical, specific, and encouraging. Don't just ask more questions.
+    """
+
+        try:
+            response = self.client.messages.create(
+                model=CONFIG['CLAUDE_MODEL'],
+                max_tokens=800,
+                temperature=0.7,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            # Track token usage
+            self.orchestrator.system_monitor.process({
+                'action': 'track_tokens',
+                'input_tokens': response.usage.input_tokens,
+                'output_tokens': response.usage.output_tokens,
+                'total_tokens': response.usage.input_tokens + response.usage.output_tokens,
+                'cost_estimate': self._calculate_cost(response.usage)
+            })
+
+            return response.content[0].text.strip()
+
+        except Exception as e:
+            # Fallback suggestions if Claude API fails
+            fallback_suggestions = {
+                'discovery': """Here are some suggestions to help you think through this:
+
+    • Consider researching similar applications or tools in your problem domain
+    • Think about specific pain points you've experienced that this could solve
+    • Ask potential users what features would be most valuable to them
+    • Look at existing solutions and identify what's missing or could be improved""",
+
+                'analysis': """Here are some suggestions to help you think through this:
+
+    • Break down the technical challenge into smaller, specific problems
+    • Research what libraries or frameworks are commonly used for this type of project
+    • Consider scalability, security, and performance requirements early
+    • Look up case studies of similar technical implementations""",
+
+                'design': """Here are some suggestions to help you think through this:
+
+    • Start with a simple architecture and plan how to extend it later
+    • Consider using established design patterns like MVC, Repository, or Factory
+    • Think about how different components will communicate with each other
+    • Sketch out the data flow and user interaction patterns""",
+
+                'implementation': """Here are some suggestions to help you think through this:
+
+    • Break the project into small, manageable milestones
+    • Consider starting with a minimal viable version first
+    • Think about your development environment and tooling needs
+    • Plan your testing strategy alongside your implementation approach"""
+            }
+
+            return fallback_suggestions.get(project.phase,
+                                            "Consider breaking the question into smaller parts and researching each "
+                                            "aspect individually.")
 
 # Agent Orchestrator
 class AgentOrchestrator:
@@ -1475,7 +1583,8 @@ class SocraticRAGSystem:
             print(f"\n{Fore.BLUE}🤔 {question}")
 
             # Get user response
-            print(f"{Fore.YELLOW}Your response (type 'done' to finish, 'advance' to move to next phase):")
+            print(
+                f"{Fore.YELLOW}Your response (type 'done' to finish, 'advance' to move to next phase, 'help' for suggestions):")
             response = input(f"{Fore.WHITE}> ").strip()
 
             if response.lower() == 'done':
@@ -1488,25 +1597,14 @@ class SocraticRAGSystem:
                 if result['status'] == 'success':
                     print(f"{Fore.GREEN}✓ Advanced to {result['new_phase']} phase!")
                 continue
+            elif response.lower() in ['help', 'suggestions', 'options', 'hint']:
+                # Generate suggestions automatically
+                suggestions = self.orchestrator.claude_client.generate_suggestions(question, self.current_project)
+                print(f"\n{Fore.MAGENTA}💡 {suggestions}")
+                print(f"{Fore.YELLOW}Now, would you like to try answering the question?")
+                continue
             elif not response:
                 continue
-
-            # Process response
-            result = self.orchestrator.process_request('socratic_counselor', {
-                'action': 'process_response',
-                'project': self.current_project,
-                'response': response
-            })
-
-            if result['status'] == 'success' and result['insights']:
-                print(f"{Fore.GREEN}✓ Insights captured and integrated!")
-
-        # Save project
-        self.orchestrator.process_request('project_manager', {
-            'action': 'save_project',
-            'project': self.current_project
-        })
-        print(f"{Fore.GREEN}✓ Project saved!")
 
     def _generate_code(self):
         """Generate code for current project"""
