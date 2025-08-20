@@ -254,6 +254,7 @@ class ProjectManagerAgent(Agent):
         else:
             return {'status': 'error', 'message': 'User is not a collaborator'}
 
+
 class SocraticCounselorAgent(Agent):
     def __init__(self, orchestrator):
         super().__init__("SocraticCounselor", orchestrator)
@@ -427,20 +428,110 @@ Return only the question, no additional text or explanation."""
     def _process_response(self, request: Dict) -> Dict:
         project = request.get('project')
         user_response = request.get('response')
+        current_user = request.get('current_user')
 
         # Add to conversation history with phase information
         project.conversation_history.append({
             'timestamp': datetime.datetime.now().isoformat(),
             'type': 'user',
             'content': user_response,
-            'phase': project.phase
+            'phase': project.phase,
+            'author': current_user  # Track who said what
         })
 
         # Extract insights using Claude
         insights = self.orchestrator.claude_client.extract_insights(user_response, project)
+
+        # REAL-TIME CONFLICT DETECTION
+        if insights:
+            conflict_result = self.orchestrator.process_request('conflict_detector', {
+                'action': 'detect_conflicts',
+                'project': project,
+                'new_insights': insights,
+                'current_user': current_user
+            })
+
+            if conflict_result['status'] == 'success' and conflict_result['conflicts']:
+                # Handle conflicts before updating context
+                conflicts_resolved = self._handle_conflicts_realtime(conflict_result['conflicts'], project)
+                if not conflicts_resolved:
+                    # User chose not to resolve conflicts, don't update context
+                    return {'status': 'success', 'insights': insights, 'conflicts_pending': True}
+
+        # Update context only if no conflicts or conflicts were resolved
         self._update_project_context(project, insights)
 
         return {'status': 'success', 'insights': insights}
+
+    def _handle_conflicts_realtime(self, conflicts: List[ConflictInfo], project: ProjectContext) -> bool:
+        """Handle conflicts in real-time during conversation"""
+        for conflict in conflicts:
+            print(f"\n{Fore.RED}⚠️  CONFLICT DETECTED!")
+            print(f"{Fore.YELLOW}Type: {conflict.conflict_type}")
+            print(f"{Fore.WHITE}Existing: '{conflict.old_value}' (by {conflict.old_author})")
+            print(f"{Fore.WHITE}New: '{conflict.new_value}' (by {conflict.new_author})")
+            print(f"{Fore.RED}Severity: {conflict.severity}")
+
+            # Get AI-generated suggestions
+            suggestions = self.orchestrator.claude_client.generate_conflict_resolution_suggestions(conflict, project)
+            print(f"\n{Fore.MAGENTA}{suggestions}")
+
+            print(f"\n{Fore.CYAN}Resolution Options:")
+            print("1. Keep existing specification")
+            print("2. Replace with new specification")
+            print("3. Skip this specification (continue without adding)")
+            print("4. Manual resolution (edit both)")
+
+            while True:
+                choice = input(f"{Fore.WHITE}Choose resolution (1-4): ").strip()
+
+                if choice == '1':
+                    print(f"{Fore.GREEN}✓ Keeping existing: '{conflict.old_value}'")
+                    # Remove new value from insights so it won't be added
+                    self._remove_from_insights(conflict.new_value, conflict.conflict_type)
+                    break
+                elif choice == '2':
+                    print(f"{Fore.GREEN}✓ Replacing with: '{conflict.new_value}'")
+                    # Remove old value from project context
+                    self._remove_from_project_context(project, conflict.old_value, conflict.conflict_type)
+                    break
+                elif choice == '3':
+                    print(f"{Fore.YELLOW}⏭️  Skipping specification")
+                    self._remove_from_insights(conflict.new_value, conflict.conflict_type)
+                    break
+                elif choice == '4':
+                    resolved_value = self._manual_resolution(conflict)
+                    if resolved_value:
+                        # Replace both old and new with manually resolved value
+                        self._remove_from_project_context(project, conflict.old_value, conflict.conflict_type)
+                        self._update_insights_value(conflict.new_value, resolved_value, conflict.conflict_type)
+                        print(f"{Fore.GREEN}✓ Updated to: '{resolved_value}'")
+                    break
+                else:
+                    print(f"{Fore.RED}Invalid choice. Please try again.")
+
+        return True  # Conflicts handled
+
+    def _remove_from_project_context(self, project: ProjectContext, value: str, context_type: str):
+        """Remove a value from project context"""
+        if context_type == 'tech_stack' and value in project.tech_stack:
+            project.tech_stack.remove(value)
+        elif context_type == 'requirements' and value in project.requirements:
+            project.requirements.remove(value)
+        elif context_type == 'constraints' and value in project.constraints:
+            project.constraints.remove(value)
+        elif context_type == 'goals':
+            project.goals = ""
+
+    def _manual_resolution(self, conflict: ConflictInfo) -> str:
+        """Allow user to manually resolve conflict"""
+        print(f"\n{Fore.CYAN}Manual Resolution:")
+        print(f"Current options: '{conflict.old_value}' vs '{conflict.new_value}'")
+
+        new_value = input(f"{Fore.WHITE}Enter resolved specification: ").strip()
+        if new_value:
+            return new_value
+        return ""
 
     def _advance_phase(self, request: Dict) -> Dict:
         project = request.get('project')
@@ -495,6 +586,18 @@ Return only the question, no additional text or explanation."""
         except Exception as e:
             print(f"{Fore.YELLOW}Warning: Error updating project context: {e}")
             # Continue execution even if context update fails
+
+    def _remove_from_insights(self, value: str, insight_type: str):
+        """Remove a value from insights before context update"""
+        # This would be used to prevent conflicting values from being added
+        # Implementation depends on how insights are structured
+        pass
+
+    def _update_insights_value(self, old_value: str, new_value: str, insight_type: str):
+        """Update a value in insights before context update"""
+        # This would replace a value in insights with resolved value
+        # Implementation depends on how insights are structured
+        pass
 
 
 class ContextAnalyzerAgent(Agent):
@@ -726,6 +829,275 @@ class SystemMonitorAgent(Agent):
             'warnings': warnings,
             'recent_usage': recent_usage
         }
+
+
+@dataclass
+class ConflictInfo:
+    conflict_id: str
+    conflict_type: str  # 'tech_stack', 'requirements', 'goals', 'constraints'
+    old_value: str
+    new_value: str
+    old_author: str
+    new_author: str
+    old_timestamp: str
+    new_timestamp: str
+    severity: str  # 'low', 'medium', 'high'
+    suggestions: List[str]
+
+
+class ConflictDetectorAgent(Agent):
+    def __init__(self, orchestrator):
+        super().__init__("ConflictDetector", orchestrator)
+
+        # Define known conflicting technologies/concepts
+        self.conflict_rules = {
+            'databases': ['mysql', 'postgresql', 'sqlite', 'mongodb', 'redis'],
+            'frontend_frameworks': ['react', 'vue', 'angular', 'svelte'],
+            'backend_frameworks': ['django', 'flask', 'fastapi', 'express'],
+            'languages': ['python', 'javascript', 'java', 'go', 'rust'],
+            'deployment': ['aws', 'azure', 'gcp', 'heroku', 'vercel'],
+            'mobile': ['react native', 'flutter', 'native ios', 'native android']
+        }
+
+    def process(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        action = request.get('action')
+
+        if action == 'detect_conflicts':
+            return self._detect_conflicts(request)
+        elif action == 'resolve_conflict':
+            return self._resolve_conflict(request)
+        elif action == 'get_suggestions':
+            return self._get_conflict_suggestions(request)
+
+        return {'status': 'error', 'message': 'Unknown action'}
+
+    def _detect_conflicts(self, request: Dict) -> Dict:
+        """Detect conflicts in new insights against existing project context"""
+        project = request.get('project')
+        new_insights = request.get('new_insights')
+        current_user = request.get('current_user')
+
+        conflicts = []
+
+        if not new_insights or not isinstance(new_insights, dict):
+            return {'status': 'success', 'conflicts': []}
+
+        # Check each type of specification for conflicts
+        conflicts.extend(self._check_tech_stack_conflicts(project, new_insights, current_user))
+        conflicts.extend(self._check_requirements_conflicts(project, new_insights, current_user))
+        conflicts.extend(self._check_goals_conflicts(project, new_insights, current_user))
+        conflicts.extend(self._check_constraints_conflicts(project, new_insights, current_user))
+
+        return {'status': 'success', 'conflicts': conflicts}
+
+    def _check_tech_stack_conflicts(self, project: ProjectContext, new_insights: Dict, current_user: str) -> List[
+        ConflictInfo]:
+        """Check for technology stack conflicts"""
+        conflicts = []
+        new_tech = new_insights.get('tech_stack', [])
+        if not isinstance(new_tech, list):
+            new_tech = [new_tech] if new_tech else []
+
+        for new_item in new_tech:
+            if not new_item:
+                continue
+
+            new_item_lower = new_item.lower()
+
+            # Check against existing tech stack
+            for existing_item in project.tech_stack:
+                existing_lower = existing_item.lower()
+
+                # Check if they belong to same conflicting category
+                conflict_category = self._find_conflict_category(new_item_lower, existing_lower)
+                if conflict_category:
+                    # Find who added the original (simplified - assume owner for now)
+                    original_author = self._find_spec_author(project, 'tech_stack', existing_item)
+
+                    conflict = ConflictInfo(
+                        conflict_id=str(uuid.uuid4()),
+                        conflict_type='tech_stack',
+                        old_value=existing_item,
+                        new_value=new_item,
+                        old_author=original_author,
+                        new_author=current_user,
+                        old_timestamp=project.created_at.isoformat(),
+                        new_timestamp=datetime.datetime.now().isoformat(),
+                        severity='high' if conflict_category in ['databases', 'languages'] else 'medium',
+                        suggestions=self._generate_tech_suggestions(conflict_category, existing_item, new_item)
+                    )
+                    conflicts.append(conflict)
+
+        return conflicts
+
+    def _check_requirements_conflicts(self, project: ProjectContext, new_insights: Dict, current_user: str) -> List[
+        ConflictInfo]:
+        """Check for requirement conflicts"""
+        conflicts = []
+        new_requirements = new_insights.get('requirements', [])
+        if not isinstance(new_requirements, list):
+            new_requirements = [new_requirements] if new_requirements else []
+
+        # Use Claude to detect semantic conflicts in requirements
+        for new_req in new_requirements:
+            if not new_req:
+                continue
+
+            semantic_conflicts = self._check_semantic_conflicts(new_req, project.requirements, 'requirements')
+            for conflict_data in semantic_conflicts:
+                conflict = ConflictInfo(
+                    conflict_id=str(uuid.uuid4()),
+                    conflict_type='requirements',
+                    old_value=conflict_data['existing'],
+                    new_value=new_req,
+                    old_author=self._find_spec_author(project, 'requirements', conflict_data['existing']),
+                    new_author=current_user,
+                    old_timestamp=project.created_at.isoformat(),
+                    new_timestamp=datetime.datetime.now().isoformat(),
+                    severity=conflict_data['severity'],
+                    suggestions=conflict_data['suggestions']
+                )
+                conflicts.append(conflict)
+
+        return conflicts
+
+    def _check_goals_conflicts(self, project: ProjectContext, new_insights: Dict, current_user: str) -> List[
+        ConflictInfo]:
+        """Check for goal conflicts"""
+        conflicts = []
+        new_goals = new_insights.get('goals', '')
+
+        if new_goals and project.goals and new_goals.lower() != project.goals.lower():
+            # Use Claude to determine if goals actually conflict
+            conflict_data = self._check_semantic_conflicts(new_goals, [project.goals], 'goals')
+            if conflict_data:
+                conflict = ConflictInfo(
+                    conflict_id=str(uuid.uuid4()),
+                    conflict_type='goals',
+                    old_value=project.goals,
+                    new_value=new_goals,
+                    old_author=self._find_spec_author(project, 'goals', project.goals),
+                    new_author=current_user,
+                    old_timestamp=project.created_at.isoformat(),
+                    new_timestamp=datetime.datetime.now().isoformat(),
+                    severity='high',
+                    suggestions=conflict_data[0]['suggestions'] if conflict_data else []
+                )
+                conflicts.append(conflict)
+
+        return conflicts
+
+    def _check_constraints_conflicts(self, project: ProjectContext, new_insights: Dict, current_user: str) -> List[
+        ConflictInfo]:
+        """Check for constraint conflicts"""
+        conflicts = []
+        new_constraints = new_insights.get('constraints', [])
+        if not isinstance(new_constraints, list):
+            new_constraints = [new_constraints] if new_constraints else []
+
+        for new_constraint in new_constraints:
+            if not new_constraint:
+                continue
+
+            semantic_conflicts = self._check_semantic_conflicts(new_constraint, project.constraints, 'constraints')
+            for conflict_data in semantic_conflicts:
+                conflict = ConflictInfo(
+                    conflict_id=str(uuid.uuid4()),
+                    conflict_type='constraints',
+                    old_value=conflict_data['existing'],
+                    new_value=new_constraint,
+                    old_author=self._find_spec_author(project, 'constraints', conflict_data['existing']),
+                    new_author=current_user,
+                    old_timestamp=project.created_at.isoformat(),
+                    new_timestamp=datetime.datetime.now().isoformat(),
+                    severity=conflict_data['severity'],
+                    suggestions=conflict_data['suggestions']
+                )
+                conflicts.append(conflict)
+
+        return conflicts
+
+    def _find_conflict_category(self, item1: str, item2: str) -> Optional[str]:
+        """Find if two items belong to same conflicting category"""
+        for category, items in self.conflict_rules.items():
+            if any(item1 in tech.lower() for tech in items) and any(item2 in tech.lower() for tech in items):
+                return category
+        return None
+
+    def _check_semantic_conflicts(self, new_item: str, existing_items: List[str], context_type: str) -> List[Dict]:
+        """Use Claude to detect semantic conflicts"""
+        if not existing_items:
+            return []
+
+        prompt = f"""Analyze if this new {context_type} conflicts with existing ones:
+
+New {context_type}: "{new_item}"
+
+Existing {context_type}:
+{chr(10).join([f"- {item}" for item in existing_items])}
+
+Determine if there are any conflicts. A conflict exists when:
+1. They are mutually exclusive (can't both be true)
+2. They contradict each other technically
+3. They represent different approaches to the same problem
+
+For each conflict found, return JSON format:
+{{
+  "conflicts": [
+    {{
+      "existing": "conflicting existing item",
+      "severity": "high|medium|low",
+      "reason": "brief explanation",
+      "suggestions": ["suggestion 1", "suggestion 2", "suggestion 3"]
+    }}
+  ]
+}}
+
+If no conflicts, return: {{"conflicts": []}}
+"""
+
+        try:
+            response = self.orchestrator.claude_client.client.messages.create(
+                model=CONFIG['CLAUDE_MODEL'],
+                max_tokens=800,
+                temperature=0.3,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            response_text = response.content[0].text.strip()
+
+            # Parse JSON response
+            import json
+            if response_text.startswith('```json'):
+                response_text = response_text.replace('```json', '').replace('```', '').strip()
+
+            start = response_text.find('{')
+            end = response_text.rfind('}') + 1
+
+            if 0 <= start < end:
+                json_text = response_text[start:end]
+                result = json.loads(json_text)
+                return result.get('conflicts', [])
+
+        except Exception as e:
+            self.log(f"Error in semantic conflict detection: {e}", "WARN")
+
+        return []
+
+    def _find_spec_author(self, project: ProjectContext, spec_type: str, spec_value: str) -> str:
+        """Find who originally added a specification (simplified implementation)"""
+        # This is a simplified version - in reality you'd need to track authorship in conversation history
+        return project.owner  # Fallback to owner
+
+    def _generate_tech_suggestions(self, category: str, old_tech: str, new_tech: str) -> List[str]:
+        """Generate suggestions for technology conflicts"""
+        suggestions = [
+            f"Choose {old_tech} if you prefer stability and existing team expertise",
+            f"Choose {new_tech} if you want newer features and better performance",
+            f"Consider if both technologies can coexist in different parts of the system",
+            "Research the specific advantages of each option for your use case"
+        ]
+        return suggestions
 
 
 # Database and Storage Classes
@@ -1025,6 +1397,51 @@ class ClaudeClient:
             print(f"{Fore.RED}Error extracting insights: {e}")
             return {}  # Return empty dict instead of None
 
+    def generate_conflict_resolution_suggestions(self, conflict: ConflictInfo, project: ProjectContext) -> str:
+        """Generate suggestions for resolving a specific conflict"""
+
+        context_summary = self.orchestrator.context_analyzer.get_context_summary(project)
+
+        prompt = f"""Help resolve this project specification conflict:
+
+    Project: {project.name} ({project.phase} phase)
+    Project Context: {context_summary}
+
+    Conflict Details:
+    - Type: {conflict.conflict_type}
+    - Original: "{conflict.old_value}" (by {conflict.old_author})
+    - New: "{conflict.new_value}" (by {conflict.new_author})
+    - Severity: {conflict.severity}
+
+    Provide 3-4 specific, actionable suggestions for resolving this conflict. Consider:
+    1. Technical implications of each choice
+    2. Project goals and constraints
+    3. Team collaboration aspects
+    4. Potential compromise solutions
+
+    Format as:
+    🔧 Conflict Resolution Suggestions:
+
+    1. [First option with clear pros/cons]
+    2. [Second option with rationale] 
+    3. [Third option or compromise solution]
+    4. [Additional perspective if helpful]
+
+    Be specific and practical, not just theoretical."""
+
+        try:
+            response = self.client.messages.create(
+                model=CONFIG['CLAUDE_MODEL'],
+                max_tokens=600,
+                temperature=0.7,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            return response.content[0].text.strip()
+
+        except Exception as e:
+            return f"Error generating suggestions: {e}"
+
     def generate_code(self, context: str) -> str:
         """Generate code based on project context"""
         prompt = f"""
@@ -1266,6 +1683,7 @@ class ClaudeClient:
                                             "Consider breaking the question into smaller parts and researching each "
                                             "aspect individually.")
 
+
 # Agent Orchestrator
 class AgentOrchestrator:
     def __init__(self, api_key: str):
@@ -1294,6 +1712,7 @@ class AgentOrchestrator:
         self.context_analyzer = ContextAnalyzerAgent(self)
         self.code_generator = CodeGeneratorAgent(self)
         self.system_monitor = SystemMonitorAgent(self)
+        self.conflict_detector = ConflictDetectorAgent(self)
 
     def _load_knowledge_base(self):
         """Load default knowledge base if not already loaded"""
@@ -1360,7 +1779,8 @@ class AgentOrchestrator:
             'socratic_counselor': self.socratic_counselor,
             'context_analyzer': self.context_analyzer,
             'code_generator': self.code_generator,
-            'system_monitor': self.system_monitor
+            'system_monitor': self.system_monitor,
+            'conflict_detector': self.conflict_detector  # ADD THIS LINE
         }
 
         agent = agents.get(agent_name)
@@ -1636,21 +2056,27 @@ class SocraticRAGSystem:
 
         while True:
             # Generate next question
+            # Process response
             result = self.orchestrator.process_request('socratic_counselor', {
-                'action': 'generate_question',
-                'project': self.current_project
+                'action': 'process_response',
+                'project': self.current_project,
+                'response': response,
+                'current_user': self.current_user.username  # ADD THIS LINE
             })
 
-            if result['status'] != 'success':
-                print(f"{Fore.RED}Error generating question: {result['message']}")
-                return
+            if result['status'] == 'success':
+                if result.get('conflicts_pending'):
+                    print(f"{Fore.YELLOW}⚠️  Some specifications were not added due to conflicts")
+                elif result['insights']:
+                    print(f"{Fore.GREEN}✓ Insights captured and integrated!")
 
             question = result['question']
             print(f"\n{Fore.BLUE}🤔 {question}")
 
             # Get user response
             print(
-                f"{Fore.YELLOW}Your response (type 'done' to finish, 'advance' to move to next phase, 'help' for suggestions):")
+                f"{Fore.YELLOW}Your response (type 'done' to finish, 'advance' to move to next phase, 'help' for "
+                f"suggestions):")
             response = input(f"{Fore.WHITE}> ").strip()
 
             if response.lower() == 'done':

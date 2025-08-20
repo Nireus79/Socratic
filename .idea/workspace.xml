@@ -5,9 +5,14 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7 new">
-      <change afterPath="$PROJECT_DIR$/socratic_users.db" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/socratic_data/projects.db" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/socratic_data/vector_db/9f1be5b5-74f3-4b5d-a949-c0d1c623b044/data_level0.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/socratic_data/vector_db/9f1be5b5-74f3-4b5d-a949-c0d1c623b044/header.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/socratic_data/vector_db/9f1be5b5-74f3-4b5d-a949-c0d1c623b044/length.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/socratic_data/vector_db/9f1be5b5-74f3-4b5d-a949-c0d1c623b044/link_lists.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/socratic_data/vector_db/chroma.sqlite3" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Socratic7.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic7.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Socratic6.2.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic6.2.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -59,6 +64,7 @@
     "Python.Socratic5.executor": "Run",
     "Python.Socratic6.1.executor": "Run",
     "Python.Socratic6.2 (1).executor": "Run",
+    "Python.Socratic6.2.executor": "Run",
     "Python.Socratic6.executor": "Run",
     "Python.Socratic7.1.executor": "Run",
     "Python.Socratic7.executor": "Run",
@@ -76,29 +82,7 @@
       <recent name="C:\Users\themi\PycharmProjects\Socratic" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.Socratic6.2 (1)">
-    <configuration name="Socratic6.2 (1)" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
-      <module name="Socratic" />
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Socratic6.2.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
+  <component name="RunManager" selected="Python.Socratic6.2">
     <configuration name="Socratic6.2" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="Socratic" />
       <option name="ENV_FILES" value="" />
@@ -112,29 +96,7 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="C:\Users\themi\PycharmProjects\Socratic\Socratic6.2.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
-    <configuration name="Socratic7" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
-      <module name="Socratic" />
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="C:\Users\themi\PycharmProjects\Socratic\Socratic7.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Socratic6.2.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -167,14 +129,10 @@
     </configuration>
     <list>
       <item itemvalue="Python.main" />
-      <item itemvalue="Python.Socratic6.2 (1)" />
-      <item itemvalue="Python.Socratic7" />
       <item itemvalue="Python.Socratic6.2" />
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.Socratic6.2 (1)" />
-        <item itemvalue="Python.Socratic7" />
         <item itemvalue="Python.Socratic6.2" />
       </list>
     </recent_temporary>
@@ -614,6 +572,7 @@
     <MESSAGE value="generated code pst" />
     <MESSAGE value="7.1" />
     <MESSAGE value="7 new" />
-    <option name="LAST_COMMIT_MESSAGE" value="7 new" />
+    <MESSAGE value="users" />
+    <option name="LAST_COMMIT_MESSAGE" value="users" />
   </component>
 </project>
