@@ -4,16 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="conflicts">
-      <change afterPath="$PROJECT_DIR$/socratic_data/projects.db" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/socratic_data/vector_db/3809de44-5c75-4f56-8731-f32355a88c00/data_level0.bin" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/socratic_data/vector_db/3809de44-5c75-4f56-8731-f32355a88c00/header.bin" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/socratic_data/vector_db/3809de44-5c75-4f56-8731-f32355a88c00/length.bin" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/socratic_data/vector_db/3809de44-5c75-4f56-8731-f32355a88c00/link_lists.bin" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/socratic_data/vector_db/chroma.sqlite3" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Socratic6.2.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic6.2.py" afterDir="false" />
-    </list>
+    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -82,8 +73,8 @@
       <recent name="C:\Users\themi\PycharmProjects\Socratic" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.Socratic6.2">
-    <configuration name="Socratic6.2" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+  <component name="RunManager" selected="Python.Socratic7">
+    <configuration name="Socratic7" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="Socratic" />
       <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -96,7 +87,7 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Socratic6.2.py" />
+      <option name="SCRIPT_NAME" value="C:\Users\themi\PycharmProjects\Socratic\Socratic7.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -128,12 +119,12 @@
       <method v="2" />
     </configuration>
     <list>
-      <item itemvalue="Python.Socratic6.2" />
+      <item itemvalue="Python.Socratic7" />
       <item itemvalue="Python.main" />
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.Socratic6.2" />
+        <item itemvalue="Python.Socratic7" />
       </list>
     </recent_temporary>
   </component>
@@ -152,14 +143,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1750504324591</updated>
-    </task>
-    <task id="LOCAL-00038" summary="Socratic 5.2">
-      <option name="closed" value="true" />
-      <created>1752642812163</created>
-      <option name="number" value="00038" />
-      <option name="presentableId" value="LOCAL-00038" />
-      <option name="project" value="LOCAL" />
-      <updated>1752642812163</updated>
     </task>
     <task id="LOCAL-00039" summary="Socratic 5.2">
       <option name="closed" value="true" />
@@ -545,7 +528,15 @@
       <option name="project" value="LOCAL" />
       <updated>1755680389586</updated>
     </task>
-    <option name="localTasksCounter" value="87" />
+    <task id="LOCAL-00087" summary="7">
+      <option name="closed" value="true" />
+      <created>1755684813436</created>
+      <option name="number" value="00087" />
+      <option name="presentableId" value="LOCAL-00087" />
+      <option name="project" value="LOCAL" />
+      <updated>1755684813437</updated>
+    </task>
+    <option name="localTasksCounter" value="88" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -567,13 +558,13 @@
     <MESSAGE value="Socratic 6,1" />
     <MESSAGE value="CodeCraft" />
     <MESSAGE value="load git repo/files" />
-    <MESSAGE value="7" />
     <MESSAGE value="7 dynamic" />
     <MESSAGE value="generated code pst" />
     <MESSAGE value="7.1" />
     <MESSAGE value="7 new" />
     <MESSAGE value="users" />
     <MESSAGE value="conflicts" />
-    <option name="LAST_COMMIT_MESSAGE" value="conflicts" />
+    <MESSAGE value="7" />
+    <option name="LAST_COMMIT_MESSAGE" value="7" />
   </component>
 </project>

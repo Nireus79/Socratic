@@ -2049,20 +2049,17 @@ class SocraticRAGSystem:
         print(f"Phase: {self.current_project.phase}")
 
         while True:
-            result = self.orchestrator.process_request('socratic_counselor', {
-                'action': 'process_response',
-                'project': self.current_project,
-                'response': response,  # TODO
-                'current_user': self.current_user.username  # ADD THIS LINE
+            # Generate question first
+            question_result = self.orchestrator.process_request('socratic_counselor', {
+                'action': 'generate_question',
+                'project': self.current_project
             })
 
-            if result['status'] == 'success':
-                if result.get('conflicts_pending'):
-                    print(f"{Fore.YELLOW}⚠️  Some specifications were not added due to conflicts")
-                elif result['insights']:
-                    print(f"{Fore.GREEN}✓ Insights captured and integrated!")
+            if question_result['status'] != 'success':
+                print(f"{Fore.RED}Error generating question: {question_result.get('message', 'Unknown error')}")
+                break
 
-            question = result['question']
+            question = question_result['question']
             print(f"\n{Fore.BLUE}🤔 {question}")
 
             # Get user response
@@ -2089,6 +2086,28 @@ class SocraticRAGSystem:
                 continue
             elif not response:
                 continue
+
+            # Process the user's response
+            result = self.orchestrator.process_request('socratic_counselor', {
+                'action': 'process_response',
+                'project': self.current_project,
+                'response': response,
+                'current_user': self.current_user.username
+            })
+
+            if result['status'] == 'success':
+                if result.get('conflicts_pending'):
+                    print(f"{Fore.YELLOW}⚠️  Some specifications were not added due to conflicts")
+                elif result.get('insights'):
+                    print(f"{Fore.GREEN}✓ Insights captured and integrated!")
+
+                # Save the updated project
+                save_result = self.orchestrator.process_request('project_manager', {
+                    'action': 'save_project',
+                    'project': self.current_project
+                })
+            else:
+                print(f"{Fore.RED}Error processing response: {result.get('message', 'Unknown error')}")
 
     def _generate_code(self):
         """Generate code for current project"""
