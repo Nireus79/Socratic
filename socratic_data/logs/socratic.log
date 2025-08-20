@@ -1,0 +1,34 @@
+2025-08-21 00:25:27,053 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-08-21 00:25:27,053 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-08-21 00:25:31,125 - chromadb.telemetry.product.posthog - INFO - Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+2025-08-21 00:25:31,970 - __main__.KnowledgeManager - INFO - KnowledgeManager: Knowledge base initialized successfully
+2025-08-21 00:25:31,992 - __main__ - INFO - Database initialized successfully
+2025-08-21 00:25:31,992 - __main__ - WARNING - ANTHROPIC_API_KEY not found. Dynamic features disabled.
+2025-08-21 00:25:31,993 - __main__ - INFO - System initialization completed successfully
+2025-08-21 00:26:42,646 - __main__ - INFO - Shutting down system...
+2025-08-21 00:26:42,651 - __main__ - INFO - System shutdown complete
+2025-08-21 00:26:59,058 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-08-21 00:26:59,058 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-08-21 00:27:02,788 - chromadb.telemetry.product.posthog - INFO - Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+2025-08-21 00:27:03,300 - __main__.KnowledgeManager - INFO - KnowledgeManager: Knowledge base initialized successfully
+2025-08-21 00:27:03,302 - __main__ - INFO - Database initialized successfully
+2025-08-21 00:27:03,809 - __main__ - INFO - Claude client initialized
+2025-08-21 00:27:03,810 - __main__ - INFO - System initialization completed successfully
+2025-08-21 00:39:48,894 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-08-21 00:39:48,894 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-08-21 00:39:52,690 - chromadb.telemetry.product.posthog - INFO - Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+2025-08-21 00:39:53,214 - __main__.KnowledgeManager - INFO - KnowledgeManager: Knowledge base initialized successfully
+2025-08-21 00:39:53,216 - __main__ - INFO - Database initialized successfully
+2025-08-21 00:39:53,216 - __main__ - WARNING - ANTHROPIC_API_KEY not found. Dynamic features disabled.
+2025-08-21 00:39:53,217 - __main__ - INFO - System initialization completed successfully
+2025-08-21 00:40:08,868 - __main__ - INFO - Shutting down system...
+2025-08-21 00:40:08,873 - __main__ - INFO - System shutdown complete
+2025-08-21 00:41:03,657 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-08-21 00:41:03,657 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-08-21 00:41:07,382 - chromadb.telemetry.product.posthog - INFO - Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+2025-08-21 00:41:07,891 - __main__.KnowledgeManager - INFO - KnowledgeManager: Knowledge base initialized successfully
+2025-08-21 00:41:07,893 - __main__ - INFO - Database initialized successfully
+2025-08-21 00:41:08,303 - __main__ - INFO - Claude client initialized
+2025-08-21 00:41:08,304 - __main__ - INFO - System initialization completed successfully
+2025-08-21 00:41:14,513 - __main__ - INFO - Shutting down system...
+2025-08-21 00:41:14,519 - __main__ - INFO - System shutdown complete

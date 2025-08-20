@@ -1066,7 +1066,7 @@ class SystemOrchestrator:
             self._initialize_database()
 
             # Initialize Claude client if API key available
-            api_key = os.getenv('ANTHROPIC_API_KEY')
+            api_key = os.getenv('API_KEY_CLAUDE')
             if api_key:
                 self.claude_client = ClaudeClient(api_key)
                 logger.info("Claude client initialized")
