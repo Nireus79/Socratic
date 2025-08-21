@@ -1570,5 +1570,241 @@ class SocraticCLI:
         else:
             print(f"{Fore.RED}Failed to load project: {result['message']}")
 
-    def _handle_conversation(self
+    def _handle_conversation(self):
+        """Handle the main conversation loop"""
+        project = self.orchestrator.current_project
+
+        print(f"\n{Fore.CYAN}=== PROJECT: {project.name.upper()} ===")
+        print(f"{Fore.WHITE}Phase: {project.phase} | Owner: {project.owner}")
+
+        if project.goals:
+            print(f"{Fore.WHITE}Goals: {project.goals}")
+
+        if project.tech_stack:
+            print(f"{Fore.WHITE}Tech Stack: {', '.join(project.tech_stack[:3])}")
+
+        print(
+            f"\n{Fore.WHITE}Commands: 'next' (advance phase), 'status' (project info), 'save', 'switch' (project), 'help', 'quit'")
+        print(f"{Fore.YELLOW}{'─' * 60}")
+
+        # Generate and ask a question
+        question_result = self.orchestrator.conversation_engine.process({
+            'action': 'generate_question',
+            'project': project
+        })
+
+        if question_result['status'] == 'success':
+            print(f"\n{Fore.BLUE}🤔 {question_result['question']}")
+        else:
+            print(f"{Fore.RED}Error generating question: {question_result.get('message', 'Unknown error')}")
+            return
+
+        # Get user response
+        print(f"\n{Fore.WHITE}Your response (or command):")
+        user_input = input("> ").strip()
+
+        # Handle commands
+        if user_input.lower() == 'quit':
+            self._save_session()
+            self.running = False
+            return
+        elif user_input.lower() == 'help':
+            self._show_help()
+            return
+        elif user_input.lower() == 'status':
+            self._show_project_status()
+            return
+        elif user_input.lower() == 'save':
+            self._save_project()
+            return
+        elif user_input.lower() == 'switch':
+            self.orchestrator.current_project = None
+            return
+        elif user_input.lower() == 'next':
+            self._advance_phase()
+            return
+        elif user_input.lower() == 'dynamic':
+            self._toggle_dynamic_mode()
+            return
+        elif user_input.lower() == 'conflicts':
+            self._show_conflicts()
+            return
+        elif not user_input:
+            print(f"{Fore.YELLOW}Please provide a response or command.")
+            return
+
+        # Process the response
+        response_result = self.orchestrator.conversation_engine.process({
+            'action': 'process_response',
+            'project': project,
+            'response': user_input,
+            'current_user': self.orchestrator.current_user
+        })
+
+        if response_result['status'] == 'success':
+            insights = response_result.get('insights', {})
+            if insights:
+                print(f"{Fore.GREEN}✓ Insights captured and integrated into project context")
+
+                # Show conflicts if any were detected
+                if response_result.get('conflicts_pending'):
+                    print(f"{Fore.YELLOW}⚠ Potential conflicts detected - review project status")
+
+            # Auto-save project after each response
+            self.orchestrator.session_manager.process({
+                'action': 'save_project',
+                'project': project
+            })
+        else:
+            print(f"{Fore.RED}Error processing response: {response_result.get('message', 'Unknown error')}")
+
+    def _show_help(self):
+        """Show help information"""
+        print(f"\n{Fore.CYAN}=== HELP ===")
+        print(f"{Fore.WHITE}Commands:")
+        print("  help     - Show this help")
+        print("  status   - Show detailed project status")
+        print("  save     - Save current project")
+        print("  switch   - Switch to different project")
+        print("  next     - Advance to next phase")
+        print("  dynamic  - Toggle dynamic/static questions")
+        print("  conflicts- Show detected conflicts")
+        print("  quit     - Exit system")
+        print(f"\n{Fore.WHITE}Phases: discovery → analysis → design → implementation")
+        print(f"{Fore.WHITE}Just type your responses to questions to continue the conversation.")
+
+    def _show_project_status(self):
+        """Show detailed project status"""
+        project = self.orchestrator.current_project
+
+        print(f"\n{Fore.CYAN}=== PROJECT STATUS ===")
+        print(f"{Fore.WHITE}Name: {project.name}")
+        print(f"ID: {project.project_id}")
+        print(f"Owner: {project.owner}")
+        print(f"Phase: {project.phase}")
+        print(f"Created: {project.created_at.strftime('%Y-%m-%d %H:%M')}")
+        print(f"Updated: {project.updated_at.strftime('%Y-%m-%d %H:%M')}")
+
+        if project.collaborators:
+            print(f"Collaborators: {', '.join(project.collaborators)}")
+
+        if project.goals:
+            print(f"\n{Fore.YELLOW}Goals:")
+            print(f"  {project.goals}")
+
+        if project.tech_stack:
+            print(f"\n{Fore.YELLOW}Tech Stack:")
+            for tech in project.tech_stack:
+                print(f"  • {tech}")
+
+        if project.requirements:
+            print(f"\n{Fore.YELLOW}Requirements:")
+            for req in project.requirements:
+                print(f"  • {req}")
+
+        if project.constraints:
+            print(f"\n{Fore.YELLOW}Constraints:")
+            for constraint in project.constraints:
+                print(f"  • {constraint}")
+
+        # Show conversation statistics
+        total_messages = len(project.conversation_history)
+        user_messages = len([msg for msg in project.conversation_history if msg['type'] == 'user'])
+        print(f"\n{Fore.WHITE}Conversation: {user_messages} responses, {total_messages} total messages")
+
+    def _save_project(self):
+        """Save current project"""
+        result = self.orchestrator.session_manager.process({
+            'action': 'save_project',
+            'project': self.orchestrator.current_project
+        })
+
+        if result['status'] == 'success':
+            print(f"{Fore.GREEN}✓ Project saved successfully")
+        else:
+            print(f"{Fore.RED}Error saving project: {result.get('message', 'Unknown error')}")
+
+    def _advance_phase(self):
+        """Advance to next phase"""
+        result = self.orchestrator.conversation_engine.process({
+            'action': 'advance_phase',
+            'project': self.orchestrator.current_project
+        })
+
+        if result['status'] == 'success':
+            print(f"{Fore.GREEN}✓ Advanced to {result['new_phase']} phase")
+            self._save_project()
+        else:
+            print(f"{Fore.YELLOW}{result.get('message', 'Cannot advance phase')}")
+
+    def _toggle_dynamic_mode(self):
+        """Toggle between dynamic and static question modes"""
+        result = self.orchestrator.conversation_engine.process({
+            'action': 'toggle_dynamic_questions'
+        })
+
+        if result['status'] == 'success':
+            mode = "dynamic (AI-powered)" if result['dynamic_mode'] else "static (predefined)"
+            print(f"{Fore.GREEN}✓ Question mode: {mode}")
+        else:
+            print(f"{Fore.RED}Error toggling mode")
+
+    def _show_conflicts(self):
+        """Show any detected conflicts"""
+        project = self.orchestrator.current_project
+
+        # Run conflict detection on current project state
+        result = self.orchestrator.conversation_engine.process({
+            'action': 'detect_conflicts',
+            'project': project,
+            'new_insights': {},  # Check existing state
+            'current_user': self.orchestrator.current_user
+        })
+
+        if result['status'] == 'success':
+            conflicts = result.get('conflicts', [])
+            if conflicts:
+                print(f"\n{Fore.YELLOW}⚠ DETECTED CONFLICTS ({len(conflicts)}):")
+                for i, conflict in enumerate(conflicts, 1):
+                    print(f"\n{i}. {conflict.conflict_type.replace('_', ' ').title()}")
+                    print(f"   Old: {conflict.old_value}")
+                    print(f"   New: {conflict.new_value}")
+                    print(f"   Severity: {conflict.severity}")
+                    if conflict.suggestions:
+                        print(f"   Suggestions:")
+                        for suggestion in conflict.suggestions[:2]:
+                            print(f"     • {suggestion}")
+            else:
+                print(f"{Fore.GREEN}✓ No conflicts detected")
+        else:
+            print(f"{Fore.RED}Error checking conflicts")
+
+
+def main():
+    """Main entry point"""
+    # Get API key from environment or user input
+    api_key = os.getenv('ANTHROPIC_API_KEY')
+    if not api_key:
+        print(f"{Fore.YELLOW}ANTHROPIC_API_KEY not found in environment.")
+        api_key = input("Enter your Anthropic API key: ").strip()
+
+        if not api_key:
+            print(f"{Fore.RED}API key is required to run the system.")
+            return
+
+    try:
+        # Initialize the orchestrator
+        orchestrator = AgentOrchestrator(api_key)
+
+        # Start CLI
+        cli = SocraticCLI(orchestrator)
+        cli.start()
+
+    except Exception as e:
+        print(f"{Fore.RED}Failed to start system: {e}")
+        logger.error(f"System startup error: {e}")
+
+
+if __name__ == "__main__":
+    main()
 
