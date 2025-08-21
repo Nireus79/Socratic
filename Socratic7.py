@@ -1875,6 +1875,9 @@ class SocraticRAGSystem:
                 if self._create_account():
                     return True
             elif choice == '3':
+                print("                 Thank you for using Socratic.")
+                print("                           Goodbye!")
+                print("..τω Ασκληπιώ οφείλομεν αλετρυόνα, απόδοτε και μη αμελήσετε..")
                 return False
             else:
                 print(f"{Fore.RED}Invalid choice. Please try again.")
