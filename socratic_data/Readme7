@@ -1,0 +1,612 @@
+# Enhanced Socratic RAG System v7.0
+
+## Overview
+
+The Enhanced Socratic RAG System is an AI-powered software development guidance platform that uses the Socratic method combined with Retrieval-Augmented Generation (RAG) to help developers think through their projects systematically. The system employs multiple specialized AI agents to provide contextual guidance, detect conflicts, manage projects, and generate code.
+
+## Table of Contents
+
+- [Features](#features)
+- [Architecture](#architecture)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Usage Guide](#usage-guide)
+- [Agent System](#agent-system)
+- [Project Phases](#project-phases)
+- [Collaboration Features](#collaboration-features)
+- [API Reference](#api-reference)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
+
+## Features
+
+### Core Capabilities
+- **Socratic Questioning**: AI-powered contextual questions that guide development thinking
+- **Multi-Agent Architecture**: Specialized agents for different aspects of development
+- **Real-time Conflict Detection**: Automatic detection and resolution of specification conflicts
+- **Collaborative Development**: Multi-user project collaboration with conflict management
+- **Vector Database Integration**: ChromaDB for knowledge retrieval and similarity matching
+- **Code Generation**: Automated code and documentation generation
+- **Project Management**: Full project lifecycle management across development phases
+
+### Advanced Features
+- **Dynamic vs Static Questions**: Toggle between AI-generated and predefined questions
+- **Real-time Collaboration**: Multiple users can work on projects simultaneously
+- **Semantic Conflict Detection**: AI-powered detection of conflicting requirements
+- **Token Usage Monitoring**: Track API usage and costs
+- **Knowledge Base**: Built-in software development knowledge repository
+
+## Architecture
+
+### System Components
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   User Interface│    │ Agent           │    │ Claude API      │
+│   (CLI)         │◄──►│ Orchestrator    │◄──►│ Client          │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                              │
+                              ▼
+        ┌─────────────────────────────────────────────────────┐
+        │                 Agent System                        │
+        ├─────────────────┬─────────────────┬─────────────────┤
+        │ Project Manager │ Socratic        │ Context         │
+        │ Agent           │ Counselor Agent │ Analyzer Agent  │
+        ├─────────────────┼─────────────────┼─────────────────┤
+        │ Code Generator  │ System Monitor  │ Conflict        │
+        │ Agent           │ Agent           │ Detector Agent  │
+        └─────────────────┴─────────────────┴─────────────────┘
+                              │
+                              ▼
+        ┌─────────────────────────────────────────────────────┐
+        │                Storage Layer                        │
+        ├─────────────────┬─────────────────┬─────────────────┤
+        │ SQLite Database │ ChromaDB        │ File System     │
+        │ (Projects/Users)│ (Vector Store)  │ (Configuration) │
+        └─────────────────┴─────────────────┴─────────────────┘
+```
+
+### Agent Responsibilities
+
+| Agent | Purpose | Key Functions |
+|-------|---------|---------------|
+| **Project Manager** | Project lifecycle management | Create, load, save projects; manage collaborators |
+| **Socratic Counselor** | Guided questioning and learning | Generate questions, process responses, advance phases |
+| **Context Analyzer** | Project context understanding | Analyze patterns, provide summaries, find similarities |
+| **Code Generator** | Code and documentation creation | Generate scripts, create documentation |
+| **System Monitor** | System health and usage tracking | Track tokens, monitor API health, generate statistics |
+| **Conflict Detector** | Specification conflict management | Detect conflicts, suggest resolutions, manage collaboration |
+
+## Installation
+
+### Prerequisites
+
+```bash
+Python 3.8+
+pip (Python package installer)
+Claude API key from Anthropic
+```
+
+### Required Dependencies
+
+```bash
+pip install chromadb anthropic sentence-transformers colorama numpy sqlite3
+```
+
+### Installation Steps
+
+1. **Clone or download the system**:
+```bash
+# Save the Socratic7.py file to your desired directory
+```
+
+2. **Install dependencies**:
+```bash
+pip install chromadb anthropic sentence-transformers colorama numpy
+```
+
+3. **Set up API key**:
+```bash
+# Option 1: Environment variable (recommended)
+export API_KEY_CLAUDE="your_claude_api_key_here"
+
+# Option 2: The system will prompt you for the key at startup
+```
+
+4. **Run the system**:
+```bash
+python Socratic7.py
+```
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `API_KEY_CLAUDE` | Anthropic Claude API key | Yes |
+
+### Configuration Parameters
+
+The system uses a global `CONFIG` dictionary with the following settings:
+
+```python
+CONFIG = {
+    'MAX_CONTEXT_LENGTH': 8000,           # Maximum context length for AI
+    'EMBEDDING_MODEL': 'all-MiniLM-L6-v2', # Sentence transformer model
+    'CLAUDE_MODEL': 'claude-3-5-sonnet-20241022', # Claude model version
+    'MAX_RETRIES': 3,                     # API retry attempts
+    'RETRY_DELAY': 1,                     # Delay between retries (seconds)
+    'TOKEN_WARNING_THRESHOLD': 0.8,       # Warning threshold for token usage
+    'SESSION_TIMEOUT': 3600,              # Session timeout (seconds)
+    'DATA_DIR': 'socratic_data'           # Data storage directory
+}
+```
+
+### Data Storage Structure
+
+```
+socratic_data/
+├── projects.db          # SQLite database for projects and users
+├── vector_db/           # ChromaDB vector database
+│   ├── chroma.sqlite3
+│   └── [other ChromaDB files]
+└── [other system files]
+```
+
+## Usage Guide
+
+### Getting Started
+
+1. **First Launch**:
+   - Create a new user account or login
+   - The system will initialize the knowledge base automatically
+
+2. **Creating Your First Project**:
+   - Choose "Create new project" from the main menu
+   - Enter a descriptive project name
+   - Begin the Socratic questioning session
+
+3. **Working Through Phases**:
+   - **Discovery**: Define problems, goals, and users
+   - **Analysis**: Explore technical requirements and challenges
+   - **Design**: Plan architecture and implementation approach
+   - **Implementation**: Focus on development strategy and deployment
+
+### Command Reference
+
+#### During Socratic Sessions
+
+| Command | Description |
+|---------|-------------|
+| `done` | End the current questioning session |
+| `advance` | Move to the next project phase |
+| `help` | Get AI-generated suggestions for the current question |
+| `suggestions` | Same as help |
+| `options` | Same as help |
+| `hint` | Same as help |
+
+#### Main Menu Options
+
+| Option | Description |
+|--------|-------------|
+| 1 | Create new project |
+| 2 | Load existing project |
+| 3 | Continue current project |
+| 4 | Generate code |
+| 5 | Manage collaborators |
+| 6 | View system status |
+| 7 | Switch user |
+| 8 | Exit |
+
+### Best Practices
+
+1. **Thoughtful Responses**: Provide detailed, thoughtful answers to questions
+2. **Iterative Development**: Don't try to solve everything in one session
+3. **Use Help Features**: When stuck, use the `help` command for AI suggestions
+4. **Phase Progression**: Only advance phases when you feel ready
+5. **Collaboration**: Add collaborators early for diverse perspectives
+
+## Agent System
+
+### ProjectManagerAgent
+
+**Purpose**: Manages project lifecycle and collaboration
+
+**Key Methods**:
+- `create_project()`: Creates new projects with default settings
+- `load_project()`: Retrieves projects from database
+- `add_collaborator()`: Adds users to project teams
+- `remove_collaborator()`: Removes users from projects (owner only)
+- `list_projects()`: Shows user's accessible projects
+
+**Data Management**:
+- Projects stored in SQLite database with pickle serialization
+- Supports project ownership and collaboration models
+- Handles datetime serialization/deserialization
+
+### SocraticCounselorAgent
+
+**Purpose**: Provides guided questioning using the Socratic method
+
+**Features**:
+- **Dynamic Questions**: AI-generated contextual questions using Claude
+- **Static Questions**: Fallback predefined questions for each phase
+- **Response Processing**: Extracts insights from user responses
+- **Conflict Integration**: Real-time conflict detection and resolution
+
+**Question Generation Process**:
+1. Analyze current project context
+2. Review recent conversation history
+3. Search relevant knowledge from vector database
+4. Generate contextually appropriate question
+5. Store question in conversation history
+
+### ContextAnalyzerAgent
+
+**Purpose**: Analyzes and summarizes project context
+
+**Capabilities**:
+- Pattern identification in conversations
+- Project summary generation
+- Similar project discovery
+- Context relevance scoring
+
+### CodeGeneratorAgent
+
+**Purpose**: Generates code and documentation
+
+**Generation Process**:
+1. Build comprehensive context from project data
+2. Include recent conversation insights
+3. Generate production-ready code using Claude
+4. Optionally create supporting documentation
+
+### SystemMonitorAgent
+
+**Purpose**: Monitors system health and resource usage
+
+**Tracking Capabilities**:
+- Token usage monitoring
+- API cost estimation
+- Connection health checks
+- Performance warnings
+
+### ConflictDetectorAgent
+
+**Purpose**: Detects and helps resolve specification conflicts
+
+**Conflict Types**:
+- **Technology Stack Conflicts**: Incompatible technologies
+- **Requirements Conflicts**: Contradictory functional requirements
+- **Goals Conflicts**: Misaligned project objectives
+- **Constraints Conflicts**: Incompatible limitations
+
+**Resolution Process**:
+1. Real-time conflict detection during conversation
+2. AI-generated resolution suggestions
+3. Interactive resolution options
+4. Context-aware conflict severity assessment
+
+## Project Phases
+
+### Discovery Phase
+**Focus**: Problem definition and user understanding
+
+**Key Questions**:
+- What specific problem does your project solve?
+- Who is your target audience?
+- What are the core features you envision?
+- How does your solution differ from existing ones?
+
+### Analysis Phase
+**Focus**: Technical feasibility and requirements
+
+**Key Areas**:
+- Technical challenges and solutions
+- Performance requirements
+- Security considerations
+- Integration needs
+- Testing strategies
+
+### Design Phase
+**Focus**: Architecture and implementation planning
+
+**Key Elements**:
+- System architecture design
+- Design pattern selection
+- Code organization strategy
+- Development workflow
+- Error handling approach
+
+### Implementation Phase
+**Focus**: Development strategy and deployment
+
+**Key Planning**:
+- Development milestones
+- Deployment pipeline
+- Monitoring and logging
+- Documentation strategy
+- Maintenance planning
+
+## Collaboration Features
+
+### Multi-User Support
+
+**User Management**:
+- Account creation with username/passcode
+- Secure authentication using SHA-256 hashing
+- User session management
+
+**Project Collaboration**:
+- Owner-based project access control
+- Collaborator invitation system
+- Real-time conflict detection between team members
+
+### Conflict Resolution
+
+**Automatic Detection**:
+- Technology stack incompatibilities
+- Semantic requirement conflicts
+- Goal misalignment
+- Constraint contradictions
+
+**Resolution Options**:
+1. **Keep Existing**: Maintain original specification
+2. **Replace with New**: Accept new specification
+3. **Skip**: Ignore conflicting specification
+4. **Manual Resolution**: Create custom resolution
+
+## API Reference
+
+### AgentOrchestrator
+
+```python
+orchestrator = AgentOrchestrator(api_key: str)
+
+# Process agent requests
+result = orchestrator.process_request(
+    agent_name: str,
+    request: Dict[str, Any]
+) -> Dict[str, Any]
+```
+
+### Project Management
+
+```python
+# Create project
+result = orchestrator.process_request('project_manager', {
+    'action': 'create_project',
+    'project_name': str,
+    'owner': str
+})
+
+# Load project
+result = orchestrator.process_request('project_manager', {
+    'action': 'load_project',
+    'project_id': str
+})
+
+# Add collaborator
+result = orchestrator.process_request('project_manager', {
+    'action': 'add_collaborator',
+    'project': ProjectContext,
+    'username': str
+})
+```
+
+### Socratic Counseling
+
+```python
+# Generate question
+result = orchestrator.process_request('socratic_counselor', {
+    'action': 'generate_question',
+    'project': ProjectContext
+})
+
+# Process response
+result = orchestrator.process_request('socratic_counselor', {
+    'action': 'process_response',
+    'project': ProjectContext,
+    'response': str,
+    'current_user': str
+})
+```
+
+### Code Generation
+
+```python
+# Generate script
+result = orchestrator.process_request('code_generator', {
+    'action': 'generate_script',
+    'project': ProjectContext
+})
+
+# Generate documentation
+result = orchestrator.process_request('code_generator', {
+    'action': 'generate_documentation',
+    'project': ProjectContext,
+    'script': str
+})
+```
+
+## Data Models
+
+### ProjectContext
+
+```python
+@dataclass
+class ProjectContext:
+    project_id: str
+    name: str
+    owner: str
+    collaborators: List[str]
+    goals: str
+    requirements: List[str]
+    tech_stack: List[str]
+    constraints: List[str]
+    team_structure: str
+    language_preferences: str
+    deployment_target: str
+    code_style: str
+    phase: str
+    conversation_history: List[Dict]
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+```
+
+### ConflictInfo
+
+```python
+@dataclass
+class ConflictInfo:
+    conflict_id: str
+    conflict_type: str  # 'tech_stack', 'requirements', 'goals', 'constraints'
+    old_value: str
+    new_value: str
+    old_author: str
+    new_author: str
+    old_timestamp: str
+    new_timestamp: str
+    severity: str  # 'low', 'medium', 'high'
+    suggestions: List[str]
+```
+
+## Troubleshooting
+
+### Common Issues
+
+#### API Connection Problems
+
+**Symptoms**: "Health check failed" or connection errors
+**Solutions**:
+1. Verify Claude API key is correct
+2. Check internet connection
+3. Verify API key has sufficient credits
+4. Check Anthropic service status
+
+#### Database Issues
+
+**Symptoms**: "Could not load project" or database errors
+**Solutions**:
+1. Ensure write permissions to data directory
+2. Check available disk space
+3. Restart the application
+4. Delete and recreate the database if corrupted
+
+#### Vector Database Problems
+
+**Symptoms**: Search functionality not working
+**Solutions**:
+1. Reinstall ChromaDB: `pip install --upgrade chromadb`
+2. Delete vector database directory and restart
+3. Check sentence-transformers installation
+
+#### High Token Usage
+
+**Symptoms**: High API costs or token warnings
+**Solutions**:
+1. Use static questions mode: Toggle in Socratic session
+2. Reduce conversation length
+3. Monitor usage in system status
+
+### Error Messages
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| "ChromaDB not found" | Missing dependency | `pip install chromadb` |
+| "Anthropic package not found" | Missing dependency | `pip install anthropic` |
+| "API key not found" | Missing API key | Set `API_KEY_CLAUDE` environment variable |
+| "User not found" | Invalid username | Check username spelling |
+| "Project not found" | Invalid project ID | Check project exists in your list |
+
+### Performance Optimization
+
+1. **Reduce Context Length**: Lower `MAX_CONTEXT_LENGTH` in config
+2. **Use Static Questions**: Toggle to reduce API calls
+3. **Limit Conversation History**: Keep sessions focused
+4. **Monitor Token Usage**: Regular system status checks
+
+## Development
+
+### Adding New Agents
+
+1. **Create Agent Class**:
+```python
+class MyCustomAgent(Agent):
+    def __init__(self, orchestrator):
+        super().__init__("MyCustomAgent", orchestrator)
+
+    def process(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        # Implement agent logic
+        pass
+```
+
+2. **Register Agent**:
+```python
+# In AgentOrchestrator._initialize_agents()
+self.my_custom_agent = MyCustomAgent(self)
+```
+
+3. **Add to Router**:
+```python
+# In AgentOrchestrator.process_request()
+agents = {
+    # ... existing agents
+    'my_custom_agent': self.my_custom_agent,
+}
+```
+
+### Extending Knowledge Base
+
+```python
+# Add new knowledge entries
+entry = KnowledgeEntry(
+    id='unique_id',
+    content='Knowledge content',
+    category='category',
+    metadata={'key': 'value'}
+)
+orchestrator.vector_db.add_knowledge(entry)
+```
+
+### Custom Conflict Rules
+
+```python
+# In ConflictDetectorAgent.__init__()
+self.conflict_rules.update({
+    'custom_category': ['item1', 'item2', 'item3']
+})
+```
+
+## License and Support
+
+This system is designed for educational and development purposes. For support or questions about the system architecture, refer to the inline documentation and comments in the source code.
+
+## Version History
+
+- **v7.0**: Enhanced multi-agent architecture with real-time conflict detection
+- **v6.x**: Added collaboration features and vector database integration
+- **v5.x**: Implemented Socratic questioning system
+- **v4.x**: Basic project management capabilities
+
+Key Documentation Sections:
+
+Overview & Architecture - High-level system design and component relationships
+Installation & Configuration - Step-by-step setup instructions and configuration options
+Usage Guide - Practical guidance for using the system effectively
+Agent System - Detailed explanation of each specialized agent and their responsibilities
+Project Phases - Understanding the four development phases (Discovery, Analysis, Design, Implementation)
+Collaboration Features - Multi-user support and conflict resolution capabilities
+API Reference - Technical reference for developers
+Troubleshooting - Common issues and solutions
+Development Guide - How to extend and customize the system
+
+System Highlights:
+
+Multi-Agent Architecture: Six specialized agents working together
+Real-time Conflict Detection: Automatic detection and resolution of specification conflicts
+Socratic Method: AI-powered questioning to guide development thinking
+Vector Database Integration: ChromaDB for knowledge retrieval
+Collaborative Development: Multi-user projects with conflict management
+Code Generation: Automated code and documentation creation

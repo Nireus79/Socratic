@@ -4,12 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7.1">
-      <change afterPath="$PROJECT_DIR$/Socratic7tst.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/socratic_data/chroma_db/chroma.sqlite3" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/socratic_data/socratic_system.db" afterDir="false" />
+    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_system.log" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_system.log" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Socratic7tst.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic7tst.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -79,7 +76,7 @@
       <recent name="C:\Users\themi\PycharmProjects\Socratic" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.Socratic7.1">
+  <component name="RunManager" selected="Python tests.Python tests in Socratic7tst.py">
     <configuration name="Socratic7" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="Socratic" />
       <option name="ENV_FILES" value="" />
@@ -93,29 +90,7 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="C:\Users\themi\PycharmProjects\Socratic\Socratic7.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
-    <configuration name="Socratic7.1" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
-      <module name="Socratic" />
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Socratic7.1.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Socratic7.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -146,14 +121,29 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
+    <configuration name="Python tests in Socratic7tst.py" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
+      <module name="Socratic" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;$PROJECT_DIR$/Socratic7tst.py&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method v="2" />
+    </configuration>
     <list>
       <item itemvalue="Python.main" />
-      <item itemvalue="Python.Socratic7.1" />
       <item itemvalue="Python.Socratic7" />
+      <item itemvalue="Python tests.Python tests in Socratic7tst.py" />
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.Socratic7.1" />
+        <item itemvalue="Python tests.Python tests in Socratic7tst.py" />
         <item itemvalue="Python.Socratic7" />
       </list>
     </recent_temporary>
@@ -173,14 +163,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1750504324591</updated>
-    </task>
-    <task id="LOCAL-00059" summary="7">
-      <option name="closed" value="true" />
-      <created>1754490745234</created>
-      <option name="number" value="00059" />
-      <option name="presentableId" value="LOCAL-00059" />
-      <option name="project" value="LOCAL" />
-      <updated>1754490745235</updated>
     </task>
     <task id="LOCAL-00060" summary="7">
       <option name="closed" value="true" />
@@ -566,7 +548,15 @@
       <option name="project" value="LOCAL" />
       <updated>1755800494617</updated>
     </task>
-    <option name="localTasksCounter" value="108" />
+    <task id="LOCAL-00108" summary="7">
+      <option name="closed" value="true" />
+      <created>1755800993337</created>
+      <option name="number" value="00108" />
+      <option name="presentableId" value="LOCAL-00108" />
+      <option name="project" value="LOCAL" />
+      <updated>1755800993337</updated>
+    </task>
+    <option name="localTasksCounter" value="109" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -593,9 +583,9 @@
     <MESSAGE value="7 new" />
     <MESSAGE value="users" />
     <MESSAGE value="conflicts" />
-    <MESSAGE value="7" />
     <MESSAGE value="sql" />
     <MESSAGE value="7.1" />
-    <option name="LAST_COMMIT_MESSAGE" value="7.1" />
+    <MESSAGE value="7" />
+    <option name="LAST_COMMIT_MESSAGE" value="7" />
   </component>
 </project>

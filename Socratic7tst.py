@@ -825,4 +825,228 @@ class TestRunner:
             self.run_scenario_tests()
             self.run_performance_tests()
         except KeyboardInterrupt:
-            print("\n⚠
+            print("\n⚠️  Test execution interrupted by user")
+            return False
+
+        end_time = time.time()
+        total_time = end_time - start_time
+
+        self.print_test_summary(total_time)
+        return self.all_tests_passed()
+
+    def print_test_summary(self, total_time):
+        """Print comprehensive test summary"""
+        print("\n" + "=" * 70)
+        print("📊 TEST SUMMARY")
+        print("=" * 70)
+
+        total_passed = 0
+        total_failed = 0
+
+        for test_type, results in self.test_results.items():
+            passed = results['passed']
+            failed = results['failed']
+            total_passed += passed
+            total_failed += failed
+
+            status_icon = "✅" if failed == 0 else "❌"
+            test_name = test_type.replace('_', ' ').title()
+
+            print(f"{status_icon} {test_name:20} | Passed: {passed:3d} | Failed: {failed:3d}")
+
+            # Show detailed errors if any
+            if results['errors'] and len(results['errors']) <= 5:  # Limit error output
+                for error in results['errors']:
+                    print(f"    ❌ {error}")
+            elif len(results['errors']) > 5:
+                print(f"    ❌ ... and {len(results['errors']) - 5} more errors")
+
+        print("-" * 70)
+        print(f"📈 TOTAL RESULTS:")
+        print(f"   ✅ Passed: {total_passed}")
+        print(f"   ❌ Failed: {total_failed}")
+        print(f"   ⏱️  Total Time: {total_time:.2f}s")
+
+        if total_failed == 0:
+            print(f"\n🎉 ALL TESTS PASSED! Socratic RAG System v7.0 is ready for deployment.")
+        else:
+            print(f"\n⚠️  {total_failed} tests failed. Please review the errors above.")
+
+        print("=" * 70)
+
+    def all_tests_passed(self):
+        """Check if all tests passed"""
+        return all(results['failed'] == 0 for results in self.test_results.values())
+
+    def generate_test_report(self, output_file="test_report.html"):
+        """Generate detailed HTML test report"""
+        print(f"📄 Generating detailed test report: {output_file}")
+
+        html_content = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Socratic RAG System v7.0 - Test Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }
+        .header { background-color: #2c3e50; color: white; padding: 20px; border-radius: 8px; }
+        .summary { background-color: white; padding: 20px; margin: 20px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .test-section { background-color: white; padding: 15px; margin: 15px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .passed { color: #27ae60; font-weight: bold; }
+        .failed { color: #e74c3c; font-weight: bold; }
+        .error { background-color: #f8d7da; padding: 10px; margin: 5px 0; border-radius: 4px; font-family: monospace; font-size: 12px; }
+        .metric { display: inline-block; margin: 10px 20px 10px 0; padding: 10px; background-color: #ecf0f1; border-radius: 4px; }
+        .timestamp { color: #7f8c8d; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🧪 Socratic RAG System v7.0 - Test Report</h1>
+        <p class="timestamp">Generated on: {timestamp}</p>
+    </div>
+
+    <div class="summary">
+        <h2>📊 Overall Summary</h2>
+        <div class="metric">Total Tests: <strong>{total_tests}</strong></div>
+        <div class="metric">Passed: <span class="passed">{total_passed}</span></div>
+        <div class="metric">Failed: <span class="failed">{total_failed}</span></div>
+        <div class="metric">Success Rate: <strong>{success_rate:.1f}%</strong></div>
+    </div>
+""".format(
+            timestamp=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            total_tests=sum(r['passed'] + r['failed'] for r in self.test_results.values()),
+            total_passed=sum(r['passed'] for r in self.test_results.values()),
+            total_failed=sum(r['failed'] for r in self.test_results.values()),
+            success_rate=(sum(r['passed'] for r in self.test_results.values()) /
+                          max(1, sum(r['passed'] + r['failed'] for r in self.test_results.values())) * 100)
+        )
+
+        # Add detailed sections for each test type
+        for test_type, results in self.test_results.items():
+            test_name = test_type.replace('_', ' ').title()
+            status_class = "passed" if results['failed'] == 0 else "failed"
+
+            html_content += f"""
+    <div class="test-section">
+        <h3 class="{status_class}">🔧 {test_name}</h3>
+        <p>Passed: <span class="passed">{results['passed']}</span> | 
+           Failed: <span class="failed">{results['failed']}</span></p>
+"""
+
+            if results['errors']:
+                html_content += "<h4>Errors:</h4>"
+                for error in results['errors'][:10]:  # Limit to first 10 errors
+                    html_content += f'<div class="error">{error}</div>'
+
+            html_content += "</div>"
+
+        html_content += """
+    <div class="summary">
+        <h2>🏁 Conclusion</h2>
+        <p>This automated test suite validates the core functionality of the Socratic RAG System v7.0, 
+        including data models, database operations, agent behaviors, integration points, and performance characteristics.</p>
+        <p><strong>Recommendation:</strong> {}
+    </div>
+</body>
+</html>
+""".format(
+            "✅ System is ready for deployment." if self.all_tests_passed()
+            else "⚠️ Address failed tests before deployment."
+        )
+
+        try:
+            with open(output_file, 'w', encoding='utf-8') as f:
+                f.write(html_content)
+            print(f"✅ Test report saved to {output_file}")
+        except Exception as e:
+            print(f"❌ Failed to generate test report: {e}")
+
+
+def run_specific_test_class(test_class_name):
+    """Run a specific test class"""
+    test_classes = {
+        'data': TestDataModels,
+        'database': TestDatabaseOperations,
+        'vector': TestVectorDatabase,
+        'agents': TestAgents,
+        'conflicts': TestConflictDetection,
+        'integration': TestIntegration,
+        'scenarios': TestScenarios
+    }
+
+    if test_class_name.lower() in test_classes:
+        print(f"🎯 Running specific test: {test_class_name}")
+        suite = unittest.TestLoader().loadTestsFromTestCase(test_classes[test_class_name.lower()])
+        runner = unittest.TextTestRunner(verbosity=2)
+        result = runner.run(suite)
+        return result.wasSuccessful()
+    else:
+        print(f"❌ Unknown test class: {test_class_name}")
+        print(f"Available tests: {', '.join(test_classes.keys())}")
+        return False
+
+
+def main():
+    """Main function to run tests"""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Comprehensive Test Suite for Socratic RAG System v7.0")
+    parser.add_argument('--test', type=str, help='Run specific test class', choices=[
+        'data', 'database', 'vector', 'agents', 'conflicts', 'integration', 'scenarios'
+    ])
+    parser.add_argument('--report', action='store_true', help='Generate HTML test report')
+    parser.add_argument('--quick', action='store_true', help='Run quick tests only (skip scenarios)')
+    parser.add_argument('--performance', action='store_true', help='Run performance tests only')
+
+    args = parser.parse_args()
+
+    if args.test:
+        # Run specific test class
+        success = run_specific_test_class(args.test)
+        sys.exit(0 if success else 1)
+
+    elif args.performance:
+        # Run performance tests only
+        print("⚡ Running Performance Tests Only...")
+        try:
+            PerformanceTest.test_database_performance()
+            print("✅ Performance tests completed successfully")
+            sys.exit(0)
+        except Exception as e:
+            print(f"❌ Performance tests failed: {e}")
+            sys.exit(1)
+
+    else:
+        # Run full test suite
+        runner = TestRunner()
+
+        if args.quick:
+            print("🏃 Running Quick Test Suite (excluding scenarios)...")
+            runner.run_unit_tests()
+            runner.run_integration_tests()
+            runner.run_performance_tests()
+        else:
+            success = runner.run_all_tests()
+
+        if args.report:
+            runner.generate_test_report()
+
+        sys.exit(0 if runner.all_tests_passed() else 1)
+
+
+if __name__ == "__main__":
+    # Enable better error reporting
+    import traceback
+    import warnings
+    warnings.filterwarnings('ignore', category=DeprecationWarning)
+
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n⚠️  Test execution interrupted by user")
+        sys.exit(130)
+    except Exception as e:
+        print(f"\n💥 Fatal error during test execution:")
+        print(f"   {e}")
+        traceback.print_exc()
+        sys.exit(1)
