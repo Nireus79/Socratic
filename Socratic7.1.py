@@ -1561,4 +1561,701 @@ class DatabaseHandler:
                         'request_count': row['request_count'] or 0,
                         'period_days': days
                     }
-                return {'total_tokens': 0, 'estimated_cost':
+                return {'total_tokens': 0, 'estimated_cost':0.0, 'request_count': 0, 'period_days': days}
+        except Exception as e:
+            logger.error(f"Failed to get token usage stats: {e}")
+            return {'total_tokens': 0, 'estimated_cost': 0.0, 'request_count': 0, 'period_days': days}
+
+    def save_knowledge_entry(self, entry: KnowledgeEntry) -> bool:
+        """Save knowledge entry to database"""
+        try:
+            with self.connection_pool.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT OR REPLACE INTO knowledge_entries (id, content, category, metadata, created_at)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (
+                    entry.id, entry.content, entry.category,
+                    json.dumps(entry.metadata), datetime.datetime.now().isoformat()
+                ))
+                conn.commit()
+                return True
+        except Exception as e:
+            logger.error(f"Failed to save knowledge entry {entry.id}: {e}")
+            return False
+
+    def load_knowledge_entries(self, category: str = None) -> List[KnowledgeEntry]:
+        """Load knowledge entries from database"""
+        try:
+            with self.connection_pool.get_connection() as conn:
+                cursor = conn.cursor()
+                if category:
+                    cursor.execute('SELECT * FROM knowledge_entries WHERE category = ?', (category,))
+                else:
+                    cursor.execute('SELECT * FROM knowledge_entries')
+
+                entries = []
+                for row in cursor.fetchall():
+                    entries.append(KnowledgeEntry(
+                        id=row['id'],
+                        content=row['content'],
+                        category=row['category'],
+                        metadata=json.loads(row['metadata'])
+                    ))
+                return entries
+        except Exception as e:
+            logger.error(f"Failed to load knowledge entries: {e}")
+            return []
+
+
+class ClaudeClient:
+    def __init__(self):
+        api_key = os.getenv('ANTHROPIC_API_KEY')
+        if not api_key:
+            logger.error("ANTHROPIC_API_KEY not found in environment variables")
+            raise ValueError("Missing Anthropic API key")
+
+        self.client = anthropic.Anthropic(api_key=api_key)
+        self.model = CONFIG['CLAUDE_MODEL']
+        logger.info(f"Claude client initialized with model: {self.model}")
+
+    def generate_socratic_question(self, prompt: str) -> str:
+        """Generate a Socratic question using Claude"""
+        try:
+            message = self.client.messages.create(
+                model=self.model,
+                max_tokens=300,
+                temperature=0.7,
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }]
+            )
+
+            return message.content[0].text.strip()
+
+        except Exception as e:
+            logger.error(f"Failed to generate Socratic question: {e}")
+            raise
+
+    def extract_insights(self, user_response: str, project: ProjectContext) -> Dict:
+        """Extract insights from user response"""
+        prompt = f"""Analyze this user response and extract structured insights for a software project.
+
+Project Context:
+- Name: {project.name}
+- Phase: {project.phase}
+- Current Goals: {project.goals or 'Not defined'}
+- Current Tech Stack: {', '.join(project.tech_stack) if project.tech_stack else 'Not defined'}
+
+User Response: "{user_response}"
+
+Extract the following if mentioned (return empty if not found):
+1. goals: Main project objectives
+2. requirements: Functional or non-functional requirements
+3. tech_stack: Technologies, frameworks, tools mentioned
+4. constraints: Limitations, restrictions, or constraints
+5. deployment_target: Where the project will be deployed
+6. language_preferences: Programming languages mentioned
+
+Return as JSON only:"""
+
+        try:
+            message = self.client.messages.create(
+                model=self.model,
+                max_tokens=500,
+                temperature=0.3,
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }]
+            )
+
+            response_text = message.content[0].text.strip()
+
+            # Try to parse JSON response
+            try:
+                return json.loads(response_text)
+            except json.JSONDecodeError:
+                # Fallback: extract JSON from response if wrapped in text
+                import re
+                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                if json_match:
+                    return json.loads(json_match.group())
+                else:
+                    logger.warning("Failed to parse insights JSON, returning empty dict")
+                    return {}
+
+        except Exception as e:
+            logger.error(f"Failed to extract insights: {e}")
+            return {}
+
+
+# Agent Orchestrator - The main coordinator
+class AgentOrchestrator:
+    def __init__(self, data_dir: str = None):
+        self.data_dir = data_dir or CONFIG['DATA_DIR']
+        os.makedirs(self.data_dir, exist_ok=True)
+
+        # Initialize core components
+        self.database = DatabaseHandler(self.data_dir)
+        self.vector_db = VectorDatabaseHandler(self.data_dir)
+        self.claude_client = ClaudeClient()
+
+        # Initialize agents
+        self.session_manager = SessionManagerAgent(self)
+        self.conversation_engine = ConversationEngineAgent(self)
+        self.context_analyzer = ContextAnalyzerAgent(self)
+
+        # Current session state
+        self.current_user = None
+        self.current_project = None
+
+        logger.info("Agent orchestrator initialized successfully")
+
+    def authenticate_user(self, username: str, passcode: str) -> bool:
+        """Authenticate user and set as current user"""
+        result = self.session_manager.process({
+            'action': 'authenticate_user',
+            'username': username,
+            'passcode': passcode
+        })
+
+        if result['status'] == 'success':
+            self.current_user = result['user']
+            return True
+        return False
+
+    def create_user(self, username: str, passcode: str) -> bool:
+        """Create new user account"""
+        result = self.session_manager.process({
+            'action': 'create_user',
+            'username': username,
+            'passcode': passcode
+        })
+
+        if result['status'] == 'success':
+            self.current_user = result['user']
+            return True
+        return False
+
+    def create_project(self, project_name: str) -> bool:
+        """Create new project for current user"""
+        if not self.current_user:
+            return False
+
+        result = self.session_manager.process({
+            'action': 'create_project',
+            'project_name': project_name,
+            'owner': self.current_user.username
+        })
+
+        if result['status'] == 'success':
+            self.current_project = result['project']
+            return True
+        return False
+
+    def load_project(self, project_id: str) -> bool:
+        """Load existing project"""
+        result = self.session_manager.process({
+            'action': 'load_project',
+            'project_id': project_id
+        })
+
+        if result['status'] == 'success':
+            self.current_project = result['project']
+            return True
+        return False
+
+    def get_user_projects(self) -> List[Dict]:
+        """Get all projects for current user"""
+        if not self.current_user:
+            return []
+
+        result = self.session_manager.process({
+            'action': 'list_projects',
+            'username': self.current_user.username
+        })
+
+        return result.get('projects', []) if result['status'] == 'success' else []
+
+    def start_socratic_session(self) -> str:
+        """Start a Socratic questioning session"""
+        if not self.current_project:
+            return "No project selected. Please create or load a project first."
+
+        result = self.conversation_engine.process({
+            'action': 'generate_question',
+            'project': self.current_project
+        })
+
+        if result['status'] == 'success':
+            return result['question']
+        else:
+            return "Sorry, I couldn't generate a question right now. Please try again."
+
+    def process_user_response(self, response: str) -> Dict:
+        """Process user response and return insights"""
+        if not self.current_project or not self.current_user:
+            return {'status': 'error', 'message': 'No active session'}
+
+        # Process the response
+        result = self.conversation_engine.process({
+            'action': 'process_response',
+            'project': self.current_project,
+            'response': response,
+            'current_user': self.current_user.username
+        })
+
+        # Save project after processing
+        if result['status'] == 'success':
+            self.session_manager.process({
+                'action': 'save_project',
+                'project': self.current_project
+            })
+
+        return result
+
+    def advance_project_phase(self) -> str:
+        """Advance project to next phase"""
+        if not self.current_project:
+            return "No project selected."
+
+        result = self.conversation_engine.process({
+            'action': 'advance_phase',
+            'project': self.current_project
+        })
+
+        if result['status'] == 'success':
+            self.session_manager.process({
+                'action': 'save_project',
+                'project': self.current_project
+            })
+            return f"Project advanced to {result['new_phase']} phase!"
+        else:
+            return result.get('message', 'Could not advance phase.')
+
+    def get_project_status(self) -> Dict:
+        """Get current project status and completeness"""
+        if not self.current_project:
+            return {'status': 'error', 'message': 'No project selected'}
+
+        completeness = self.context_analyzer.analyze_completeness(self.current_project)
+        next_steps = self.context_analyzer.suggest_next_steps(self.current_project)
+
+        return {
+            'status': 'success',
+            'project_name': self.current_project.name,
+            'phase': self.current_project.phase,
+            'completeness': completeness,
+            'next_steps': next_steps,
+            'conversation_count': len([msg for msg in self.current_project.conversation_history
+                                       if msg['type'] == 'user'])
+        }
+
+    def save_session_state(self):
+        """Save current session state"""
+        self.session_manager.process({
+            'action': 'save_session_state',
+            'current_user': self.current_user.username if self.current_user else None,
+            'current_project_id': self.current_project.project_id if self.current_project else None
+        })
+
+    def restore_session_state(self) -> bool:
+        """Restore previous session state"""
+        result = self.session_manager.process({
+            'action': 'restore_session_state'
+        })
+
+        if result['status'] == 'success':
+            session_data = result['session_data']
+
+            # Restore user
+            if session_data.get('current_user'):
+                user = self.database.load_user(session_data['current_user'])
+                if user:
+                    self.current_user = user
+
+            # Restore project
+            if session_data.get('current_project_id'):
+                if self.load_project(session_data['current_project_id']):
+                    return True
+
+        return False
+
+
+# Main CLI Interface
+class SocraticSystemCLI:
+    def __init__(self):
+        self.orchestrator = AgentOrchestrator()
+        self.running = True
+
+        # Try to restore previous session
+        self.orchestrator.restore_session_state()
+
+    def display_banner(self):
+        """Display system banner"""
+        print(f"\n{Style.BRIGHT}{Fore.CYAN}{'=' * 60}")
+        print(f"🧠 SOCRATIC SOFTWARE DEVELOPMENT SYSTEM v7.1 🧠")
+        print(f"{'=' * 60}{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}Intelligent project guidance through Socratic questioning{Style.RESET_ALL}\n")
+
+    def display_menu(self):
+        """Display main menu"""
+        print(f"\n{Style.BRIGHT}{Fore.YELLOW}Main Menu:")
+        print(f"{Fore.WHITE}1. 👤 User Management")
+        print(f"2. 📁 Project Management")
+        print(f"3. 🤔 Start Socratic Session")
+        print(f"4. 📊 Project Status")
+        print(f"5. ⚙️  System Settings")
+        print(f"6. 🚪 Exit")
+
+        if self.orchestrator.current_user:
+            print(f"\n{Fore.GREEN}Current User: {self.orchestrator.current_user.username}")
+        if self.orchestrator.current_project:
+            print(f"{Fore.BLUE}Current Project: {self.orchestrator.current_project.name} "
+                  f"({self.orchestrator.current_project.phase})")
+
+    def handle_user_management(self):
+        """Handle user authentication and management"""
+        while True:
+            print(f"\n{Style.BRIGHT}{Fore.YELLOW}User Management:")
+            print(f"{Fore.WHITE}1. Login")
+            print(f"2. Create New Account")
+            print(f"3. Back to Main Menu")
+
+            choice = input(f"\n{Fore.GREEN}Choice (1-3): ").strip()
+
+            if choice == '1':
+                self.handle_login()
+                break
+            elif choice == '2':
+                self.handle_create_account()
+                break
+            elif choice == '3':
+                break
+            else:
+                print(f"{Fore.RED}Invalid choice. Please try again.")
+
+    def handle_login(self):
+        """Handle user login"""
+        print(f"\n{Style.BRIGHT}{Fore.CYAN}User Login")
+        username = input("Username: ").strip()
+        if not username:
+            print(f"{Fore.RED}Username cannot be empty.")
+            return
+
+        passcode = getpass.getpass("Passcode: ")
+        if not passcode:
+            print(f"{Fore.RED}Passcode cannot be empty.")
+            return
+
+        if self.orchestrator.authenticate_user(username, passcode):
+            print(f"{Fore.GREEN}✓ Login successful! Welcome, {username}!")
+        else:
+            print(f"{Fore.RED}✗ Login failed. Please check your credentials.")
+
+    def handle_create_account(self):
+        """Handle new account creation"""
+        print(f"\n{Style.BRIGHT}{Fore.CYAN}Create New Account")
+        username = input("Username: ").strip()
+        if not username:
+            print(f"{Fore.RED}Username cannot be empty.")
+            return
+
+        passcode = getpass.getpass("Passcode: ")
+        if not passcode:
+            print(f"{Fore.RED}Passcode cannot be empty.")
+            return
+
+        confirm_passcode = getpass.getpass("Confirm Passcode: ")
+        if passcode != confirm_passcode:
+            print(f"{Fore.RED}Passcodes do not match.")
+            return
+
+        if self.orchestrator.create_user(username, passcode):
+            print(f"{Fore.GREEN}✓ Account created successfully! Welcome, {username}!")
+        else:
+            print(f"{Fore.RED}✗ Failed to create account. Username may already exist.")
+
+    def handle_project_management(self):
+        """Handle project management"""
+        if not self.orchestrator.current_user:
+            print(f"{Fore.RED}Please login first.")
+            return
+
+        while True:
+            print(f"\n{Style.BRIGHT}{Fore.YELLOW}Project Management:")
+            print(f"{Fore.WHITE}1. Create New Project")
+            print(f"2. Load Existing Project")
+            print(f"3. List My Projects")
+            print(f"4. Back to Main Menu")
+
+            choice = input(f"\n{Fore.GREEN}Choice (1-4): ").strip()
+
+            if choice == '1':
+                self.handle_create_project()
+                break
+            elif choice == '2':
+                self.handle_load_project()
+                break
+            elif choice == '3':
+                self.handle_list_projects()
+            elif choice == '4':
+                break
+            else:
+                print(f"{Fore.RED}Invalid choice. Please try again.")
+
+    def handle_create_project(self):
+        """Handle project creation"""
+        project_name = input(f"\n{Fore.CYAN}Project Name: ").strip()
+        if not project_name:
+            print(f"{Fore.RED}Project name cannot be empty.")
+            return
+
+        if self.orchestrator.create_project(project_name):
+            print(f"{Fore.GREEN}✓ Project '{project_name}' created successfully!")
+        else:
+            print(f"{Fore.RED}✗ Failed to create project.")
+
+    def handle_load_project(self):
+        """Handle project loading"""
+        projects = self.orchestrator.get_user_projects()
+        if not projects:
+            print(f"{Fore.YELLOW}No projects found.")
+            return
+
+        print(f"\n{Style.BRIGHT}{Fore.CYAN}Your Projects:")
+        for i, project in enumerate(projects, 1):
+            print(f"{i}. {project['name']} (Updated: {project['updated_at']})")
+
+        try:
+            choice = int(input(f"\n{Fore.GREEN}Select project (1-{len(projects)}): "))
+            if 1 <= choice <= len(projects):
+                project_id = projects[choice - 1]['project_id']
+                if self.orchestrator.load_project(project_id):
+                    print(f"{Fore.GREEN}✓ Project loaded successfully!")
+                else:
+                    print(f"{Fore.RED}✗ Failed to load project.")
+            else:
+                print(f"{Fore.RED}Invalid choice.")
+        except ValueError:
+            print(f"{Fore.RED}Please enter a valid number.")
+
+    def handle_list_projects(self):
+        """Handle project listing"""
+        projects = self.orchestrator.get_user_projects()
+        if not projects:
+            print(f"{Fore.YELLOW}No projects found.")
+            return
+
+        print(f"\n{Style.BRIGHT}{Fore.CYAN}Your Projects:")
+        for project in projects:
+            print(f"• {project['name']}")
+            print(f"  ID: {project['project_id']}")
+            print(f"  Created: {project['created_at']}")
+            print(f"  Updated: {project['updated_at']}\n")
+
+    def handle_socratic_session(self):
+        """Handle Socratic questioning session"""
+        if not self.orchestrator.current_user:
+            print(f"{Fore.RED}Please login first.")
+            return
+
+        if not self.orchestrator.current_project:
+            print(f"{Fore.RED}Please create or load a project first.")
+            return
+
+        print(f"\n{Style.BRIGHT}{Fore.CYAN}🤔 Socratic Session Started")
+        print(f"{Fore.WHITE}Project: {self.orchestrator.current_project.name}")
+        print(f"Phase: {self.orchestrator.current_project.phase.title()}")
+        print(f"\n{Fore.YELLOW}Commands: 'next' (advance phase), 'status' (project status), 'quit' (exit session)\n")
+
+        while True:
+            # Generate question
+            question = self.orchestrator.start_socratic_session()
+            print(f"{Fore.CYAN}🤔 {question}")
+
+            # Get user response
+            response = input(f"\n{Fore.GREEN}Your response: ").strip()
+
+            if not response:
+                continue
+
+            # Handle special commands
+            if response.lower() == 'quit':
+                print(f"{Fore.YELLOW}Session ended.")
+                break
+            elif response.lower() == 'next':
+                result = self.orchestrator.advance_project_phase()
+                print(f"{Fore.BLUE}{result}")
+                continue
+            elif response.lower() == 'status':
+                self.display_project_status()
+                continue
+
+            # Process response
+            result = self.orchestrator.process_user_response(response)
+
+            if result['status'] == 'success':
+                if result.get('conflicts_pending'):
+                    print(f"{Fore.YELLOW}⚠️ Conflicts detected and need resolution.")
+
+                insights = result.get('insights', {})
+                if insights:
+                    print(f"\n{Fore.GREEN}📝 Insights captured:")
+                    for key, value in insights.items():
+                        if value:
+                            if isinstance(value, list):
+                                print(f"  • {key.title()}: {', '.join(value)}")
+                            else:
+                                print(f"  • {key.title()}: {value}")
+            else:
+                print(f"{Fore.RED}Error processing response: {result.get('message', 'Unknown error')}")
+
+            print()
+
+    def display_project_status(self):
+        """Display current project status"""
+        status = self.orchestrator.get_project_status()
+
+        if status['status'] == 'error':
+            print(f"{Fore.RED}{status['message']}")
+            return
+
+        print(f"\n{Style.BRIGHT}{Fore.CYAN}📊 Project Status")
+        print(f"{Fore.WHITE}Project: {status['project_name']}")
+        print(f"Phase: {status['phase'].title()}")
+        print(f"Conversations: {status['conversation_count']}")
+
+        print(f"\n{Style.BRIGHT}Completeness:")
+        for aspect, score in status['completeness'].items():
+            if aspect == 'overall':
+                continue
+            percentage = int(score * 100)
+            bar = '█' * (percentage // 10) + '░' * (10 - percentage // 10)
+            color = Fore.GREEN if score > 0.7 else Fore.YELLOW if score > 0.3 else Fore.RED
+            print(f"{color}{aspect.title()}: {bar} {percentage}%")
+
+        overall = int(status['completeness']['overall'] * 100)
+        print(f"\n{Style.BRIGHT}{Fore.CYAN}Overall: {overall}%")
+
+        if status['next_steps']:
+            print(f"\n{Style.BRIGHT}{Fore.YELLOW}Suggested Next Steps:")
+            for i, step in enumerate(status['next_steps'], 1):
+                print(f"  {i}. {step}")
+
+    def handle_system_settings(self):
+        """Handle system settings"""
+        while True:
+            print(f"\n{Style.BRIGHT}{Fore.YELLOW}System Settings:")
+            print(
+                f"{Fore.WHITE}1. Toggle Dynamic Questions (Currently: {'ON' if self.orchestrator.conversation_engine.use_dynamic_questions else 'OFF'})")
+            print(f"2. View Token Usage")
+            print(f"3. Vector Database Stats")
+            print(f"4. Clear Cache")
+            print(f"5. Back to Main Menu")
+
+            choice = input(f"\n{Fore.GREEN}Choice (1-5): ").strip()
+
+            if choice == '1':
+                result = self.orchestrator.conversation_engine.process({'action': 'toggle_dynamic_questions'})
+                mode = "ON" if result['dynamic_mode'] else "OFF"
+                print(f"{Fore.BLUE}Dynamic questions mode: {mode}")
+
+            elif choice == '2':
+                self.display_token_usage()
+
+            elif choice == '3':
+                self.display_vector_db_stats()
+
+            elif choice == '4':
+                self.orchestrator.session_manager.cache.clear()
+                self.orchestrator.conversation_engine.response_cache.clear()
+                print(f"{Fore.GREEN}✓ Cache cleared successfully!")
+
+            elif choice == '5':
+                break
+
+            else:
+                print(f"{Fore.RED}Invalid choice. Please try again.")
+
+    def display_token_usage(self):
+        """Display token usage statistics"""
+        username = self.orchestrator.current_user.username if self.orchestrator.current_user else None
+        stats = self.orchestrator.database.get_token_usage_stats(username)
+
+        print(f"\n{Style.BRIGHT}{Fore.CYAN}📈 Token Usage (Last {stats['period_days']} days)")
+        print(f"{Fore.WHITE}Total Requests: {stats['request_count']}")
+        print(f"Input Tokens: {stats['total_input_tokens']:,}")
+        print(f"Output Tokens: {stats['total_output_tokens']:,}")
+        print(f"Total Tokens: {stats['total_tokens']:,}")
+        print(f"Estimated Cost: ${stats['estimated_cost']:.4f}")
+
+    def display_vector_db_stats(self):
+        """Display vector database statistics"""
+        stats = self.orchestrator.vector_db.get_collection_stats()
+
+        print(f"\n{Style.BRIGHT}{Fore.CYAN}🗄️ Vector Database Stats")
+        print(f"{Fore.WHITE}Total Entries: {stats.get('total_entries', 0):,}")
+        print(f"Collection: {stats.get('collection_name', 'N/A')}")
+        print(f"Embedding Model: {stats.get('embedding_model', 'N/A')}")
+
+        if 'error' in stats:
+            print(f"{Fore.RED}Error: {stats['error']}")
+
+    def run(self):
+        """Run the main CLI loop"""
+        self.display_banner()
+
+        try:
+            while self.running:
+                self.display_menu()
+                choice = input(f"\n{Fore.GREEN}Choice (1-6): ").strip()
+
+                if choice == '1':
+                    self.handle_user_management()
+                elif choice == '2':
+                    self.handle_project_management()
+                elif choice == '3':
+                    self.handle_socratic_session()
+                elif choice == '4':
+                    self.display_project_status()
+                elif choice == '5':
+                    self.handle_system_settings()
+                elif choice == '6':
+                    print(f"\n{Fore.CYAN}Saving session state...")
+                    self.orchestrator.save_session_state()
+                    print(f"{Fore.GREEN}✓ Thank you for using the Socratic System! Goodbye! 👋")
+                    self.running = False
+                else:
+                    print(f"{Fore.RED}Invalid choice. Please try again.")
+
+        except KeyboardInterrupt:
+            print(f"\n\n{Fore.YELLOW}Session interrupted. Saving state...")
+            self.orchestrator.save_session_state()
+            print(f"{Fore.GREEN}✓ State saved. Goodbye! 👋")
+        except Exception as e:
+            logger.error(f"Unexpected error in CLI: {e}")
+            print(f"\n{Fore.RED}An unexpected error occurred. Please check the logs.")
+        finally:
+            self.orchestrator.save_session_state()
+
+
+# Main execution
+if __name__ == "__main__":
+    # Check for required environment variable
+    if not os.getenv('API_KEY_CLAUDE'):
+        print(f"{Fore.RED}Error: ANTHROPIC_API_KEY environment variable not set.")
+        print(f"{Fore.YELLOW}Please set your Anthropic API key:")
+        print(f"{Fore.WHITE}export ANTHROPIC_API_KEY='your-api-key-here'")
+        exit(1)
+
+    # Initialize and run the CLI
+    try:
+        cli = SocraticSystemCLI()
+        cli.run()
+    except Exception as e:
+        logger.error(f"Fatal error starting system: {e}")
+        print(f"{Fore.RED}Failed to start Socratic System. Check logs for details.")
+        exit(1)
