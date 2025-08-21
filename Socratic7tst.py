@@ -19,6 +19,46 @@ from unittest.mock import Mock, patch, MagicMock
 from dataclasses import asdict
 import subprocess
 
+"""Key Completions:
+
+Finished run_all_tests() method - Handles keyboard interrupts and calculates total execution time
+Test Summary and Reporting:
+
+print_test_summary() - Displays comprehensive results with icons and error details
+generate_test_report() - Creates detailed HTML test reports
+all_tests_passed() - Checks overall test status
+
+
+CLI Interface:
+
+Command-line argument parsing for different test modes
+Options for specific test classes, quick tests, performance-only tests
+HTML report generation flag
+
+
+Utility Functions:
+
+run_specific_test_class() - Run individual test categories
+Proper error handling and exit codes
+Warning suppression for cleaner output
+
+Usage Examples:
+bash# Run all tests
+python Socratic7tst.py
+
+# Run specific test category
+python Socratic7tst.py --test agents
+
+# Quick tests (skip scenarios)
+python Socratic7tst.py --quick
+
+# Performance tests only
+python Socratic7tst.py --performance
+
+# Generate HTML report
+python Socratic7tst.py --report
+"""
+
 # Add the directory containing Socratic7.py to the path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -1050,3 +1090,72 @@ if __name__ == "__main__":
         print(f"   {e}")
         traceback.print_exc()
         sys.exit(1)
+
+
+# Launching unittests with arguments python -m unittest C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py in C:\Users\themi\PycharmProjects\Socratic
+#
+# [21:50:05] ProjectManager: Created project 'Test Project' with ID d2bfc770-c80c-4ecf-a353-a34e26e601ac
+# Loading knowledge base...
+# Added knowledge entry: software_architecture_patterns
+# Added knowledge entry: python_best_practices
+# Added knowledge entry: api_design_principles
+# Added knowledge entry: database_design_basics
+# Added knowledge entry: security_considerations
+# ✓ Knowledge base loaded (5 entries)
+# ✓ Socratic RAG System v7.0 initialized successfully!
+# Loading knowledge base...
+# ❌ Collaboration scenario test failed: 'list' object has no attribute 'tolist'
+#
+# Error
+# Traceback (most recent call last):
+#   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 663, in test_collaboration_scenario
+#     self.assertTrue(tester.test_collaboration_scenario())
+#                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+#   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 592, in test_collaboration_scenario
+#     Socratic7.CONFIG['DATA_DIR'] = original_data_dir
+#                                    ^^^^^^^^^^^^^^^^^
+# UnboundLocalError: cannot access local variable 'original_data_dir' where it is not associated with a value
+#
+# Loading knowledge base...
+# ❌ Complete user journey test failed: 'list' object has no attribute 'tolist'
+#
+# Error
+# Traceback (most recent call last):
+#   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 658, in test_complete_user_journey
+#     self.assertTrue(tester.test_complete_user_journey())
+#                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+#   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 542, in test_complete_user_journey
+#     Socratic7.CONFIG['DATA_DIR'] = original_data_dir
+#                                    ^^^^^^^^^^^^^^^^^
+# UnboundLocalError: cannot access local variable 'original_data_dir' where it is not associated with a value
+#
+# Loading knowledge base...
+# ❌ Conflict detection scenario test failed: 'list' object has no attribute 'tolist'
+#
+# Error
+# Traceback (most recent call last):
+#   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 668, in test_conflict_detection_scenario
+#     self.assertTrue(tester.test_conflict_detection_scenario())
+#                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+#   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 639, in test_conflict_detection_scenario
+#     Socratic7.CONFIG['DATA_DIR'] = original_data_dir
+#                                    ^^^^^^^^^^^^^^^^^
+# UnboundLocalError: cannot access local variable 'original_data_dir' where it is not associated with a value
+#
+#
+#
+# Ran 18 tests in 0.400s
+#
+# FAILED (errors=4)
+#
+# Error
+# Traceback (most recent call last):
+#   File "C:\Users\themi\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1424, in patched
+#     return func(*newargs, **newkeywargs)
+#   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 210, in test_knowledge_addition
+#     vector_db.add_knowledge(entry)
+#     ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+#   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7.py", line 1118, in add_knowledge
+#     entry.embedding = self.embedding_model.encode(entry.content).tolist()
+#                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+# AttributeError: 'list' object has no attribute 'tolist'

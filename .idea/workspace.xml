@@ -4,8 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7 testing">
       <change beforePath="$PROJECT_DIR$/Socratic7tst.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic7tst.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -46,31 +45,32 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ASKED_ADD_EXTERNAL_FILES&quot;: &quot;true&quot;,
-    &quot;Python.Socratic0.executor&quot;: &quot;Run&quot;,
-    &quot;Python.Socratic2.executor&quot;: &quot;Run&quot;,
-    &quot;Python.Socratic3.executor&quot;: &quot;Run&quot;,
-    &quot;Python.Socratic5.1.executor&quot;: &quot;Run&quot;,
-    &quot;Python.Socratic5.2.executor&quot;: &quot;Run&quot;,
-    &quot;Python.Socratic5.3.executor&quot;: &quot;Run&quot;,
-    &quot;Python.Socratic5.executor&quot;: &quot;Run&quot;,
-    &quot;Python.Socratic6.1.executor&quot;: &quot;Run&quot;,
-    &quot;Python.Socratic6.2 (1).executor&quot;: &quot;Run&quot;,
-    &quot;Python.Socratic6.2.executor&quot;: &quot;Run&quot;,
-    &quot;Python.Socratic6.executor&quot;: &quot;Run&quot;,
-    &quot;Python.Socratic7.1.executor&quot;: &quot;Run&quot;,
-    &quot;Python.Socratic7.executor&quot;: &quot;Run&quot;,
-    &quot;Python.main.executor&quot;: &quot;Run&quot;,
-    &quot;Python.pst.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/themi/PycharmProjects/Socratic&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ASKED_ADD_EXTERNAL_FILES": "true",
+    "Python tests.Python tests in Socratic7tst.py.executor": "Run",
+    "Python.Socratic0.executor": "Run",
+    "Python.Socratic2.executor": "Run",
+    "Python.Socratic3.executor": "Run",
+    "Python.Socratic5.1.executor": "Run",
+    "Python.Socratic5.2.executor": "Run",
+    "Python.Socratic5.3.executor": "Run",
+    "Python.Socratic5.executor": "Run",
+    "Python.Socratic6.1.executor": "Run",
+    "Python.Socratic6.2 (1).executor": "Run",
+    "Python.Socratic6.2.executor": "Run",
+    "Python.Socratic6.executor": "Run",
+    "Python.Socratic7.1.executor": "Run",
+    "Python.Socratic7.executor": "Run",
+    "Python.main.executor": "Run",
+    "Python.pst.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "git-widget-placeholder": "master",
+    "ignore.virus.scanning.warn.message": "true",
+    "last_opened_file_path": "C:/Users/themi/PycharmProjects/Socratic",
+    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\themi\PycharmProjects\Socratic" />
@@ -163,14 +163,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1750504324591</updated>
-    </task>
-    <task id="LOCAL-00060" summary="7">
-      <option name="closed" value="true" />
-      <created>1754506912184</created>
-      <option name="number" value="00060" />
-      <option name="presentableId" value="LOCAL-00060" />
-      <option name="project" value="LOCAL" />
-      <updated>1754506912185</updated>
     </task>
     <task id="LOCAL-00061" summary="7">
       <option name="closed" value="true" />
@@ -556,12 +548,19 @@
       <option name="project" value="LOCAL" />
       <updated>1755800993337</updated>
     </task>
-    <option name="localTasksCounter" value="109" />
+    <task id="LOCAL-00109" summary="7 testing">
+      <option name="closed" value="true" />
+      <created>1755802360980</created>
+      <option name="number" value="00109" />
+      <option name="presentableId" value="LOCAL-00109" />
+      <option name="project" value="LOCAL" />
+      <updated>1755802360980</updated>
+    </task>
+    <option name="localTasksCounter" value="110" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <option name="ADD_EXTERNAL_FILES_SILENTLY" value="true" />
-    <MESSAGE value="Socratic 0" />
     <MESSAGE value="Socratic 2" />
     <MESSAGE value="Socratic 2 db" />
     <MESSAGE value="collaborative_socratic" />
@@ -586,6 +585,7 @@
     <MESSAGE value="sql" />
     <MESSAGE value="7.1" />
     <MESSAGE value="7" />
-    <option name="LAST_COMMIT_MESSAGE" value="7" />
+    <MESSAGE value="7 testing" />
+    <option name="LAST_COMMIT_MESSAGE" value="7 testing" />
   </component>
 </project>
