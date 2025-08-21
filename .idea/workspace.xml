@@ -4,12 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7.1">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Socratic7.1.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic7.1.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/logs/socratic.log" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/logs/socratic.log" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/socratic.db" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/socratic.db" afterDir="false" />
-    </list>
+    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7.1" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -78,7 +73,7 @@
       <recent name="C:\Users\themi\PycharmProjects\Socratic" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.Socratic7.1">
+  <component name="RunManager" selected="Python.Socratic7">
     <configuration name="Socratic7" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="Socratic" />
       <option name="ENV_FILES" value="" />
@@ -146,9 +141,9 @@
       <method v="2" />
     </configuration>
     <list>
-      <item itemvalue="Python.main" />
-      <item itemvalue="Python.Socratic7.1" />
       <item itemvalue="Python.Socratic7" />
+      <item itemvalue="Python.Socratic7.1" />
+      <item itemvalue="Python.main" />
     </list>
     <recent_temporary>
       <list>
@@ -172,14 +167,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1750504324591</updated>
-    </task>
-    <task id="LOCAL-00046" summary="Socratic 5.3 ContextAnalysisAgent under construction">
-      <option name="closed" value="true" />
-      <created>1754150842919</created>
-      <option name="number" value="00046" />
-      <option name="presentableId" value="LOCAL-00046" />
-      <option name="project" value="LOCAL" />
-      <updated>1754150842919</updated>
     </task>
     <task id="LOCAL-00047" summary="Socratic 6">
       <option name="closed" value="true" />
@@ -565,7 +552,15 @@
       <option name="project" value="LOCAL" />
       <updated>1755726081887</updated>
     </task>
-    <option name="localTasksCounter" value="95" />
+    <task id="LOCAL-00095" summary="7.1">
+      <option name="closed" value="true" />
+      <created>1755735957340</created>
+      <option name="number" value="00095" />
+      <option name="presentableId" value="LOCAL-00095" />
+      <option name="project" value="LOCAL" />
+      <updated>1755735957340</updated>
+    </task>
+    <option name="localTasksCounter" value="96" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">

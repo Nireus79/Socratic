@@ -1,1860 +1,784 @@
-# #!/usr/bin/env python3
-#
-# import os
-# import json
-# import hashlib
-# import getpass
-# import datetime
-# import pickle
-# import uuid
-# import time
-# import threading
-# from concurrent.futures import ThreadPoolExecutor
-# from collections import deque, defaultdict
-# from typing import Dict, List, Optional, Tuple, Any, Union
-# from dataclasses import dataclass, asdict, field
-# from abc import ABC, abstractmethod
-# from contextlib import contextmanager
-# import sqlite3
-# import logging
-# from functools import wraps, lru_cache
-# import numpy as np
-# from colorama import init, Fore, Back, Style
-# import asyncio
-#
-# # Third-party imports with better error handling
-# try:
-#     import chromadb
-#     from chromadb.config import Settings
-# except ImportError:
-#     print("ChromaDB not found. Install with: pip install chromadb")
-#     exit(1)
-#
-# try:
-#     import anthropic
-# except ImportError:
-#     print("Anthropic package not found. Install with: pip install anthropic")
-#     exit(1)
-#
-# try:
-#     from sentence_transformers import SentenceTransformer
-# except ImportError:
-#     print("Sentence Transformers not found. Install with: pip install sentence-transformers")
-#     exit(1)
-#
-# init(autoreset=True)
-#
-#
-# # Enhanced Configuration
-# @dataclass
-# class SystemConfig:
-#     # Core settings
-#     MAX_CONTEXT_LENGTH: int = 8000
-#     EMBEDDING_MODEL: str = 'all-MiniLM-L6-v2'
-#     CLAUDE_MODEL: str = 'claude-3-5-sonnet-20241022'
-#     DATA_DIR: str = 'socratic_data'
-#
-#     # Performance settings
-#     MAX_RETRIES: int = 3
-#     RETRY_DELAY: float = 1.0
-#     CONNECTION_POOL_SIZE: int = 5
-#     CACHE_SIZE: int = 100
-#     MAX_CONVERSATION_HISTORY: int = 50
-#     BATCH_PROCESS_SIZE: int = 5
-#
-#     # API settings
-#     TOKEN_WARNING_THRESHOLD: float = 0.8
-#     API_TIMEOUT: int = 30
-#     MAX_CONCURRENT_REQUESTS: int = 3
-#
-#     # Session settings
-#     SESSION_TIMEOUT: int = 3600
-#     AUTO_SAVE_INTERVAL: int = 300
-#     MAX_TOKEN_USAGE_HISTORY: int = 100
-#
-#
-# CONFIG = SystemConfig()
-#
-#
-# # Enhanced Data Models
-# @dataclass
-# class User:
-#     username: str
-#     passcode_hash: str
-#     created_at: datetime.datetime
-#     projects: List[str] = field(default_factory=list)
-#     preferences: Dict[str, Any] = field(default_factory=dict)
-#     last_login: Optional[datetime.datetime] = None
-#
-#
-# @dataclass
-# class ProjectContext:
-#     project_id: str
-#     name: str
-#     owner: str
-#     collaborators: List[str] = field(default_factory=list)
-#     goals: str = ""
-#     requirements: List[str] = field(default_factory=list)
-#     tech_stack: List[str] = field(default_factory=list)
-#     constraints: List[str] = field(default_factory=list)
-#     team_structure: str = "individual"
-#     language_preferences: str = "python"
-#     deployment_target: str = "local"
-#     code_style: str = "documented"
-#     phase: str = "discovery"
-#     conversation_history: deque = field(default_factory=lambda: deque(maxlen=CONFIG.MAX_CONVERSATION_HISTORY))
-#     created_at: datetime.datetime = field(default_factory=datetime.datetime.now)
-#     updated_at: datetime.datetime = field(default_factory=datetime.datetime.now)
-#     version: int = 1
-#
-#
-# @dataclass
-# class CachedResponse:
-#     key: str
-#     response: str
-#     timestamp: datetime.datetime
-#     expiry: datetime.datetime
-#     usage_count: int = 0
-#
-#
-# @dataclass
-# class SystemMetrics:
-#     total_tokens: int = 0
-#     total_cost: float = 0.0
-#     api_calls: int = 0
-#     cache_hits: int = 0
-#     cache_misses: int = 0
-#     avg_response_time: float = 0.0
-#     error_count: int = 0
-#     uptime_start: datetime.datetime = field(default_factory=datetime.datetime.now)
-#
-#
-# # Enhanced Logging Setup
-# def setup_logging():
-#     """Setup structured logging"""
-#     log_dir = os.path.join(CONFIG.DATA_DIR, 'logs')
-#     os.makedirs(log_dir, exist_ok=True)
-#
-#     logging.basicConfig(
-#         level=logging.INFO,
-#         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-#         handlers=[
-#             logging.FileHandler(os.path.join(log_dir, 'socratic.log')),
-#             logging.StreamHandler()
-#         ]
-#     )
-#     return logging.getLogger(__name__)
-#
-#
-# logger = setup_logging()
-#
-#
-# # Performance Decorators
-# def measure_time(func):
-#     """Decorator to measure function execution time"""
-#
-#     @wraps(func)
-#     def wrapper(*args, **kwargs):
-#         start_time = time.time()
-#         result = func(*args, **kwargs)
-#         end_time = time.time()
-#         logger.debug(f"{func.__name__} took {end_time - start_time:.2f}s")
-#         return result
-#
-#     return wrapper
-#
-#
-# def retry_with_backoff(max_retries=3, base_delay=1.0):
-#     """Decorator for exponential backoff retry logic"""
-#
-#     def decorator(func):
-#         @wraps(func)
-#         def wrapper(*args, **kwargs):
-#             for attempt in range(max_retries):
-#                 try:
-#                     return func(*args, **kwargs)
-#                 except Exception as e:
-#                     if attempt == max_retries - 1:
-#                         raise e
-#                     delay = base_delay * (2 ** attempt)
-#                     logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in {delay}s")
-#                     time.sleep(delay)
-#             return None
-#
-#         return wrapper
-#
-#     return decorator
-#
-#
-# # Enhanced Database Connection Pool
-# class DatabasePool:
-#     def __init__(self, db_path: str, pool_size: int = 5):
-#         self.db_path = db_path
-#         self.pool_size = pool_size
-#         self._connections = deque()
-#         self._lock = threading.Lock()
-#         self._init_pool()
-#
-#     def _init_pool(self):
-#         """Initialize connection pool"""
-#         for _ in range(self.pool_size):
-#             conn = sqlite3.connect(self.db_path, check_same_thread=False)
-#             conn.row_factory = sqlite3.Row
-#             self._connections.append(conn)
-#
-#     @contextmanager
-#     def get_connection(self):
-#         """Get connection from pool with context manager"""
-#         with self._lock:
-#             if self._connections:
-#                 conn = self._connections.popleft()
-#             else:
-#                 conn = sqlite3.connect(self.db_path, check_same_thread=False)
-#                 conn.row_factory = sqlite3.Row
-#
-#         try:
-#             yield conn
-#         finally:
-#             with self._lock:
-#                 if len(self._connections) < self.pool_size:
-#                     self._connections.append(conn)
-#                 else:
-#                     conn.close()
-#
-#
-# # Enhanced Cache Manager
-# class IntelligentCache:
-#     def __init__(self, max_size: int = 100):
-#         self.max_size = max_size
-#         self._cache: Dict[str, CachedResponse] = {}
-#         self._access_times: Dict[str, datetime.datetime] = {}
-#         self._lock = threading.Lock()
-#
-#     def get(self, key: str) -> Optional[str]:
-#         """Get cached response if valid"""
-#         with self._lock:
-#             if key in self._cache:
-#                 cached = self._cache[key]
-#                 if datetime.datetime.now() < cached.expiry:
-#                     cached.usage_count += 1
-#                     self._access_times[key] = datetime.datetime.now()
-#                     return cached.response
-#                 else:
-#                     # Expired
-#                     del self._cache[key]
-#                     del self._access_times[key]
-#         return None
-#
-#     def put(self, key: str, response: str, ttl_seconds: int = 3600):
-#         """Cache response with TTL"""
-#         with self._lock:
-#             if len(self._cache) >= self.max_size:
-#                 self._evict_oldest()
-#
-#             expiry = datetime.datetime.now() + datetime.timedelta(seconds=ttl_seconds)
-#             self._cache[key] = CachedResponse(key, response, datetime.datetime.now(), expiry)
-#             self._access_times[key] = datetime.datetime.now()
-#
-#     def _evict_oldest(self):
-#         """Evict least recently used item"""
-#         if not self._access_times:
-#             return
-#
-#         oldest_key = min(self._access_times.keys(), key=lambda k: self._access_times[k])
-#         del self._cache[oldest_key]
-#         del self._access_times[oldest_key]
-#
-#
-# # Consolidated Agent Architecture
-# class BaseAgent(ABC):
-#     def __init__(self, name: str, orchestrator: 'SystemOrchestrator'):
-#         self.name = name
-#         self.orchestrator = orchestrator
-#         self.logger = logging.getLogger(f"{__name__}.{name}")
-#         self.metrics = defaultdict(int)
-#
-#     @abstractmethod
-#     async def process(self, request: Dict[str, Any]) -> Dict[str, Any]:
-#         pass
-#
-#     def log(self, message: str, level: str = "INFO"):
-#         timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-#         color = Fore.GREEN if level == "INFO" else Fore.RED if level == "ERROR" else Fore.YELLOW
-#         print(f"{color}[{timestamp}] {self.name}: {message}")
-#         self.logger.info(f"{self.name}: {message}")
-#
-#
-# class SessionManager(BaseAgent):
-#     """Unified session, project, and user management"""
-#
-#     def __init__(self, orchestrator):
-#         super().__init__("SessionManager", orchestrator)
-#         self.active_sessions: Dict[str, Dict] = {}
-#         self.project_cache: Dict[str, ProjectContext] = {}
-#
-#     async def process(self, request: Dict[str, Any]) -> Dict[str, Any]:
-#         action = request.get('action')
-#
-#         # Only handle the methods that actually exist
-#         if action == 'authenticate_user':
-#             return await self._authenticate_user(request)
-#         elif action == 'create_user':
-#             return await self._create_user(request)
-#         elif action == 'create_project':
-#             return await self._create_project(request)
-#         elif action == 'save_project':
-#             return await self._save_project(request)
-#         elif action == 'list_projects':
-#             # Simple implementation
-#             return {'status': 'success', 'projects': []}
-#         elif action == 'load_project':
-#             project_id = request.get('project_id')
-#             project = self._get_cached_project(project_id) if hasattr(self, '_get_cached_project') else None
-#             if project:
-#                 return {'status': 'success', 'project': asdict(project)}
-#             return {'status': 'error', 'message': 'Project not found'}
-#         else:
-#             return {'status': 'error', 'message': f'Unknown action: {action}'}
-#
-#     async def _create_user(self, request: Dict) -> Dict:
-#         """Simple user creation"""
-#         username = request.get('username', '').strip()
-#         passcode = request.get('passcode', '')
-#
-#         if not username or not passcode:
-#             return {'status': 'error', 'message': 'Username and passcode required'}
-#
-#         if len(username) < 2:
-#             return {'status': 'error', 'message': 'Username must be at least 2 characters'}
-#
-#         # Check if user exists
-#         with self.orchestrator.db_pool.get_connection() as conn:
-#             cursor = conn.cursor()
-#             cursor.execute('SELECT username FROM users WHERE username = ?', (username,))
-#             if cursor.fetchone():
-#                 return {'status': 'error', 'message': 'Username already exists'}
-#
-#         # Create user
-#         passcode_hash = hashlib.sha256(passcode.encode()).hexdigest()
-#         user = User(
-#             username=username,
-#             passcode_hash=passcode_hash,
-#             created_at=datetime.datetime.now()
-#         )
-#
-#         try:
-#             self._save_user_data(user)
-#             return {'status': 'success', 'user': asdict(user)}
-#         except Exception as e:
-#             return {'status': 'error', 'message': f'Creation failed: {e}'}
-#
-#     @measure_time
-#     async def _authenticate_user(self, request: Dict) -> Dict:
-#         """Enhanced user authentication with session management"""
-#         username = request.get('username')
-#         passcode = request.get('passcode')
-#
-#         with self.orchestrator.db_pool.get_connection() as conn:
-#             cursor = conn.cursor()
-#             cursor.execute('SELECT data FROM users WHERE username = ?', (username,))
-#             result = cursor.fetchone()
-#
-#             if result:
-#                 user_data = pickle.loads(result[0])
-#                 user = User(**user_data)
-#
-#                 # Verify passcode
-#                 passcode_hash = hashlib.sha256(passcode.encode()).hexdigest()
-#                 if user.passcode_hash == passcode_hash:
-#                     # Create session
-#                     session_id = str(uuid.uuid4())
-#                     session_data = {
-#                         'user': user,
-#                         'created_at': datetime.datetime.now(),
-#                         'last_activity': datetime.datetime.now()
-#                     }
-#                     self.active_sessions[session_id] = session_data
-#
-#                     # Update last login
-#                     user.last_login = datetime.datetime.now()
-#                     self._save_user_data(user)
-#
-#                     self.log(f"User {username} authenticated successfully")
-#                     return {
-#                         'status': 'success',
-#                         'session_id': session_id,
-#                         'user': user
-#                     }
-#
-#         return {'status': 'error', 'message': 'Invalid credentials'}
-#
-#     @measure_time
-#     async def _create_project(self, request: Dict) -> Dict:
-#         """Create new project with enhanced validation"""
-#         project_name = request.get('project_name')
-#         owner = request.get('owner')
-#
-#         # Validate project name
-#         if not project_name or len(project_name.strip()) < 2:
-#             return {'status': 'error', 'message': 'Project name must be at least 2 characters'}
-#
-#         project_id = str(uuid.uuid4())
-#         project = ProjectContext(
-#             project_id=project_id,
-#             name=project_name.strip(),
-#             owner=owner
-#         )
-#
-#         # Save to database and cache
-#         await self._save_project({'project': project})
-#         self.project_cache[project_id] = project
-#
-#         self.log(f"Created project '{project_name}' with ID {project_id}")
-#         return {'status': 'success', 'project': project}
-#
-#     @lru_cache(maxsize=50)
-#     def _get_cached_project(self, project_id: str) -> Optional[ProjectContext]:
-#         """Get project from cache or database"""
-#         if project_id in self.project_cache:
-#             return self.project_cache[project_id]
-#
-#         with self.orchestrator.db_pool.get_connection() as conn:
-#             cursor = conn.cursor()
-#             cursor.execute('SELECT data FROM projects WHERE project_id = ?', (project_id,))
-#             result = cursor.fetchone()
-#
-#             if result:
-#                 project_data = pickle.loads(result[0])
-#                 project = ProjectContext(**project_data)
-#                 self.project_cache[project_id] = project
-#                 return project
-#
-#         return None
-#
-#     async def _save_project(self, request: Dict) -> Dict:
-#         """Save project with optimistic locking"""
-#         project = request.get('project')
-#         project.updated_at = datetime.datetime.now()
-#         project.version += 1
-#
-#         with self.orchestrator.db_pool.get_connection() as conn:
-#             cursor = conn.cursor()
-#
-#             # Check for version conflicts
-#             cursor.execute('SELECT version FROM projects WHERE project_id = ?', (project.project_id,))
-#             result = cursor.fetchone()
-#
-#             if result and result[0] > project.version - 1:
-#                 return {'status': 'error', 'message': 'Project was modified by another user'}
-#
-#             # Save project
-#             data = pickle.dumps(asdict(project))
-#             cursor.execute('''
-#                 INSERT OR REPLACE INTO projects (project_id, data, updated_at, version)
-#                 VALUES (?, ?, ?, ?)
-#             ''', (project.project_id, data, project.updated_at.isoformat(), project.version))
-#
-#             conn.commit()
-#
-#         # Update cache
-#         self.project_cache[project.project_id] = project
-#
-#         return {'status': 'success'}
-#
-#     def _save_user_data(self, user: User):
-#         """Save user data to database"""
-#         with self.orchestrator.db_pool.get_connection() as conn:
-#             cursor = conn.cursor()
-#             data = pickle.dumps(asdict(user))
-#             cursor.execute('''
-#                 INSERT OR REPLACE INTO users (username, passcode_hash, data, created_at)
-#                 VALUES (?, ?, ?, ?)
-#             ''', (user.username, user.passcode_hash, data, user.created_at.isoformat()))
-#             conn.commit()
-#
-#
-# class ConversationEngine(BaseAgent):
-#     """Enhanced conversation management with conflict detection"""
-#
-#     def __init__(self, orchestrator):
-#         super().__init__("ConversationEngine", orchestrator)
-#         self.response_cache = IntelligentCache(max_size=50)
-#         self.question_cache = IntelligentCache(max_size=30)
-#
-#         # Enhanced question templates with better variety
-#         self.question_templates = {
-#             'discovery': [
-#                 "What specific pain point or inefficiency does your project address?",
-#                 "Who would benefit most from using your solution, and why?",
-#                 "What makes your approach different from existing alternatives?",
-#                 "What would success look like for this project in concrete terms?",
-#                 "What assumptions are you making about your users or market?"
-#             ],
-#             'analysis': [
-#                 "What technical challenges worry you most about this project?",
-#                 "How will you measure and ensure the performance of your solution?",
-#                 "What happens if your project needs to scale beyond initial expectations?",
-#                 "What external dependencies might become bottlenecks or risks?",
-#                 "How will you validate that your technical approach solves the core problem?"
-#             ],
-#             'design': [
-#                 "How will different parts of your system communicate and share data?",
-#                 "What design patterns would make your code most maintainable?",
-#                 "How will you handle errors and edge cases throughout your system?",
-#                 "What would make it easy for other developers to understand your code?",
-#                 "How will you structure your code to accommodate future changes?"
-#             ],
-#             'implementation': [
-#                 "What's the smallest version of your project that would still be valuable?",
-#                 "How will you know when each part of your system is working correctly?",
-#                 "What's your strategy for deploying and monitoring your solution?",
-#                 "How will you handle updates and maintenance after launch?",
-#                 "What documentation will others need to use or extend your work?"
-#             ]
-#         }
-#
-#     async def process(self, request: Dict[str, Any]) -> Dict[str, Any]:
-#         action = request.get('action')
-#
-#         handlers = {
-#             'generate_question': self._generate_question,
-#             'process_response': self._process_response,
-#             'detect_conflicts': self._detect_conflicts,
-#             'advance_phase': self._advance_phase,
-#             'get_suggestions': self._get_suggestions,
-#             'batch_process_responses': self._batch_process_responses
-#         }
-#
-#         handler = handlers.get(action)
-#         if handler:
-#             return await handler(request)
-#
-#         return {'status': 'error', 'message': f'Unknown action: {action}'}
-#
-#     @measure_time
-#     async def _generate_question(self, request: Dict) -> Dict:
-#         """Generate contextual question with caching"""
-#         project = request.get('project')
-#         use_dynamic = request.get('use_dynamic', True)
-#
-#         # Create cache key
-#         context_key = f"{project.project_id}_{project.phase}_{len(project.conversation_history)}"
-#
-#         # Check cache first
-#         cached_question = self.question_cache.get(context_key)
-#         if cached_question:
-#             self.orchestrator.metrics.cache_hits += 1
-#             return {'status': 'success', 'question': cached_question, 'cached': True}
-#
-#         self.orchestrator.metrics.cache_misses += 1
-#
-#         # Generate new question
-#         if use_dynamic and self.orchestrator.claude_client:
-#             try:
-#                 question = await self._generate_dynamic_question(project)
-#             except Exception as e:
-#                 self.log(f"Dynamic question generation failed: {e}", "WARN")
-#                 question = self._get_static_question(project)
-#         else:
-#             question = self._get_static_question(project)
-#
-#         # Cache the question
-#         self.question_cache.put(context_key, question, ttl_seconds=1800)
-#
-#         # Add to conversation history
-#         project.conversation_history.append({
-#             'timestamp': datetime.datetime.now().isoformat(),
-#             'type': 'assistant',
-#             'content': question,
-#             'phase': project.phase
-#         })
-#
-#         return {'status': 'success', 'question': question, 'cached': False}
-#
-#     async def _generate_dynamic_question(self, project: ProjectContext) -> str:
-#         """Generate dynamic question using Claude with context optimization"""
-#
-#         # Build optimized context
-#         context_parts = []
-#         if project.goals:
-#             context_parts.append(f"Goals: {project.goals}")
-#         if project.tech_stack:
-#             context_parts.append(f"Tech: {', '.join(project.tech_stack[-3:])}")  # Last 3 items
-#         if project.requirements:
-#             context_parts.append(f"Requirements: {', '.join(project.requirements[-3:])}")
-#
-#         # Get relevant conversation snippets
-#         recent_conversation = []
-#         if project.conversation_history:
-#             for msg in list(project.conversation_history)[-4:]:
-#                 role = "A" if msg['type'] == 'assistant' else "U"
-#                 content = msg['content'][:100] + "..." if len(msg['content']) > 100 else msg['content']
-#                 recent_conversation.append(f"{role}: {content}")
-#
-#         # Build compact prompt
-#         prompt = f"""Generate a Socratic question for a {project.phase} phase project.
-#
-# Context: {'; '.join(context_parts)}
-#
-# Recent: {' | '.join(recent_conversation[-2:])}
-#
-# Create ONE question that:
-# - Builds on the conversation
-# - Challenges assumptions
-# - Is specific to {project.phase}
-# - Encourages deep thinking
-#
-# Return only the question."""
-#
-#         return await self.orchestrator.claude_client.generate_response(prompt, max_tokens=150)
-#
-#     def _get_static_question(self, project: ProjectContext) -> str:
-#         """Get static question from templates"""
-#         questions = self.question_templates.get(project.phase, [])
-#         if not questions:
-#             return "What would you like to explore further about your project?"
-#
-#         # Count phase questions already asked
-#         phase_questions = sum(1 for msg in project.conversation_history
-#                               if msg.get('type') == 'assistant' and msg.get('phase') == project.phase)
-#
-#         if phase_questions < len(questions):
-#             return questions[phase_questions]
-#         else:
-#             # Cycle through or use fallback
-#             return questions[phase_questions % len(questions)]
-#
-#     @measure_time
-#     async def _process_response(self, request: Dict) -> Dict:
-#         """Process user response with batch insights extraction"""
-#         project = request.get('project')
-#         user_response = request.get('response')
-#         current_user = request.get('current_user')
-#
-#         # Add to conversation history
-#         project.conversation_history.append({
-#             'timestamp': datetime.datetime.now().isoformat(),
-#             'type': 'user',
-#             'content': user_response,
-#             'phase': project.phase,
-#             'author': current_user
-#         })
-#
-#         # Extract insights
-#         insights = await self._extract_insights(user_response, project)
-#
-#         # Detect conflicts if insights exist
-#         conflicts = []
-#         if insights:
-#             conflict_result = await self._detect_conflicts({
-#                 'project': project,
-#                 'new_insights': insights,
-#                 'current_user': current_user
-#             })
-#             conflicts = conflict_result.get('conflicts', [])
-#
-#         # Update project context if no conflicts
-#         if not conflicts and insights:
-#             self._update_project_context(project, insights)
-#
-#         return {
-#             'status': 'success',
-#             'insights': insights,
-#             'conflicts': conflicts,
-#             'conflicts_pending': bool(conflicts)
-#         }
-#
-#     @retry_with_backoff(max_retries=3, base_delay=1.0)
-#     async def _extract_insights(self, response: str, project: ProjectContext) -> Dict:
-#         """Extract insights with caching and error handling"""
-#         if not response or len(response.strip()) < 3:
-#             return {}
-#
-#         # Create cache key
-#         cache_key = hashlib.md5(f"{response}_{project.phase}".encode()).hexdigest()
-#
-#         # Check cache
-#         cached_insights = self.response_cache.get(cache_key)
-#         if cached_insights:
-#             self.orchestrator.metrics.cache_hits += 1
-#             return json.loads(cached_insights)
-#
-#         self.orchestrator.metrics.cache_misses += 1
-#
-#         # Build compact extraction prompt
-#         prompt = f"""Extract project insights from this response in the {project.phase} phase:
-#
-# "{response}"
-#
-# Current project context:
-# - Goals: {project.goals or 'None'}
-# - Tech: {', '.join(project.tech_stack[-3:]) if project.tech_stack else 'None'}
-#
-# Return JSON with any mentioned:
-# {{"goals": "specific goals", "requirements": ["req1", "req2"], "tech_stack": ["tech1"], "constraints": ["constraint1"]}}
-#
-# If nothing relevant, return {{}}.
-# """
-#
-#         try:
-#             response_text = await self.orchestrator.claude_client.generate_response(
-#                 prompt, max_tokens=500, temperature=0.2
-#             )
-#
-#             # Parse JSON
-#             insights = self._parse_insights_json(response_text)
-#
-#             # Cache successful result
-#             self.response_cache.put(cache_key, json.dumps(insights), ttl_seconds=3600)
-#
-#             return insights
-#
-#         except Exception as e:
-#             self.log(f"Insight extraction failed: {e}", "ERROR")
-#             return {}
-#
-#     def _parse_insights_json(self, response_text: str) -> Dict:
-#         """Safely parse insights JSON from Claude response"""
-#         try:
-#             # Clean response
-#             response_text = response_text.strip()
-#             if response_text.startswith('```json'):
-#                 response_text = response_text.replace('```json', '').replace('```', '').strip()
-#
-#             # Find JSON boundaries
-#             start = response_text.find('{')
-#             end = response_text.rfind('}') + 1
-#
-#             if 0 <= start < end:
-#                 json_text = response_text[start:end]
-#                 return json.loads(json_text)
-#
-#         except (json.JSONDecodeError, ValueError) as e:
-#             self.log(f"JSON parsing failed: {e}", "WARN")
-#
-#         return {}
-#
-#     def _update_project_context(self, project: ProjectContext, insights: Dict):
-#         """Update project context with validated insights"""
-#         if not insights:
-#             return
-#
-#         try:
-#             # Update goals
-#             if insights.get('goals') and isinstance(insights['goals'], str):
-#                 project.goals = insights['goals'].strip()
-#
-#             # Update lists with deduplication
-#             for list_field in ['requirements', 'tech_stack', 'constraints']:
-#                 if insights.get(list_field):
-#                     items = insights[list_field]
-#                     if isinstance(items, list):
-#                         current_list = getattr(project, list_field)
-#                         new_items = [item.strip() for item in items
-#                                      if isinstance(item, str) and item.strip()
-#                                      and item.strip().lower() not in [x.lower() for x in current_list]]
-#                         current_list.extend(new_items)
-#
-#         except Exception as e:
-#             self.log(f"Context update failed: {e}", "ERROR")
-#
-#
-# class ContentGenerator(BaseAgent):
-#     """Enhanced content generation with templates and optimization"""
-#
-#     def __init__(self, orchestrator):
-#         super().__init__("ContentGenerator", orchestrator)
-#         self.generation_cache = IntelligentCache(max_size=20)
-#         self.executor = ThreadPoolExecutor(max_workers=2)
-#
-#     async def process(self, request: Dict[str, Any]) -> Dict[str, Any]:
-#         action = request.get('action')
-#
-#         if action == 'generate_code':
-#             return await self._generate_code(request)
-#         elif action == 'generate_documentation':
-#             return await self._generate_documentation(request)
-#         elif action == 'generate_project_report':
-#             return await self._generate_project_report(request)
-#
-#         return {'status': 'error', 'message': f'Unknown action: {action}'}
-#
-#     @measure_time
-#     async def _generate_code(self, request: Dict) -> Dict:
-#         """Generate code with caching and optimization"""
-#         project = request.get('project')
-#
-#         # Create cache key
-#         context_key = self._create_context_key(project)
-#         cached_code = self.generation_cache.get(f"code_{context_key}")
-#
-#         if cached_code:
-#             return {'status': 'success', 'code': cached_code, 'cached': True}
-#
-#         # Build generation context
-#         context = self._build_generation_context(project)
-#
-#         try:
-#             # Generate code asynchronously
-#             loop = asyncio.get_event_loop()
-#             code = await loop.run_in_executor(
-#                 self.executor,
-#                 self._generate_code_sync,
-#                 context
-#             )
-#
-#             # Cache result
-#             self.generation_cache.put(f"code_{context_key}", code, ttl_seconds=7200)
-#
-#             return {'status': 'success', 'code': code, 'cached': False}
-#
-#         except Exception as e:
-#             self.log(f"Code generation failed: {e}", "ERROR")
-#             return {'status': 'error', 'message': str(e)}
-#
-#     def _generate_code_sync(self, context: str) -> str:
-#         """Synchronous code generation for executor"""
-#         prompt = f"""Generate production-ready code based on this project:
-#
-# {context}
-#
-# Requirements:
-# - Include proper error handling and logging
-# - Add comprehensive docstrings and comments
-# - Follow best practices for the chosen technology
-# - Include basic tests or validation
-# - Make it maintainable and extensible
-#
-# Provide a complete, working implementation."""
-#
-#         return self.orchestrator.claude_client.generate_response_sync(
-#             prompt, max_tokens=4000, temperature=0.3
-#         )
-#
-#     def _create_context_key(self, project: ProjectContext) -> str:
-#         """Create cache key from project context"""
-#         key_parts = [
-#             project.project_id,
-#             str(hash(project.goals)),
-#             str(hash(''.join(project.tech_stack))),
-#             str(hash(''.join(project.requirements))),
-#             str(project.version)
-#         ]
-#         return hashlib.md5('_'.join(key_parts).encode()).hexdigest()
-#
-#     def _build_generation_context(self, project: ProjectContext) -> str:
-#         """Build comprehensive context for code generation"""
-#         context_parts = [
-#             f"Project: {project.name}",
-#             f"Phase: {project.phase}",
-#             f"Goals: {project.goals}",
-#             f"Primary Tech Stack: {', '.join(project.tech_stack[:5])}",
-#             f"Key Requirements: {', '.join(project.requirements[:5])}",
-#             f"Constraints: {', '.join(project.constraints[:3])}",
-#             f"Deployment Target: {project.deployment_target}",
-#             f"Code Style: {project.code_style}"
-#         ]
-#
-#         # Add relevant conversation insights
-#         if project.conversation_history:
-#             recent_user_responses = [
-#                 msg['content'] for msg in list(project.conversation_history)[-10:]
-#                 if msg.get('type') == 'user' and len(msg['content']) > 20
-#             ]
-#             if recent_user_responses:
-#                 context_parts.append(f"Recent Context: {' | '.join(recent_user_responses[-3:])}")
-#
-#         return '\n'.join(context_parts)
-#
-#
-# class KnowledgeManager(BaseAgent):
-#     """Enhanced knowledge management with vector search"""
-#
-#     def __init__(self, orchestrator):
-#         super().__init__("KnowledgeManager", orchestrator)
-#         self.embedding_model = None
-#         self.chroma_client = None
-#         self.collection = None
-#         self._initialize_knowledge_base()
-#
-#     def _initialize_knowledge_base(self):
-#         """Initialize ChromaDB and embedding model"""
-#         try:
-#             # Initialize embedding model
-#             self.embedding_model = SentenceTransformer(CONFIG.EMBEDDING_MODEL)
-#
-#             # Initialize ChromaDB
-#             chroma_db_path = os.path.join(CONFIG.DATA_DIR, 'chroma_db')
-#             os.makedirs(chroma_db_path, exist_ok=True)
-#
-#             self.chroma_client = chromadb.PersistentClient(path=chroma_db_path)
-#
-#             # Get or create collection
-#             try:
-#                 self.collection = self.chroma_client.get_collection("socratic_knowledge")
-#             except:
-#                 self.collection = self.chroma_client.create_collection("socratic_knowledge")
-#
-#             self.log("Knowledge base initialized successfully")
-#
-#         except Exception as e:
-#             self.log(f"Knowledge base initialization failed: {e}", "ERROR")
-#             self.embedding_model = None
-#             self.chroma_client = None
-#
-#     async def process(self, request: Dict[str, Any]) -> Dict[str, Any]:
-#         action = request.get('action')
-#
-#         handlers = {
-#             'store_knowledge': self._store_knowledge,
-#             'retrieve_knowledge': self._retrieve_knowledge,
-#             'update_project_knowledge': self._update_project_knowledge,
-#             'search_similar_projects': self._search_similar_projects
-#         }
-#
-#         handler = handlers.get(action)
-#         if handler:
-#             return await handler(request)
-#
-#         return {'status': 'error', 'message': f'Unknown action: {action}'}
-#
-#     @measure_time
-#     async def _store_knowledge(self, request: Dict) -> Dict:
-#         """Store knowledge with embeddings"""
-#         if not self.collection:
-#             return {'status': 'error', 'message': 'Knowledge base not available'}
-#
-#         knowledge_id = request.get('id', str(uuid.uuid4()))
-#         content = request.get('content')
-#         metadata = request.get('metadata', {})
-#
-#         try:
-#             # Generate embedding
-#             embedding = self.embedding_model.encode(content).tolist()
-#
-#             # Store in ChromaDB
-#             self.collection.upsert(
-#                 ids=[knowledge_id],
-#                 embeddings=[embedding],
-#                 documents=[content],
-#                 metadatas=[metadata]
-#             )
-#
-#             return {'status': 'success', 'id': knowledge_id}
-#
-#         except Exception as e:
-#             self.log(f"Knowledge storage failed: {e}", "ERROR")
-#             return {'status': 'error', 'message': str(e)}
-#
-#     @measure_time
-#     async def _retrieve_knowledge(self, request: Dict) -> Dict:
-#         """Retrieve relevant knowledge using similarity search"""
-#         if not self.collection:
-#             return {'status': 'success', 'results': []}
-#
-#         query = request.get('query')
-#         limit = request.get('limit', 5)
-#
-#         try:
-#             # Generate query embedding
-#             query_embedding = self.embedding_model.encode(query).tolist()
-#
-#             # Search similar content
-#             results = self.collection.query(
-#                 query_embeddings=[query_embedding],
-#                 n_results=limit
-#             )
-#
-#             # Format results
-#             formatted_results = []
-#             if results['documents']:
-#                 for i, doc in enumerate(results['documents'][0]):
-#                     formatted_results.append({
-#                         'content': doc,
-#                         'metadata': results['metadatas'][0][i] if results['metadatas'] else {},
-#                         'distance': results['distances'][0][i] if results['distances'] else 0
-#                     })
-#
-#             return {'status': 'success', 'results': formatted_results}
-#
-#         except Exception as e:
-#             self.log(f"Knowledge retrieval failed: {e}", "ERROR")
-#             return {'status': 'success', 'results': []}
-#
-#
-# class ClaudeClient:
-#     """Enhanced Claude API client with rate limiting and error handling"""
-#
-#     def __init__(self, api_key: str):
-#         self.client = anthropic.Anthropic(api_key=api_key)
-#         self.token_usage: deque = deque(maxlen=CONFIG.MAX_TOKEN_USAGE_HISTORY)
-#         self.request_semaphore = asyncio.Semaphore(CONFIG.MAX_CONCURRENT_REQUESTS)
-#         self.last_request_time = 0
-#         self.min_request_interval = 1.0  # Minimum seconds between requests
-#
-#     @retry_with_backoff(max_retries=CONFIG.MAX_RETRIES, base_delay=CONFIG.RETRY_DELAY)
-#     async def generate_response(self, prompt: str, max_tokens: int = 1000,
-#                                 temperature: float = 0.7, system_prompt: str = None) -> str:
-#         """Generate response with async support and rate limiting"""
-#         async with self.request_semaphore:
-#             # Rate limiting
-#             current_time = time.time()
-#             time_since_last = current_time - self.last_request_time
-#             if time_since_last < self.min_request_interval:
-#                 await asyncio.sleep(self.min_request_interval - time_since_last)
-#
-#             try:
-#                 messages = [{"role": "user", "content": prompt}]
-#
-#                 kwargs = {
-#                     "model": CONFIG.CLAUDE_MODEL,
-#                     "messages": messages,
-#                     "max_tokens": max_tokens,
-#                     "temperature": temperature
-#                 }
-#
-#                 if system_prompt:
-#                     kwargs["system"] = system_prompt
-#
-#                 # Run in executor to avoid blocking
-#                 loop = asyncio.get_event_loop()
-#                 response = await loop.run_in_executor(
-#                     None,
-#                     lambda: self.client.messages.create(**kwargs)
-#                 )
-#
-#                 # Track usage
-#                 if hasattr(response, 'usage'):
-#                     self.token_usage.append({
-#                         'timestamp': datetime.datetime.now(),
-#                         'input_tokens': response.usage.input_tokens,
-#                         'output_tokens': response.usage.output_tokens
-#                     })
-#
-#                 self.last_request_time = time.time()
-#                 return response.content[0].text
-#
-#             except Exception as e:
-#                 logger.error(f"Claude API error: {e}")
-#                 raise
-#
-#     def generate_response_sync(self, prompt: str, max_tokens: int = 1000,
-#                                temperature: float = 0.7) -> str:
-#         """Synchronous version for use in executors"""
-#         try:
-#             response = self.client.messages.create(
-#                 model=CONFIG.CLAUDE_MODEL,
-#                 messages=[{"role": "user", "content": prompt}],
-#                 max_tokens=max_tokens,
-#                 temperature=temperature
-#             )
-#             return response.content[0].text
-#         except Exception as e:
-#             logger.error(f"Claude API sync error: {e}")
-#             raise
-#
-#     def get_token_usage_stats(self) -> Dict:
-#         """Get token usage statistics"""
-#         if not self.token_usage:
-#             return {'total_input': 0, 'total_output': 0, 'requests': 0}
-#
-#         total_input = sum(usage['input_tokens'] for usage in self.token_usage)
-#         total_output = sum(usage['output_tokens'] for usage in self.token_usage)
-#
-#         return {
-#             'total_input': total_input,
-#             'total_output': total_output,
-#             'requests': len(self.token_usage),
-#             'avg_input': total_input / len(self.token_usage) if self.token_usage else 0,
-#             'avg_output': total_output / len(self.token_usage) if self.token_usage else 0
-#         }
-#
-#
-# class SystemOrchestrator:
-#     """Main orchestrator for the Socratic development system"""
-#
-#     def __init__(self, data_dir: str = None):
-#         self.data_dir = data_dir or CONFIG.DATA_DIR
-#         self.metrics = SystemMetrics()
-#         self.claude_client: Optional[ClaudeClient] = None
-#         self.db_pool: Optional[DatabasePool] = None
-#
-#         # Initialize agents
-#         self.session_manager = SessionManager(self)
-#         self.conversation_engine = ConversationEngine(self)
-#         self.content_generator = ContentGenerator(self)
-#         self.knowledge_manager = KnowledgeManager(self)
-#
-#         # Auto-save thread
-#         self._auto_save_thread = None
-#         self._shutdown_flag = threading.Event()
-#
-#         self._initialize_system()
-#
-#     def _initialize_system(self):
-#         """Initialize the complete system"""
-#         try:
-#             # Create data directory
-#             os.makedirs(self.data_dir, exist_ok=True)
-#
-#             # Initialize database
-#             self._initialize_database()
-#
-#             # Initialize Claude client if API key available
-#             api_key = os.getenv('API_KEY_CLAUDE')
-#             if api_key:
-#                 self.claude_client = ClaudeClient(api_key)
-#                 logger.info("Claude client initialized")
-#             else:
-#                 logger.warning("ANTHROPIC_API_KEY not found. Dynamic features disabled.")
-#
-#             # Start auto-save thread
-#             self._start_auto_save()
-#
-#             logger.info("System initialization completed successfully")
-#
-#         except Exception as e:
-#             logger.error(f"System initialization failed: {e}")
-#             raise
-#
-#     def _initialize_database(self):
-#         """Initialize SQLite database with connection pooling"""
-#         db_path = os.path.join(self.data_dir, 'socratic.db')
-#         self.db_pool = DatabasePool(db_path, CONFIG.CONNECTION_POOL_SIZE)
-#
-#         # Create tables
-#         with self.db_pool.get_connection() as conn:
-#             cursor = conn.cursor()
-#
-#             # Users table
-#             cursor.execute('''
-#                 CREATE TABLE IF NOT EXISTS users (
-#                     username TEXT PRIMARY KEY,
-#                     passcode_hash TEXT NOT NULL,
-#                     data BLOB NOT NULL,
-#                     created_at TEXT NOT NULL
-#                 )
-#             ''')
-#
-#             # Projects table
-#             cursor.execute('''
-#                 CREATE TABLE IF NOT EXISTS projects (
-#                     project_id TEXT PRIMARY KEY,
-#                     data BLOB NOT NULL,
-#                     updated_at TEXT NOT NULL,
-#                     version INTEGER DEFAULT 1
-#                 )
-#             ''')
-#
-#             # Metrics table
-#             cursor.execute('''
-#                 CREATE TABLE IF NOT EXISTS metrics (
-#                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-#                     timestamp TEXT NOT NULL,
-#                     data BLOB NOT NULL
-#                 )
-#             ''')
-#
-#             # Conversations table for backup
-#             cursor.execute('''
-#                 CREATE TABLE IF NOT EXISTS conversations (
-#                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-#                     project_id TEXT NOT NULL,
-#                     conversation_data BLOB NOT NULL,
-#                     timestamp TEXT NOT NULL,
-#                     FOREIGN KEY (project_id) REFERENCES projects (project_id)
-#                 )
-#             ''')
-#
-#             conn.commit()
-#
-#         logger.info("Database initialized successfully")
-#
-#     def _start_auto_save(self):
-#         """Start auto-save thread for periodic data persistence"""
-#
-#         def auto_save_worker():
-#             while not self._shutdown_flag.wait(CONFIG.AUTO_SAVE_INTERVAL):
-#                 try:
-#                     self._perform_auto_save()
-#                 except Exception as e:
-#                     logger.error(f"Auto-save failed: {e}")
-#
-#         self._auto_save_thread = threading.Thread(target=auto_save_worker, daemon=True)
-#         self._auto_save_thread.start()
-#
-#     def _perform_auto_save(self):
-#         """Perform automatic data persistence"""
-#         # Save metrics
-#         with self.db_pool.get_connection() as conn:
-#             cursor = conn.cursor()
-#             metrics_data = pickle.dumps(asdict(self.metrics))
-#             cursor.execute(
-#                 'INSERT INTO metrics (timestamp, data) VALUES (?, ?)',
-#                 (datetime.datetime.now().isoformat(), metrics_data)
-#             )
-#             conn.commit()
-#
-#     async def process_request(self, agent_name: str, request: Dict[str, Any]) -> Dict[str, Any]:
-#         """Route requests to appropriate agents"""
-#         agents = {
-#             'session': self.session_manager,
-#             'conversation': self.conversation_engine,
-#             'content': self.content_generator,
-#             'knowledge': self.knowledge_manager
-#         }
-#
-#         agent = agents.get(agent_name)
-#         if agent:
-#             return await agent.process(request)
-#
-#         return {'status': 'error', 'message': f'Unknown agent: {agent_name}'}
-#
-#     def get_system_status(self) -> Dict[str, Any]:
-#         """Get comprehensive system status"""
-#         return {
-#             'uptime': datetime.datetime.now() - self.metrics.uptime_start,
-#             'active_sessions': len(self.session_manager.active_sessions),
-#             'cached_projects': len(self.session_manager.project_cache),
-#             'metrics': asdict(self.metrics),
-#             'claude_available': self.claude_client is not None,
-#             'knowledge_base_available': self.knowledge_manager.collection is not None,
-#             'token_usage': self.claude_client.get_token_usage_stats() if self.claude_client else {}
-#         }
-#
-#     def shutdown(self):
-#         """Graceful shutdown of the system"""
-#         logger.info("Shutting down system...")
-#
-#         # Signal shutdown
-#         self._shutdown_flag.set()
-#
-#         # Wait for auto-save thread
-#         if self._auto_save_thread and self._auto_save_thread.is_alive():
-#             self._auto_save_thread.join(timeout=5)
-#
-#         # Final save
-#         self._perform_auto_save()
-#
-#         # Close content generator executor
-#         if hasattr(self.content_generator, 'executor'):
-#             self.content_generator.executor.shutdown(wait=True)
-#
-#         logger.info("System shutdown complete")
-#
-#
-# class SocraticInterface:
-#     """Enhanced command-line interface with better UX"""
-#
-#     def __init__(self):
-#         self.orchestrator = SystemOrchestrator()
-#         self.current_session = None
-#         self.current_project = None
-#
-#         # Interface state
-#         self.show_system_info = True
-#         self.auto_advance_phases = False
-#         self.conversation_limit = 10
-#
-#     def print_header(self):
-#         """Print enhanced system header"""
-#         print(f"{Fore.CYAN}{'=' * 60}")
-#         print(f"{Style.BRIGHT}🧠 Socratic Development Assistant v7.1")
-#         print(f"{Style.NORMAL}Advanced AI-Powered Project Development")
-#         print(f"{'=' * 60}{Style.RESET_ALL}")
-#
-#         if self.show_system_info:
-#             status = self.orchestrator.get_system_status()
-#             print(f"{Fore.GREEN}📊 System Status:")
-#             print(f"  • Claude API: {'✓ Available' if status['claude_available'] else '✗ Unavailable'}")
-#             print(f"  • Knowledge Base: {'✓ Ready' if status['knowledge_base_available'] else '✗ Not Ready'}")
-#             print(f"  • Active Sessions: {status['active_sessions']}")
-#             print(f"  • Uptime: {str(status['uptime']).split('.')[0]}")
-#
-#             if status['token_usage']:
-#                 usage = status['token_usage']
-#                 print(f"  • API Usage: {usage['requests']} requests, {usage['total_input']} input tokens")
-#             print()
-#
-#     async def run(self):
-#         """Enhanced main interface loop"""
-#         try:
-#             self.print_header()
-#
-#             # Authentication
-#             session_result = await self._handle_authentication()
-#             if not session_result:
-#                 return
-#
-#             # Main loop
-#             while True:
-#                 try:
-#                     if not self.current_project:
-#                         await self._handle_project_selection()
-#                     else:
-#                         await self._handle_conversation()
-#
-#                 except KeyboardInterrupt:
-#                     print(
-#                         f"\n{Fore.YELLOW}⏸️  Session paused. Type 'exit' to quit or continue conversation.{Style.RESET_ALL}")
-#                 except Exception as e:
-#                     print(f"{Fore.RED}❌ Error: {e}{Style.RESET_ALL}")
-#                     logger.error(f"Interface error: {e}")
-#
-#         except KeyboardInterrupt:
-#             print(f"\n{Fore.CYAN}👋 Goodbye!{Style.RESET_ALL}")
-#         finally:
-#             self.orchestrator.shutdown()
-#
-#     # Fix the _handle_project_selection method to properly access User object
-#
-#     async def _handle_project_selection(self):
-#         """Enhanced project selection with management options"""
-#         print(f"{Fore.CYAN}📁 Project Management{Style.RESET_ALL}")
-#
-#         # Get username properly - check if user is dict or User object
-#         user = self.current_session['user']
-#         if isinstance(user, dict):
-#             username = user['username']
-#         else:
-#             # It's a User dataclass object
-#             username = user.username
-#
-#         # List existing projects
-#         projects_result = await self.orchestrator.process_request('session', {
-#             'action': 'list_projects',
-#             'username': username
-#         })
-#
-#         projects = projects_result.get('projects', [])
-#
-#         if projects:
-#             print("Your projects:")
-#             for i, project in enumerate(projects, 1):
-#                 phase_color = self._get_phase_color(project.get('phase', 'discovery'))
-#                 print(f"  {i}. {Fore.WHITE}{project['name']}{Style.RESET_ALL} "
-#                       f"({phase_color}{project.get('phase', 'discovery')}{Style.RESET_ALL})")
-#
-#         print("\nOptions:")
-#         print("  (N)ew project")
-#         if projects:
-#             print("  (1-9) Select project")
-#         print("  (E)xit")
-#
-#         choice = input("\nChoice: ").strip().lower()
-#
-#         if choice == 'n':
-#             await self._create_new_project()
-#         elif choice == 'e':
-#             exit(0)
-#         elif choice.isdigit() and 1 <= int(choice) <= len(projects):
-#             selected_project = projects[int(choice) - 1]
-#             await self._load_project(selected_project['project_id'])
-#         else:
-#             print(f"{Fore.YELLOW}Invalid choice{Style.RESET_ALL}")
-#
-#     # Also fix the _create_new_project method
-#     async def _create_new_project(self):
-#         """Create new project with enhanced setup"""
-#         print(f"\n{Fore.CYAN}🚀 Create New Project{Style.RESET_ALL}")
-#
-#         name = input("Project name: ").strip()
-#         if not name:
-#             print(f"{Fore.RED}Project name is required{Style.RESET_ALL}")
-#             return
-#
-#         # Get username properly
-#         user = self.current_session['user']
-#         if isinstance(user, dict):
-#             owner = user['username']
-#         else:
-#             owner = user.username
-#
-#         result = await self.orchestrator.process_request('session', {
-#             'action': 'create_project',
-#             'project_name': name,
-#             'owner': owner
-#         })
-#
-#         if result['status'] == 'success':
-#             self.current_project = result['project']
-#             print(f"{Fore.GREEN}✓ Project '{name}' created successfully!{Style.RESET_ALL}")
-#
-#             # Optional quick setup
-#             if input("\nWould you like to do quick setup? (y/n): ").strip().lower() == 'y':
-#                 await self._quick_project_setup()
-#         else:
-#             print(f"{Fore.RED}Failed to create project: {result.get('message')}{Style.RESET_ALL}")
-#
-#     # Fix the authentication method to store user consistently
-#     async def _handle_authentication(self) -> bool:
-#         """Fixed authentication with consistent user storage"""
-#         print(f"\n{Fore.CYAN}SOCRATIC DEVELOPMENT ASSISTANT - LOGIN{Style.RESET_ALL}")
-#
-#         while True:
-#             print(f"\n{Fore.YELLOW}Options:")
-#             print("1. Login")
-#             print("2. Register")
-#             print("3. Exit")
-#
-#             choice = input(f"{Fore.CYAN}Choice: {Style.RESET_ALL}").strip()
-#
-#             if choice == '1':
-#                 # Login
-#                 username = input("Username: ").strip()
-#
-#                 try:
-#                     import sys
-#                     if sys.stdin.isatty():
-#                         passcode = getpass.getpass("Passcode: ")
-#                     else:
-#                         passcode = input("Passcode (will be visible): ")
-#                 except:
-#                     passcode = input("Passcode (will be visible): ")
-#
-#                 if not username or not passcode:
-#                     print(f"{Fore.RED}Username and passcode required{Style.RESET_ALL}")
-#                     continue
-#
-#                 try:
-#                     result = await self.orchestrator.process_request('session', {
-#                         'action': 'authenticate_user',
-#                         'username': username,
-#                         'passcode': passcode
-#                     })
-#
-#                     if result and result.get('status') == 'success':
-#                         # Store the result, which contains user data
-#                         self.current_session = result
-#
-#                         # Extract user info for display
-#                         user = result['user']
-#                         if isinstance(user, dict):
-#                             display_name = user['username']
-#                             last_login = user.get('last_login')
-#                         else:
-#                             display_name = user.username
-#                             last_login = getattr(user, 'last_login', None)
-#
-#                         print(f"{Fore.GREEN}Login successful! Welcome {display_name}!{Style.RESET_ALL}")
-#                         if last_login:
-#                             print(f"Last login: {last_login}")
-#                         return True
-#                     else:
-#                         print(f"{Fore.RED}Login failed: {result.get('message', 'Unknown error')}{Style.RESET_ALL}")
-#
-#                 except Exception as e:
-#                     print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
-#
-#             elif choice == '2':
-#                 # Register
-#                 username = input("Username: ").strip()
-#                 if len(username) < 2:
-#                     print(f"{Fore.RED}Username must be at least 2 characters{Style.RESET_ALL}")
-#                     continue
-#
-#                 try:
-#                     import sys
-#                     if sys.stdin.isatty():
-#                         passcode = getpass.getpass("Passcode: ")
-#                         confirm = getpass.getpass("Confirm: ")
-#                     else:
-#                         passcode = input("Passcode (will be visible): ")
-#                         confirm = input("Confirm passcode (will be visible): ")
-#                 except:
-#                     passcode = input("Passcode (will be visible): ")
-#                     confirm = input("Confirm passcode (will be visible): ")
-#
-#                 if not passcode:
-#                     print(f"{Fore.RED}Passcode cannot be empty{Style.RESET_ALL}")
-#                     continue
-#
-#                 if passcode != confirm:
-#                     print(f"{Fore.RED}Passcodes don't match{Style.RESET_ALL}")
-#                     continue
-#
-#                 try:
-#                     result = await self.orchestrator.process_request('session', {
-#                         'action': 'create_user',
-#                         'username': username,
-#                         'passcode': passcode
-#                     })
-#
-#                     if result and result.get('status') == 'success':
-#                         print(f"{Fore.GREEN}Registration successful! Please login.{Style.RESET_ALL}")
-#                     else:
-#                         print(
-#                             f"{Fore.RED}Registration failed: {result.get('message', 'Unknown error')}{Style.RESET_ALL}")
-#
-#                 except Exception as e:
-#                     print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
-#
-#             elif choice == '3':
-#                 return False
-#
-#             else:
-#                 print(f"{Fore.RED}Invalid choice{Style.RESET_ALL}")
-#
-#     async def _quick_project_setup(self):
-#         """Quick project configuration"""
-#         project = self.current_project
-#
-#         print(f"{Fore.YELLOW}Quick Setup for {project['name']}{Style.RESET_ALL}")
-#
-#         # Goals
-#         goals = input("Project goals (optional): ").strip()
-#         if goals:
-#             project['goals'] = goals
-#
-#         # Tech stack
-#         tech = input("Primary technology (e.g., python, javascript): ").strip()
-#         if tech:
-#             project['tech_stack'] = [tech]
-#
-#         # Save project
-#         await self.orchestrator.process_request('session', {
-#             'action': 'save_project',
-#             'project': project
-#         })
-#
-#         print(f"{Fore.GREEN}✓ Quick setup completed{Style.RESET_ALL}\n")
-#
-#     async def _load_project(self, project_id: str):
-#         """Load existing project"""
-#         result = await self.orchestrator.process_request('session', {
-#             'action': 'load_project',
-#             'project_id': project_id
-#         })
-#
-#         if result['status'] == 'success':
-#             self.current_project = result['project']
-#             project = self.current_project
-#             print(f"{Fore.GREEN}✓ Loaded project: {project['name']}{Style.RESET_ALL}")
-#
-#             # Show project summary
-#             print(f"  Phase: {self._get_phase_color(project['phase'])}{project['phase']}{Style.RESET_ALL}")
-#             if project.get('goals'):
-#                 print(f"  Goals: {project['goals'][:100]}...")
-#             if project.get('tech_stack'):
-#                 print(f"  Tech: {', '.join(project['tech_stack'][:3])}")
-#             print()
-#         else:
-#             print(f"{Fore.RED}Failed to load project{Style.RESET_ALL}")
-#
-#     async def _handle_conversation(self):
-#         """Enhanced conversation handling"""
-#         project = self.current_project
-#
-#         # Show conversation header
-#         self._print_conversation_header()
-#
-#         # Handle conversation commands
-#         user_input = input(f"{Fore.BLUE}> {Style.RESET_ALL}").strip()
-#
-#         if not user_input:
-#             return
-#
-#         # Handle commands
-#         if user_input.startswith('/'):
-#             await self._handle_command(user_input)
-#             return
-#
-#         # Process conversation turn
-#         await self._process_conversation_turn(user_input)
-#
-#     def _print_conversation_header(self):
-#         """Print conversation status header"""
-#         project = self.current_project
-#         phase_color = self._get_phase_color(project['phase'])
-#
-#         print(f"\n{Fore.CYAN}💬 {project['name']} - {phase_color}{project['phase'].title()} Phase{Style.RESET_ALL}")
-#
-#         # Show progress
-#         conversation_count = len([msg for msg in project.get('conversation_history', [])
-#                                   if msg.get('type') == 'user'])
-#         print(f"Conversation turns: {conversation_count}")
-#
-#         if conversation_count == 0:
-#             print(f"{Fore.YELLOW}💡 This is your first conversation in this project!{Style.RESET_ALL}")
-#
-#         print("Commands: /help /save /phase /generate /exit")
-#         print()
-#
-#     async def _handle_command(self, command: str):
-#         """Handle special commands"""
-#         cmd = command.lower().split()[0]
-#
-#         if cmd == '/help':
-#             self._show_help()
-#         elif cmd == '/save':
-#             await self._save_project()
-#         elif cmd == '/phase':
-#             await self._manage_phases()
-#         elif cmd == '/generate':
-#             await self._generate_content()
-#         elif cmd == '/status':
-#             self._show_project_status()
-#         elif cmd == '/settings':
-#             await self._manage_settings()
-#         elif cmd == '/exit':
-#             if input("Save project before exit? (y/n): ").strip().lower() == 'y':
-#                 await self._save_project()
-#             self.current_project = None
-#         else:
-#             print(f"{Fore.RED}Unknown command: {cmd}{Style.RESET_ALL}")
-#
-#     def _show_help(self):
-#         """Show help information"""
-#         print(f"{Fore.CYAN}Available Commands:{Style.RESET_ALL}")
-#         commands = [
-#             "/help - Show this help",
-#             "/save - Save current project",
-#             "/phase - Manage project phases",
-#             "/generate - Generate code/docs",
-#             "/status - Show project status",
-#             "/settings - Manage settings",
-#             "/exit - Return to project selection"
-#         ]
-#         for cmd in commands:
-#             print(f"  {cmd}")
-#         print()
-#
-#     async def _process_conversation_turn(self, user_input: str):
-#         """Process a complete conversation turn"""
-#         project = self.current_project
-#
-#         # Generate question if needed
-#         if len(project.get('conversation_history', [])) == 0 or \
-#                 project.get('conversation_history', [])[-1].get('type') == 'user':
-#
-#             print(f"{Fore.YELLOW}🤔 Generating question...{Style.RESET_ALL}")
-#
-#             question_result = await self.orchestrator.process_request('conversation', {
-#                 'action': 'generate_question',
-#                 'project': project,
-#                 'use_dynamic': True
-#             })
-#
-#             if question_result['status'] == 'success':
-#                 question = question_result['question']
-#                 cached = question_result.get('cached', False)
-#                 cache_indicator = " 📋" if cached else ""
-#
-#                 print(f"\n{Fore.GREEN}🧠 Socratic Question{cache_indicator}:{Style.RESET_ALL}")
-#                 print(f"{question}\n")
-#
-#                 # Get user response
-#                 response = input(f"{Fore.BLUE}Your response: {Style.RESET_ALL}").strip()
-#                 if not response:
-#                     return
-#
-#                 user_input = response
-#
-#         # Process user response
-#         print(f"{Fore.YELLOW}🔍 Analyzing response...{Style.RESET_ALL}")
-#
-#         response_result = await self.orchestrator.process_request('conversation', {
-#             'action': 'process_response',
-#             'project': project,
-#             'response': user_input,
-#             'current_user': self.current_session['user']['username']
-#         })
-#
-#         if response_result['status'] == 'success':
-#             insights = response_result.get('insights', {})
-#             conflicts = response_result.get('conflicts', [])
-#
-#             # Show insights
-#             if insights:
-#                 print(f"{Fore.GREEN}✨ Insights extracted:{Style.RESET_ALL}")
-#                 for key, value in insights.items():
-#                     if value:
-#                         if isinstance(value, list):
-#                             print(f"  • {key.title()}: {', '.join(value)}")
-#                         else:
-#                             print(f"  • {key.title()}: {value}")
-#
-#             # Handle conflicts
-#             if conflicts:
-#                 print(f"{Fore.RED}⚠️  Conflicts detected:{Style.RESET_ALL}")
-#                 for conflict in conflicts:
-#                     print(f"  • {conflict}")
-#
-#                 if input("Resolve conflicts now? (y/n): ").strip().lower() == 'y':
-#                     await self._resolve_conflicts(conflicts)
-#
-#             # Auto-save
-#             await self._save_project(silent=True)
-#
-#             # Phase advancement check
-#             if self.auto_advance_phases:
-#                 await self._check_phase_advancement()
-#
-#     def _get_phase_color(self, phase: str) -> str:
-#         """Get color for phase display"""
-#         colors = {
-#             'discovery': Fore.BLUE,
-#             'analysis': Fore.YELLOW,
-#             'design': Fore.MAGENTA,
-#             'implementation': Fore.GREEN
-#         }
-#         return colors.get(phase, Fore.WHITE)
-#
-#     async def _save_project(self, silent: bool = False):
-#         """Save current project"""
-#         if not self.current_project:
-#             return
-#
-#         result = await self.orchestrator.process_request('session', {
-#             'action': 'save_project',
-#             'project': self.current_project
-#         })
-#
-#         if not silent:
-#             if result['status'] == 'success':
-#                 print(f"{Fore.GREEN}✓ Project saved{Style.RESET_ALL}")
-#             else:
-#                 print(f"{Fore.RED}Save failed: {result.get('message')}{Style.RESET_ALL}")
-#
-#     async def _manage_phases(self):
-#         """Manage project phases"""
-#         project = self.current_project
-#         current_phase = project.get('phase', 'discovery')
-#         phases = ['discovery', 'analysis', 'design', 'implementation']
-#
-#         print(f"{Fore.CYAN}Phase Management{Style.RESET_ALL}")
-#         print(f"Current phase: {self._get_phase_color(current_phase)}{current_phase}{Style.RESET_ALL}")
-#
-#         print("\nAvailable phases:")
-#         for i, phase in enumerate(phases, 1):
-#             color = self._get_phase_color(phase)
-#             marker = "→" if phase == current_phase else " "
-#             print(f"  {marker} {i}. {color}{phase.title()}{Style.RESET_ALL}")
-#
-#         choice = input("\nSelect phase (1-4) or press Enter to cancel: ").strip()
-#         if choice.isdigit() and 1 <= int(choice) <= len(phases):
-#             new_phase = phases[int(choice) - 1]
-#             project['phase'] = new_phase
-#             print(f"{Fore.GREEN}✓ Phase changed to {new_phase}{Style.RESET_ALL}")
-#             await self._save_project(silent=True)
-#
-#     async def _generate_content(self):
-#         """Generate project content"""
-#         print(f"{Fore.CYAN}Content Generation{Style.RESET_ALL}")
-#         print("1. Generate code")
-#         print("2. Generate documentation")
-#         print("3. Generate project report")
-#
-#         choice = input("Choose option (1-3): ").strip()
-#
-#         if choice == '1':
-#             await self._generate_code_content()
-#         elif choice == '2':
-#             await self._generate_docs_content()
-#         elif choice == '3':
-#             await self._generate_report_content()
-#         else:
-#             print(f"{Fore.YELLOW}Invalid choice{Style.RESET_ALL}")
-#
-#     async def _generate_code_content(self):
-#         """Generate code for the project"""
-#         print(f"{Fore.YELLOW}🔧 Generating code...{Style.RESET_ALL}")
-#
-#         result = await self.orchestrator.process_request('content', {
-#             'action': 'generate_code',
-#             'project': self.current_project
-#         })
-#
-#         if result['status'] == 'success':
-#             code = result['code']
-#             cached = result.get('cached', False)
-#             cache_indicator = " (cached)" if cached else ""
-#
-#             print(f"{Fore.GREEN}✓ Code generated{cache_indicator}:{Style.RESET_ALL}\n")
-#             print("=" * 60)
-#             print(code)
-#             print("=" * 60)
-#         else:
-#             print(f"{Fore.RED}Code generation failed: {result.get('message')}{Style.RESET_ALL}")
-#
-#     async def _generate_docs_content(self):
-#         """Generate documentation"""
-#         print(f"{Fore.GREEN}📝 Documentation generation not yet implemented{Style.RESET_ALL}")
-#
-#     async def _generate_report_content(self):
-#         """Generate project report"""
-#         print(f"{Fore.GREEN}📊 Report generation not yet implemented{Style.RESET_ALL}")
-#
-#     def _show_project_status(self):
-#         """Show detailed project status"""
-#         project = self.current_project
-#         print(f"{Fore.CYAN}📊 Project Status: {project['name']}{Style.RESET_ALL}")
-#
-#         print(f"  Phase: {self._get_phase_color(project['phase'])}{project['phase']}{Style.RESET_ALL}")
-#         print(f"  Owner: {project['owner']}")
-#         print(f"  Created: {project.get('created_at', 'Unknown')}")
-#         print(f"  Updated: {project.get('updated_at', 'Unknown')}")
-#         print(f"  Version: {project.get('version', 1)}")
-#
-#         if project.get('goals'):
-#             print(f"  Goals: {project['goals']}")
-#
-#         if project.get('tech_stack'):
-#             print(f"  Tech Stack: {', '.join(project['tech_stack'])}")
-#
-#         if project.get('requirements'):
-#             print(f"  Requirements: {len(project['requirements'])} items")
-#
-#         conversation_count = len([msg for msg in project.get('conversation_history', [])
-#                                   if msg.get('type') == 'user'])
-#         print(f"  Conversation Turns: {conversation_count}")
-#
-#     async def _manage_settings(self):
-#         """Manage application settings"""
-#         print(f"{Fore.CYAN}⚙️  Settings{Style.RESET_ALL}")
-#         print(f"1. Show system info: {'✓' if self.show_system_info else '✗'}")
-#         print(f"2. Auto-advance phases: {'✓' if self.auto_advance_phases else '✗'}")
-#         print(f"3. Conversation limit: {self.conversation_limit}")
-#
-#         choice = input("Toggle setting (1-3) or press Enter: ").strip()
-#
-#         if choice == '1':
-#             self.show_system_info = not self.show_system_info
-#             print(f"System info display: {'enabled' if self.show_system_info else 'disabled'}")
-#         elif choice == '2':
-#             self.auto_advance_phases = not self.auto_advance_phases
-#             print(f"Auto-advance phases: {'enabled' if self.auto_advance_phases else 'disabled'}")
-#         elif choice == '3':
-#             try:
-#                 new_limit = int(input("New conversation limit: "))
-#                 self.conversation_limit = max(1, min(50, new_limit))
-#                 print(f"Conversation limit set to: {self.conversation_limit}")
-#             except ValueError:
-#                 print("Invalid number")
-#
-#     async def _resolve_conflicts(self, conflicts):
-#         """Resolve project conflicts"""
-#         print(f"{Fore.YELLOW}Conflict resolution not yet implemented{Style.RESET_ALL}")
-#
-#     async def _check_phase_advancement(self):
-#         """Check if project should advance to next phase"""
-#         project = self.current_project
-#         conversation_count = len([msg for msg in project.get('conversation_history', [])
-#                                   if msg.get('type') == 'user'])
-#
-#         if conversation_count >= self.conversation_limit:
-#             result = await self.orchestrator.process_request('conversation', {
-#                 'action': 'advance_phase',
-#                 'project': project
-#             })
-#
-#             if result['status'] == 'success':
-#                 new_phase = result['new_phase']
-#                 project['phase'] = new_phase
-#                 print(f"{Fore.GREEN}🎉 Advanced to {new_phase} phase!{Style.RESET_ALL}")
-#                 await self._save_project(silent=True)
-#
-#
-# if __name__ == "__main__":
-#     interface = SocraticInterface()
-#     asyncio.run(interface.run())
+#!/usr/bin/env python3
+
+import os
+import json
+import hashlib
+import getpass
+import datetime
+import pickle
+import uuid
+import asyncio
+from typing import Dict, List, Optional, Tuple, Any
+from dataclasses import dataclass, asdict
+from abc import ABC, abstractmethod
+import sqlite3
+import threading
+import time
+import numpy as np
+from colorama import init, Fore, Back, Style
+import logging
+from contextlib import contextmanager
+
+# Third-party imports
+try:
+    import chromadb
+    from chromadb.config import Settings
+except ImportError:
+    print("ChromaDB not found. Install with: pip install chromadb")
+    exit(1)
+
+try:
+    import anthropic
+except ImportError:
+    print("Anthropic package not found. Install with: pip install anthropic")
+    exit(1)
+
+try:
+    from sentence_transformers import SentenceTransformer
+except ImportError:
+    print("Sentence Transformers not found. Install with: pip install sentence-transformers")
+    exit(1)
+
+init(autoreset=True)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('socratic_system.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# Configuration with environment-specific overrides
+CONFIG = {
+    'MAX_CONTEXT_LENGTH': int(os.getenv('MAX_CONTEXT_LENGTH', '8000')),
+    'EMBEDDING_MODEL': os.getenv('EMBEDDING_MODEL', 'all-MiniLM-L6-v2'),
+    'CLAUDE_MODEL': os.getenv('CLAUDE_MODEL', 'claude-3-5-sonnet-20241022'),
+    'MAX_RETRIES': int(os.getenv('MAX_RETRIES', '3')),
+    'RETRY_DELAY': int(os.getenv('RETRY_DELAY', '1')),
+    'TOKEN_WARNING_THRESHOLD': float(os.getenv('TOKEN_WARNING_THRESHOLD', '0.8')),
+    'SESSION_TIMEOUT': int(os.getenv('SESSION_TIMEOUT', '3600')),
+    'DATA_DIR': os.getenv('DATA_DIR', 'socratic_data'),
+    'BATCH_SIZE': int(os.getenv('BATCH_SIZE', '5')),
+    'CACHE_SIZE': int(os.getenv('CACHE_SIZE', '100'))
+}
+
+
+# Data Models (unchanged)
+@dataclass
+class User:
+    username: str
+    passcode_hash: str
+    created_at: datetime.datetime
+    projects: List[str]
+
+
+@dataclass
+class ProjectContext:
+    project_id: str
+    name: str
+    owner: str
+    collaborators: List[str]
+    goals: str
+    requirements: List[str]
+    tech_stack: List[str]
+    constraints: List[str]
+    team_structure: str
+    language_preferences: str
+    deployment_target: str
+    code_style: str
+    phase: str
+    conversation_history: List[Dict]
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+
+
+@dataclass
+class KnowledgeEntry:
+    id: str
+    content: str
+    category: str
+    metadata: Dict[str, Any]
+    embedding: Optional[List[float]] = None
+
+
+@dataclass
+class TokenUsage:
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+    cost_estimate: float
+    timestamp: datetime.datetime
+
+
+@dataclass
+class ConflictInfo:
+    conflict_id: str
+    conflict_type: str
+    old_value: str
+    new_value: str
+    old_author: str
+    new_author: str
+    old_timestamp: str
+    new_timestamp: str
+    severity: str
+    suggestions: List[str]
+
+
+# Connection Pool for Database
+class DatabaseConnectionPool:
+    def __init__(self, db_path: str, pool_size: int = 5):
+        self.db_path = db_path
+        self.pool_size = pool_size
+        self._pool = []
+        self._lock = threading.Lock()
+        self._init_pool()
+
+    def _init_pool(self):
+        for _ in range(self.pool_size):
+            conn = sqlite3.connect(self.db_path, check_same_thread=False)
+            conn.row_factory = sqlite3.Row
+            self._pool.append(conn)
+
+    @contextmanager
+    def get_connection(self):
+        with self._lock:
+            if self._pool:
+                conn = self._pool.pop()
+            else:
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                conn.row_factory = sqlite3.Row
+
+        try:
+            yield conn
+        finally:
+            with self._lock:
+                if len(self._pool) < self.pool_size:
+                    self._pool.append(conn)
+                else:
+                    conn.close()
+
+
+# Memory Cache Implementation
+class MemoryCache:
+    def __init__(self, max_size: int = 100):
+        self.max_size = max_size
+        self.cache = {}
+        self.access_times = {}
+        self._lock = threading.Lock()
+
+    def get(self, key: str) -> Any:
+        with self._lock:
+            if key in self.cache:
+                self.access_times[key] = time.time()
+                return self.cache[key]
+            return None
+
+    def set(self, key: str, value: Any):
+        with self._lock:
+            if len(self.cache) >= self.max_size:
+                self._evict_oldest()
+
+            self.cache[key] = value
+            self.access_times[key] = time.time()
+
+    def _evict_oldest(self):
+        if self.access_times:
+            oldest_key = min(self.access_times.keys(), key=lambda k: self.access_times[k])
+            del self.cache[oldest_key]
+            del self.access_times[oldest_key]
+
+    def clear(self):
+        with self._lock:
+            self.cache.clear()
+            self.access_times.clear()
+
+
+# Base Agent Class (enhanced with logging)
+class Agent(ABC):
+    def __init__(self, name: str, orchestrator: 'AgentOrchestrator'):
+        self.name = name
+        self.orchestrator = orchestrator
+        self.logger = logging.getLogger(f"Agent.{name}")
+
+    @abstractmethod
+    def process(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        pass
+
+    def log(self, message: str, level: str = "INFO"):
+        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+        color = Fore.GREEN if level == "INFO" else Fore.RED if level == "ERROR" else Fore.YELLOW
+        print(f"{color}[{timestamp}] {self.name}: {message}")
+
+        # Also log to file
+        if level == "ERROR":
+            self.logger.error(message)
+        elif level == "WARN":
+            self.logger.warning(message)
+        else:
+            self.logger.info(message)
+
+
+# Enhanced Session Manager Agent (combines ProjectManager functionality)
+class SessionManagerAgent(Agent):
+    def __init__(self, orchestrator):
+        super().__init__("SessionManager", orchestrator)
+        self.cache = MemoryCache(CONFIG['CACHE_SIZE'])
+
+    def process(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        action = request.get('action')
+
+        if action == 'create_project':
+            return self._create_project(request)
+        elif action == 'load_project':
+            return self._load_project(request)
+        elif action == 'save_project':
+            return self._save_project(request)
+        elif action == 'add_collaborator':
+            return self._add_collaborator(request)
+        elif action == 'list_projects':
+            return self._list_projects(request)
+        elif action == 'list_collaborators':
+            return self._list_collaborators(request)
+        elif action == 'remove_collaborator':
+            return self._remove_collaborator(request)
+        elif action == 'authenticate_user':
+            return self._authenticate_user(request)
+        elif action == 'create_user':
+            return self._create_user(request)
+        elif action == 'save_session_state':
+            return self._save_session_state(request)
+        elif action == 'restore_session_state':
+            return self._restore_session_state(request)
+
+        return {'status': 'error', 'message': 'Unknown action'}
+
+    def _create_project(self, request: Dict) -> Dict:
+        project_name = request.get('project_name')
+        owner = request.get('owner')
+
+        project_id = str(uuid.uuid4())
+        project = ProjectContext(
+            project_id=project_id,
+            name=project_name,
+            owner=owner,
+            collaborators=[],
+            goals="",
+            requirements=[],
+            tech_stack=[],
+            constraints=[],
+            team_structure="individual",
+            language_preferences="python",
+            deployment_target="local",
+            code_style="documented",
+            phase="discovery",
+            conversation_history=[],
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now()
+        )
+
+        self.orchestrator.database.save_project(project)
+        self.cache.set(f"project_{project_id}", project)
+        self.log(f"Created project '{project_name}' with ID {project_id}")
+
+        return {'status': 'success', 'project': project}
+
+    def _load_project(self, request: Dict) -> Dict:
+        project_id = request.get('project_id')
+
+        # Check cache first
+        cached_project = self.cache.get(f"project_{project_id}")
+        if cached_project:
+            self.log(f"Loaded project '{cached_project.name}' from cache")
+            return {'status': 'success', 'project': cached_project}
+
+        project = self.orchestrator.database.load_project(project_id)
+        if project:
+            self.cache.set(f"project_{project_id}", project)
+            self.log(f"Loaded project '{project.name}' from database")
+            return {'status': 'success', 'project': project}
+        else:
+            return {'status': 'error', 'message': 'Project not found'}
+
+    def _save_project(self, request: Dict) -> Dict:
+        project = request.get('project')
+        project.updated_at = datetime.datetime.now()
+        self.orchestrator.database.save_project(project)
+        self.cache.set(f"project_{project.project_id}", project)
+        self.log(f"Saved project '{project.name}'")
+        return {'status': 'success'}
+
+    def _authenticate_user(self, request: Dict) -> Dict:
+        username = request.get('username')
+        passcode = request.get('passcode')
+
+        # Check cache first
+        cached_user = self.cache.get(f"user_{username}")
+        user = cached_user if cached_user else self.orchestrator.database.load_user(username)
+
+        if not user:
+            return {'status': 'error', 'message': 'User not found'}
+
+        passcode_hash = hashlib.sha256(passcode.encode()).hexdigest()
+        if user.passcode_hash != passcode_hash:
+            return {'status': 'error', 'message': 'Invalid passcode'}
+
+        if not cached_user:
+            self.cache.set(f"user_{username}", user)
+
+        return {'status': 'success', 'user': user}
+
+    def _create_user(self, request: Dict) -> Dict:
+        username = request.get('username')
+        passcode = request.get('passcode')
+
+        if self.orchestrator.database.user_exists(username):
+            return {'status': 'error', 'message': 'Username already exists'}
+
+        passcode_hash = hashlib.sha256(passcode.encode()).hexdigest()
+        user = User(
+            username=username,
+            passcode_hash=passcode_hash,
+            created_at=datetime.datetime.now(),
+            projects=[]
+        )
+
+        self.orchestrator.database.save_user(user)
+        self.cache.set(f"user_{username}", user)
+
+        return {'status': 'success', 'user': user}
+
+    def _save_session_state(self, request: Dict) -> Dict:
+        """Save current session state for resuming"""
+        session_data = {
+            'current_user': request.get('current_user'),
+            'current_project_id': request.get('current_project_id'),
+            'timestamp': datetime.datetime.now().isoformat()
+        }
+
+        session_file = os.path.join(CONFIG['DATA_DIR'], 'last_session.json')
+        try:
+            with open(session_file, 'w') as f:
+                json.dump(session_data, f)
+            return {'status': 'success'}
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
+
+    def _restore_session_state(self, request: Dict) -> Dict:
+        """Restore last session state"""
+        session_file = os.path.join(CONFIG['DATA_DIR'], 'last_session.json')
+        try:
+            if os.path.exists(session_file):
+                with open(session_file, 'r') as f:
+                    session_data = json.load(f)
+                return {'status': 'success', 'session_data': session_data}
+            else:
+                return {'status': 'error', 'message': 'No previous session found'}
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
+
+    # ... (include other methods from ProjectManagerAgent with caching enhancements)
+    def _add_collaborator(self, request: Dict) -> Dict:
+        project = request.get('project')
+        username = request.get('username')
+
+        if username not in project.collaborators:
+            project.collaborators.append(username)
+            self.orchestrator.database.save_project(project)
+            self.cache.set(f"project_{project.project_id}", project)
+            self.log(f"Added collaborator '{username}' to project '{project.name}'")
+            return {'status': 'success'}
+        else:
+            return {'status': 'error', 'message': 'User already a collaborator'}
+
+    def _list_projects(self, request: Dict) -> Dict:
+        username = request.get('username')
+
+        # Check cache first
+        cache_key = f"user_projects_{username}"
+        cached_projects = self.cache.get(cache_key)
+        if cached_projects:
+            return {'status': 'success', 'projects': cached_projects}
+
+        projects = self.orchestrator.database.get_user_projects(username)
+        self.cache.set(cache_key, projects)
+        return {'status': 'success', 'projects': projects}
+
+    def _list_collaborators(self, request: Dict) -> Dict:
+        project = request.get('project')
+
+        collaborators_info = []
+        collaborators_info.append({
+            'username': project.owner,
+            'role': 'owner'
+        })
+
+        for collaborator in project.collaborators:
+            collaborators_info.append({
+                'username': collaborator,
+                'role': 'collaborator'
+            })
+
+        return {
+            'status': 'success',
+            'collaborators': collaborators_info,
+            'total_count': len(collaborators_info)
+        }
+
+    def _remove_collaborator(self, request: Dict) -> Dict:
+        project = request.get('project')
+        username = request.get('username')
+        requester = request.get('requester')
+
+        if requester != project.owner:
+            return {'status': 'error', 'message': 'Only project owner can remove collaborators'}
+
+        if username == project.owner:
+            return {'status': 'error', 'message': 'Cannot remove project owner'}
+
+        if username in project.collaborators:
+            project.collaborators.remove(username)
+            self.orchestrator.database.save_project(project)
+            self.cache.set(f"project_{project.project_id}", project)
+            self.log(f"Removed collaborator '{username}' from project '{project.name}'")
+            return {'status': 'success'}
+        else:
+            return {'status': 'error', 'message': 'User is not a collaborator'}
+
+
+# Enhanced Conversation Engine (combines SocraticCounselor and ConflictDetector)
+class ConversationEngineAgent(Agent):
+    def __init__(self, orchestrator):
+        super().__init__("ConversationEngine", orchestrator)
+        self.use_dynamic_questions = True
+        self.max_questions_per_phase = 5
+        self.response_cache = MemoryCache(50)  # Cache for API responses
+
+        # Conflict detection rules
+        self.conflict_rules = {
+            'databases': ['mysql', 'postgresql', 'sqlite', 'mongodb', 'redis'],
+            'frontend_frameworks': ['react', 'vue', 'angular', 'svelte'],
+            'backend_frameworks': ['django', 'flask', 'fastapi', 'express'],
+            'languages': ['python', 'javascript', 'java', 'go', 'rust'],
+            'deployment': ['aws', 'azure', 'gcp', 'heroku', 'vercel'],
+            'mobile': ['react native', 'flutter', 'native ios', 'native android']
+        }
+
+        # Static questions fallback
+        self.static_questions = {
+            'discovery': [
+                "What specific problem does your project solve?",
+                "Who is your target audience or user base?",
+                "What are the core features you envision?",
+                "Are there similar solutions that exist? How will yours differ?",
+                "What are your success criteria for this project?"
+            ],
+            'analysis': [
+                "What technical challenges do you anticipate?",
+                "What are your performance requirements?",
+                "How will you handle user authentication and security?",
+                "What third-party integrations might you need?",
+                "How will you test and validate your solution?"
+            ],
+            'design': [
+                "How will you structure your application architecture?",
+                "What design patterns will you use?",
+                "How will you organize your code and modules?",
+                "What development workflow will you follow?",
+                "How will you handle error cases and edge scenarios?"
+            ],
+            'implementation': [
+                "What will be your first implementation milestone?",
+                "How will you handle deployment and DevOps?",
+                "What monitoring and logging will you implement?",
+                "How will you document your code and API?",
+                "What's your plan for maintenance and updates?"
+            ]
+        }
+
+    def process(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        action = request.get('action')
+
+        if action == 'generate_question':
+            return self._generate_question(request)
+        elif action == 'process_response':
+            return self._process_response(request)
+        elif action == 'advance_phase':
+            return self._advance_phase(request)
+        elif action == 'toggle_dynamic_questions':
+            self.use_dynamic_questions = not self.use_dynamic_questions
+            return {'status': 'success', 'dynamic_mode': self.use_dynamic_questions}
+        elif action == 'detect_conflicts':
+            return self._detect_conflicts(request)
+        elif action == 'batch_process_insights':
+            return self._batch_process_insights(request)
+
+        return {'status': 'error', 'message': 'Unknown action'}
+
+    def _generate_question(self, request: Dict) -> Dict:
+        project = request.get('project')
+        context = self.orchestrator.context_analyzer.get_context_summary(project)
+
+        # Count questions already asked in this phase
+        phase_questions = [msg for msg in project.conversation_history
+                           if msg.get('type') == 'assistant' and msg.get('phase') == project.phase]
+
+        # Check cache for similar context
+        cache_key = f"question_{project.phase}_{len(phase_questions)}_{hash(context[:100])}"
+        cached_question = self.response_cache.get(cache_key)
+        if cached_question:
+            project.conversation_history.append({
+                'timestamp': datetime.datetime.now().isoformat(),
+                'type': 'assistant',
+                'content': cached_question,
+                'phase': project.phase,
+                'question_number': len(phase_questions) + 1
+            })
+            return {'status': 'success', 'question': cached_question}
+
+        if self.use_dynamic_questions:
+            question = self._generate_dynamic_question(project, context, len(phase_questions))
+        else:
+            question = self._generate_static_question(project, len(phase_questions))
+
+        # Cache the question
+        self.response_cache.set(cache_key, question)
+
+        # Store the question in conversation history
+        project.conversation_history.append({
+            'timestamp': datetime.datetime.now().isoformat(),
+            'type': 'assistant',
+            'content': question,
+            'phase': project.phase,
+            'question_number': len(phase_questions) + 1
+        })
+
+        return {'status': 'success', 'question': question}
+
+    def _generate_dynamic_question(self, project: ProjectContext, context: str, question_count: int) -> str:
+        """Generate contextual questions using Claude with retry logic"""
+        recent_conversation = self._get_recent_conversation(project)
+        relevant_knowledge = self._get_relevant_knowledge(context)
+
+        prompt = self._build_question_prompt(project, context, recent_conversation, relevant_knowledge, question_count)
+
+        # Exponential backoff retry logic
+        for attempt in range(CONFIG['MAX_RETRIES']):
+            try:
+                question = self.orchestrator.claude_client.generate_socratic_question(prompt)
+                self.log(f"Generated dynamic question for {project.phase} phase")
+                return question
+            except Exception as e:
+                wait_time = CONFIG['RETRY_DELAY'] * (2 ** attempt)
+                self.log(f"Attempt {attempt + 1} failed: {e}, retrying in {wait_time}s", "WARN")
+                if attempt < CONFIG['MAX_RETRIES'] - 1:
+                    time.sleep(wait_time)
+
+        # Final fallback to static question
+        self.log("All dynamic question attempts failed, using static fallback", "WARN")
+        return self._generate_static_question(project, question_count)
+
+    def _get_recent_conversation(self, project: ProjectContext) -> str:
+        """Get recent conversation for context"""
+        if not project.conversation_history:
+            return ""
+
+        recent_messages = project.conversation_history[-4:]
+        conversation = ""
+        for msg in recent_messages:
+            role = "Assistant" if msg['type'] == 'assistant' else "User"
+            conversation += f"{role}: {msg['content']}\n"
+        return conversation
+
+    def _get_relevant_knowledge(self, context: str) -> str:
+        """Get relevant knowledge from vector database"""
+        if not context:
+            return ""
+
+        knowledge_results = self.orchestrator.vector_db.search_similar(context, top_k=3)
+        if knowledge_results:
+            return "\n".join([result['content'][:200] + "..." for result in knowledge_results])
+        return ""
+
+    def _build_question_prompt(self, project: ProjectContext, context: str,
+                               recent_conversation: str, relevant_knowledge: str, question_count: int) -> str:
+        """Build optimized prompt for dynamic question generation"""
+
+        phase_descriptions = {
+            'discovery': "exploring the problem space, understanding user needs, and defining project goals",
+            'analysis': "analyzing technical requirements, identifying challenges, and planning solutions",
+            'design': "designing architecture, choosing patterns, and planning implementation structure",
+            'implementation': "planning development steps, deployment strategy, and maintenance approach"
+        }
+
+        phase_focus = {
+            'discovery': "problem definition, user needs, market research, competitive analysis",
+            'analysis': "technical feasibility, performance requirements, security considerations, integrations",
+            'design': "architecture patterns, code organization, development workflow, error handling",
+            'implementation': "development milestones, deployment pipeline, monitoring, documentation"
+        }
+
+        # Compressed prompt to reduce token usage
+        return f"""Socratic tutor for software project.
+
+Project: {project.name} | Phase: {project.phase} | Q#{question_count + 1}
+Goals: {project.goals or 'TBD'}
+Stack: {', '.join(project.tech_stack[:3]) if project.tech_stack else 'TBD'}
+
+Context: {context[:500]}
+Recent: {recent_conversation[-300:] if recent_conversation else 'None'}
+
+Focus: {phase_focus.get(project.phase, '')}
+
+Generate ONE insightful question that builds on discussion and helps deeper thinking about {project.phase} phase.
+Be conversational, specific to their goals/stack, thought-provoking but not overwhelming.
+
+Question only:"""
+
+    def _generate_static_question(self, project: ProjectContext, question_count: int) -> str:
+        """Generate questions from static predefined lists"""
+        questions = self.static_questions.get(project.phase, [])
+
+        if question_count < len(questions):
+            return questions[question_count]
+        else:
+            fallbacks = {
+                'discovery': "What other aspects of the problem space should we explore?",
+                'analysis': "What technical considerations haven't we discussed yet?",
+                'design': "What design decisions are you still uncertain about?",
+                'implementation': "What implementation details would you like to work through?"
+            }
+            return fallbacks.get(project.phase, "What would you like to explore further?")
+
+    def _process_response(self, request: Dict) -> Dict:
+        project = request.get('project')
+        user_response = request.get('response')
+        current_user = request.get('current_user')
+
+        # Add to conversation history
+        project.conversation_history.append({
+            'timestamp': datetime.datetime.now().isoformat(),
+            'type': 'user',
+            'content': user_response,
+            'phase': project.phase,
+            'author': current_user
+        })
+
+        # Extract insights using Claude with retry logic
+        insights = self._extract_insights_with_retry(user_response, project)
+
+        # Real-time conflict detection
+        if insights:
+            conflict_result = self._detect_conflicts({
+                'project': project,
+                'new_insights': insights,
+                'current_user': current_user
+            })
+
+            if conflict_result['status'] == 'success' and conflict_result['conflicts']:
+                conflicts_resolved = self._handle_conflicts_realtime(conflict_result['conflicts'], project)
+                if not conflicts_resolved:
+                    return {'status': 'success', 'insights': insights, 'conflicts_pending': True}
+
+        # Update context only if no conflicts or conflicts were resolved
+        self._update_project_context(project, insights)
+
+        return {'status': 'success', 'insights': insights}
+
+    def _extract_insights_with_retry(self, user_response: str, project: ProjectContext) -> Dict:
+        """Extract insights with exponential backoff retry"""
+        for attempt in range(CONFIG['MAX_RETRIES']):
+            try:
+                return self.orchestrator.claude_client.extract_insights(user_response, project)
+            except Exception as e:
+                wait_time = CONFIG['RETRY_DELAY'] * (2 ** attempt)
+                self.log(f"Insight extraction attempt {attempt + 1} failed: {e}, retrying in {wait_time}s", "WARN")
+                if attempt < CONFIG['MAX_RETRIES'] - 1:
+                    time.sleep(wait_time)
+
+        # Return empty insights if all attempts fail
+        self.log("All insight extraction attempts failed", "ERROR")
+        return {}
+
+    def _batch_process_insights(self, request: Dict) -> Dict:
+        """Process multiple insights at once to reduce API calls"""
+        insights_batch = request.get('insights_batch', [])
+        project = request.get('project')
+
+        if not insights_batch:
+            return {'status': 'success', 'processed': 0}
+
+        # Combine insights into single API call
+        combined_insights = {}
+        for insights in insights_batch:
+            for key, value in insights.items():
+                if key not in combined_insights:
+                    combined_insights[key] = []
+                if isinstance(value, list):
+                    combined_insights[key].extend(value)
+                else:
+                    combined_insights[key].append(value)
+
+        # Update project context with combined insights
+        self._update_project_context(project, combined_insights)
+
+        return {'status': 'success', 'processed': len(insights_batch)}
+
+    # ... (include conflict detection methods from ConflictDetectorAgent)
+    def _detect_conflicts(self, request: Dict) -> Dict:
+        project = request.get('project')
+        new_insights = request.get('new_insights')
+        current_user = request.get('current_user')
+
+        conflicts = []
+        if not new_insights or not isinstance(new_insights, dict):
+            return {'status': 'success', 'conflicts': []}
+
+        conflicts.extend(self._check_tech_stack_conflicts(project, new_insights, current_user))
+        conflicts.extend(self._check_requirements_conflicts(project, new_insights, current_user))
+        conflicts.extend(self._check_goals_conflicts(project, new_insights, current_user))
+        conflicts.extend(self._check_constraints_conflicts(project, new_insights, current_user))
+
+        return {'status': 'success', 'conflicts': conflicts}
+
+    def _check_tech_stack_conflicts(self, project: ProjectContext, new_insights: Dict, current_user: str) -> List[
+        ConflictInfo]:
+        conflicts = []
+        new_tech = new_insights.get('tech_stack', [])
+        if not isinstance(new_tech, list):
+            new_tech = [new_tech] if new_tech else []
+
+        for new_item in new_tech:
+            if not new_item:
+                continue
+
+            new_item_lower = new_item.lower()
+            for existing_item in project.tech_stack:
+                existing_lower = existing_item.lower()
+                conflict_category = self._find_conflict_category(new_item_lower, existing_lower)
+
+                if conflict_category:
+                    original_author = self._find_spec_author(project, 'tech_stack', existing_item)
+                    conflict = ConflictInfo(
+                        conflict_id=str(uuid.uuid4()),
+                        conflict_type='tech_stack',
+                        old_value=existing_item,
+                        new_value=new_item,
+                        old_author=original_author,
+                        new_author=current_user,
+                        old_timestamp=project.created_at.isoformat(),
+                        new_timestamp=datetime.datetime.now().isoformat(),
+                        severity='high' if conflict_category in ['databases', 'languages'] else 'medium',
+                        suggestions=self._generate_tech_suggestions(conflict_category, existing_item, new_item)
+                    )
+                    conflicts.append(conflict)
+
+        return conflicts
+
+    def _find_conflict_category(self, item1: str, item2: str) -> Optional[str]:
+        for category, items in self.conflict_rules.items():
+            if any(item1 in tech.lower() for tech in items) and any(item2 in tech.lower() for tech in items):
+                return
