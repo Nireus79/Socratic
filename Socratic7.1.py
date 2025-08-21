@@ -1885,6 +1885,199 @@ class AgentOrchestrator:
         return False
 
 
+# Agent Orchestrator - The main coordinator
+class AgentOrchestrator:
+    def __init__(self, data_dir: str = None):
+        self.data_dir = data_dir or CONFIG['DATA_DIR']
+        os.makedirs(self.data_dir, exist_ok=True)
+
+        # Initialize core components
+        self.database = DatabaseHandler(self.data_dir)
+        self.vector_db = VectorDatabaseHandler(self.data_dir)
+        self.claude_client = ClaudeClient()
+
+        # Initialize agents
+        self.session_manager = SessionManagerAgent(self)
+        self.conversation_engine = ConversationEngineAgent(self)
+        self.context_analyzer = ContextAnalyzerAgent(self)
+
+        # Current session state
+        self.current_user = None
+        self.current_project = None
+
+        logger.info("Agent orchestrator initialized successfully")
+
+    def authenticate_user(self, username: str, passcode: str) -> bool:
+        """Authenticate user and set as current user"""
+        result = self.session_manager.process({
+            'action': 'authenticate_user',
+            'username': username,
+            'passcode': passcode
+        })
+
+        if result['status'] == 'success':
+            self.current_user = result['user']
+            return True
+        return False
+
+    def create_user(self, username: str, passcode: str) -> bool:
+        """Create new user account"""
+        result = self.session_manager.process({
+            'action': 'create_user',
+            'username': username,
+            'passcode': passcode
+        })
+
+        if result['status'] == 'success':
+            self.current_user = result['user']
+            return True
+        return False
+
+    def create_project(self, project_name: str) -> bool:
+        """Create new project for current user"""
+        if not self.current_user:
+            return False
+
+        result = self.session_manager.process({
+            'action': 'create_project',
+            'project_name': project_name,
+            'owner': self.current_user.username
+        })
+
+        if result['status'] == 'success':
+            self.current_project = result['project']
+            return True
+        return False
+
+    def load_project(self, project_id: str) -> bool:
+        """Load existing project"""
+        result = self.session_manager.process({
+            'action': 'load_project',
+            'project_id': project_id
+        })
+
+        if result['status'] == 'success':
+            self.current_project = result['project']
+            return True
+        return False
+
+    def get_user_projects(self) -> List[Dict]:
+        """Get all projects for current user"""
+        if not self.current_user:
+            return []
+
+        result = self.session_manager.process({
+            'action': 'list_projects',
+            'username': self.current_user.username
+        })
+
+        return result.get('projects', []) if result['status'] == 'success' else []
+
+    def start_socratic_session(self) -> str:
+        """Start a Socratic questioning session"""
+        if not self.current_project:
+            return "No project selected. Please create or load a project first."
+
+        result = self.conversation_engine.process({
+            'action': 'generate_question',
+            'project': self.current_project
+        })
+
+        if result['status'] == 'success':
+            return result['question']
+        else:
+            return "Sorry, I couldn't generate a question right now. Please try again."
+
+    def process_user_response(self, response: str) -> Dict:
+        """Process user response and return insights"""
+        if not self.current_project or not self.current_user:
+            return {'status': 'error', 'message': 'No active session'}
+
+        # Process the response
+        result = self.conversation_engine.process({
+            'action': 'process_response',
+            'project': self.current_project,
+            'response': response,
+            'current_user': self.current_user.username
+        })
+
+        # Save project after processing
+        if result['status'] == 'success':
+            self.session_manager.process({
+                'action': 'save_project',
+                'project': self.current_project
+            })
+
+        return result
+
+    def advance_project_phase(self) -> str:
+        """Advance project to next phase"""
+        if not self.current_project:
+            return "No project selected."
+
+        result = self.conversation_engine.process({
+            'action': 'advance_phase',
+            'project': self.current_project
+        })
+
+        if result['status'] == 'success':
+            self.session_manager.process({
+                'action': 'save_project',
+                'project': self.current_project
+            })
+            return f"Project advanced to {result['new_phase']} phase!"
+        else:
+            return result.get('message', 'Could not advance phase.')
+
+    def get_project_status(self) -> Dict:
+        """Get current project status and completeness"""
+        if not self.current_project:
+            return {'status': 'error', 'message': 'No project selected'}
+
+        completeness = self.context_analyzer.analyze_completeness(self.current_project)
+        next_steps = self.context_analyzer.suggest_next_steps(self.current_project)
+
+        return {
+            'status': 'success',
+            'project_name': self.current_project.name,
+            'phase': self.current_project.phase,
+            'completeness': completeness,
+            'next_steps': next_steps,
+            'conversation_count': len([msg for msg in self.current_project.conversation_history
+                                       if msg['type'] == 'user'])
+        }
+
+    def save_session_state(self):
+        """Save current session state"""
+        self.session_manager.process({
+            'action': 'save_session_state',
+            'current_user': self.current_user.username if self.current_user else None,
+            'current_project_id': self.current_project.project_id if self.current_project else None
+        })
+
+    def restore_session_state(self) -> bool:
+        """Restore previous session state"""
+        result = self.session_manager.process({
+            'action': 'restore_session_state'
+        })
+
+        if result['status'] == 'success':
+            session_data = result['session_data']
+
+            # Restore user
+            if session_data.get('current_user'):
+                user = self.database.load_user(session_data['current_user'])
+                if user:
+                    self.current_user = user
+
+            # Restore project
+            if session_data.get('current_project_id'):
+                if self.load_project(session_data['current_project_id']):
+                    return True
+
+        return False
+
+
 # Main CLI Interface
 class SocraticSystemCLI:
     def __init__(self):
@@ -1896,9 +2089,9 @@ class SocraticSystemCLI:
 
     def display_banner(self):
         """Display system banner"""
-        print(f"\n{Style.BRIGHT}{Fore.CYAN}{'=' * 60}")
+        print(f"\n{Style.BRIGHT}{Fore.CYAN}{'='*60}")
         print(f"🧠 SOCRATIC SOFTWARE DEVELOPMENT SYSTEM v7.1 🧠")
-        print(f"{'=' * 60}{Style.RESET_ALL}")
+        print(f"{'='*60}{Style.RESET_ALL}")
         print(f"{Fore.GREEN}Intelligent project guidance through Socratic questioning{Style.RESET_ALL}\n")
 
     def display_menu(self):
@@ -1960,14 +2153,11 @@ class SocraticSystemCLI:
         """Handle new account creation"""
         print(f"\n{Style.BRIGHT}{Fore.CYAN}Create New Account")
         username = input("Username: ").strip()
-        print(1)
         if not username:
-            print(2)
             print(f"{Fore.RED}Username cannot be empty.")
             return
-        print(3)
+
         passcode = input(f"{Fore.WHITE}Passcode: ").strip()
-        print(4)
         if not passcode:
             print(f"{Fore.RED}Passcode cannot be empty.")
             return
@@ -2102,6 +2292,16 @@ class SocraticSystemCLI:
             result = self.orchestrator.process_user_response(response)
 
             if result['status'] == 'success':
+                if result.get('help_provided'):
+                    # Handle help/suggestion responses
+                    suggestions = result.get('suggestions', [])
+                    if suggestions:
+                        print(f"\n{Fore.BLUE}💡 Here are some suggestions to help you:")
+                        for i, suggestion in enumerate(suggestions, 1):
+                            print(f"  {i}. {suggestion}")
+                        print(f"\n{Fore.YELLOW}Think about these suggestions and feel free to share your thoughts!")
+                    continue
+
                 if result.get('conflicts_pending'):
                     print(f"{Fore.YELLOW}⚠️ Conflicts detected and need resolution.")
 
@@ -2153,8 +2353,7 @@ class SocraticSystemCLI:
         """Handle system settings"""
         while True:
             print(f"\n{Style.BRIGHT}{Fore.YELLOW}System Settings:")
-            print(
-                f"{Fore.WHITE}1. Toggle Dynamic Questions (Currently: {'ON' if self.orchestrator.conversation_engine.use_dynamic_questions else 'OFF'})")
+            print(f"{Fore.WHITE}1. Toggle Dynamic Questions (Currently: {'ON' if self.orchestrator.conversation_engine.use_dynamic_questions else 'OFF'})")
             print(f"2. View Token Usage")
             print(f"3. Vector Database Stats")
             print(f"4. Clear Cache")
