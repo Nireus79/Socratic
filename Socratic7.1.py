@@ -3,7 +3,6 @@
 import os
 import json
 import hashlib
-import getpass
 import datetime
 import pickle
 import uuid
@@ -1610,9 +1609,9 @@ class DatabaseHandler:
 
 class ClaudeClient:
     def __init__(self):
-        api_key = os.getenv('ANTHROPIC_API_KEY')
+        api_key = os.getenv('API_KEY_CLAUDE')
         if not api_key:
-            logger.error("ANTHROPIC_API_KEY not found in environment variables")
+            logger.error("API_KEY_CLAUDE not found in environment variables")
             raise ValueError("Missing Anthropic API key")
 
         self.client = anthropic.Anthropic(api_key=api_key)
@@ -1945,7 +1944,7 @@ class SocraticSystemCLI:
             print(f"{Fore.RED}Username cannot be empty.")
             return
 
-        passcode = getpass.getpass("Passcode: ")
+        passcode = input(f"{Fore.WHITE}Passcode: ").strip()
         if not passcode:
             print(f"{Fore.RED}Passcode cannot be empty.")
             return
@@ -1959,16 +1958,19 @@ class SocraticSystemCLI:
         """Handle new account creation"""
         print(f"\n{Style.BRIGHT}{Fore.CYAN}Create New Account")
         username = input("Username: ").strip()
+        print(1)
         if not username:
+            print(2)
             print(f"{Fore.RED}Username cannot be empty.")
             return
-
-        passcode = getpass.getpass("Passcode: ")
+        print(3)
+        passcode = input(f"{Fore.WHITE}Passcode: ").strip()
+        print(4)
         if not passcode:
             print(f"{Fore.RED}Passcode cannot be empty.")
             return
 
-        confirm_passcode = getpass.getpass("Confirm Passcode: ")
+        confirm_passcode = input(f"{Fore.WHITE}Passcode: ").strip()
         if passcode != confirm_passcode:
             print(f"{Fore.RED}Passcodes do not match.")
             return
@@ -2246,9 +2248,9 @@ class SocraticSystemCLI:
 if __name__ == "__main__":
     # Check for required environment variable
     if not os.getenv('API_KEY_CLAUDE'):
-        print(f"{Fore.RED}Error: ANTHROPIC_API_KEY environment variable not set.")
+        print(f"{Fore.RED}Error: API_KEY_CLAUDE environment variable not set.")
         print(f"{Fore.YELLOW}Please set your Anthropic API key:")
-        print(f"{Fore.WHITE}export ANTHROPIC_API_KEY='your-api-key-here'")
+        print(f"{Fore.WHITE}export API_KEY_CLAUDE='your-api-key-here'")
         exit(1)
 
     # Initialize and run the CLI
