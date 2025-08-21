@@ -770,3 +770,805 @@ Question only:"""
                 conflict_category = self._find_conflict_category(new_item_lower, existing_lower)
 
                 if conflict_category:
+                    conflict_id = str(uuid.uuid4())
+                    conflicts.append(ConflictInfo(
+                        conflict_id=conflict_id,
+                        conflict_type='tech_stack_incompatible',
+                        old_value=existing_item,
+                        new_value=new_item,
+                        old_author='unknown',  # Would need to track in real implementation
+                        new_author=current_user,
+                        old_timestamp='unknown',
+                        new_timestamp=datetime.datetime.now().isoformat(),
+                        severity='medium',
+                        suggestions=[
+                            f"Consider choosing between {existing_item} and {new_item}",
+                            f"Evaluate the benefits of each {conflict_category} option",
+                            "Discuss with team members before making the final decision"
+                        ]
+                    ))
+
+        return conflicts
+
+    def _check_requirements_conflicts(self, project: ProjectContext, new_insights: Dict, current_user: str) -> List[
+        ConflictInfo]:
+        conflicts = []
+        new_requirements = new_insights.get('requirements', [])
+
+        if not isinstance(new_requirements, list):
+            new_requirements = [new_requirements] if new_requirements else []
+
+        new_requirements = [str(req).strip() for req in new_requirements if req and str(req).strip()]
+
+        for new_req in new_requirements:
+            new_req_lower = new_req.lower()
+            for existing_req in project.requirements:
+                existing_req_lower = str(existing_req).lower()
+
+                # Check for contradictory requirements
+                if self._are_contradictory_requirements(new_req_lower, existing_req_lower):
+                    conflict_id = str(uuid.uuid4())
+                    conflicts.append(ConflictInfo(
+                        conflict_id=conflict_id,
+                        conflict_type='requirements_contradictory',
+                        old_value=existing_req,
+                        new_value=new_req,
+                        old_author='unknown',
+                        new_author=current_user,
+                        old_timestamp='unknown',
+                        new_timestamp=datetime.datetime.now().isoformat(),
+                        severity='high',
+                        suggestions=[
+                            "Review both requirements for compatibility",
+                            "Consider if both can be satisfied simultaneously",
+                            "Prioritize requirements based on business value"
+                        ]
+                    ))
+
+        return conflicts
+
+    def _check_goals_conflicts(self, project: ProjectContext, new_insights: Dict, current_user: str) -> List[
+        ConflictInfo]:
+        conflicts = []
+        new_goals = new_insights.get('goals', '')
+
+        if new_goals and project.goals:
+            if self._are_conflicting_goals(project.goals.lower(), str(new_goals).lower()):
+                conflict_id = str(uuid.uuid4())
+                conflicts.append(ConflictInfo(
+                    conflict_id=conflict_id,
+                    conflict_type='goals_misaligned',
+                    old_value=project.goals,
+                    new_value=str(new_goals),
+                    old_author='unknown',
+                    new_author=current_user,
+                    old_timestamp='unknown',
+                    new_timestamp=datetime.datetime.now().isoformat(),
+                    severity='high',
+                    suggestions=[
+                        "Clarify the primary project objective",
+                        "Ensure all team members share the same vision",
+                        "Consider breaking into separate projects if goals are too different"
+                    ]
+                ))
+
+        return conflicts
+
+    def _check_constraints_conflicts(self, project: ProjectContext, new_insights: Dict, current_user: str) -> List[
+        ConflictInfo]:
+        conflicts = []
+        new_constraints = new_insights.get('constraints', [])
+
+        if not isinstance(new_constraints, list):
+            new_constraints = [new_constraints] if new_constraints else []
+
+        new_constraints = [str(const).strip() for const in new_constraints if const and str(const).strip()]
+
+        for new_const in new_constraints:
+            new_const_lower = new_const.lower()
+            for existing_const in project.constraints:
+                existing_const_lower = str(existing_const).lower()
+
+                if self._are_contradictory_constraints(new_const_lower, existing_const_lower):
+                    conflict_id = str(uuid.uuid4())
+                    conflicts.append(ConflictInfo(
+                        conflict_id=conflict_id,
+                        conflict_type='constraints_contradictory',
+                        old_value=existing_const,
+                        new_value=new_const,
+                        old_author='unknown',
+                        new_author=current_user,
+                        old_timestamp='unknown',
+                        new_timestamp=datetime.datetime.now().isoformat(),
+                        severity='medium',
+                        suggestions=[
+                            "Evaluate if both constraints can be satisfied",
+                            "Consider constraint priority and flexibility",
+                            "Discuss trade-offs with stakeholders"
+                        ]
+                    ))
+
+        return conflicts
+
+    def _find_conflict_category(self, item1: str, item2: str) -> Optional[str]:
+        """Find if two items belong to the same category and might conflict"""
+        for category, items in self.conflict_rules.items():
+            if item1 in items and item2 in items and item1 != item2:
+                return category
+        return None
+
+    def _are_contradictory_requirements(self, req1: str, req2: str) -> bool:
+        """Check if two requirements contradict each other"""
+        contradictions = [
+            ('real-time', 'batch'),
+            ('synchronous', 'asynchronous'),
+            ('high performance', 'low resource'),
+            ('simple', 'feature-rich'),
+            ('secure', 'open access'),
+        ]
+
+        for term1, term2 in contradictions:
+            if (term1 in req1 and term2 in req2) or (term2 in req1 and term1 in req2):
+                return True
+        return False
+
+    def _are_conflicting_goals(self, goal1: str, goal2: str) -> bool:
+        """Check if two goals conflict"""
+        conflicting_keywords = [
+            ('profit', 'free'),
+            ('simple', 'comprehensive'),
+            ('fast development', 'perfect quality'),
+            ('minimal', 'feature-complete'),
+        ]
+
+        for term1, term2 in conflicting_keywords:
+            if (term1 in goal1 and term2 in goal2) or (term2 in goal1 and term1 in goal2):
+                return True
+        return False
+
+    def _are_contradictory_constraints(self, const1: str, const2: str) -> bool:
+        """Check if two constraints contradict each other"""
+        contradictions = [
+            ('no budget', 'enterprise features'),
+            ('no external dependencies', 'use cloud services'),
+            ('offline', 'real-time sync'),
+            ('minimal ui', 'rich interface'),
+        ]
+
+        for term1, term2 in contradictions:
+            if (term1 in const1 and term2 in const2) or (term2 in const1 and term1 in const2):
+                return True
+        return False
+
+    def _handle_conflicts_realtime(self, conflicts: List[ConflictInfo], project: ProjectContext) -> bool:
+        """Handle conflicts in real-time - simplified version"""
+        if not conflicts:
+            return True
+
+        self.log(f"Detected {len(conflicts)} conflicts", "WARN")
+        for conflict in conflicts:
+            self.log(f"Conflict: {conflict.conflict_type} - {conflict.old_value} vs {conflict.new_value}", "WARN")
+
+        # For now, just log conflicts. In a full implementation, this would
+        # prompt users for resolution or apply automatic resolution rules
+        return False  # Indicates conflicts need manual resolution
+
+    def _update_project_context(self, project: ProjectContext, insights: Dict):
+        """Update project context with extracted insights"""
+        if not insights:
+            return
+
+        # Update goals
+        if 'goals' in insights and insights['goals']:
+            if not project.goals:
+                project.goals = str(insights['goals'])
+            else:
+                # Append or merge goals
+                new_goals = str(insights['goals'])
+                if new_goals not in project.goals:
+                    project.goals += f" {new_goals}"
+
+        # Update tech stack
+        if 'tech_stack' in insights:
+            tech_items = insights['tech_stack']
+            if not isinstance(tech_items, list):
+                tech_items = [tech_items] if tech_items else []
+
+            for item in tech_items:
+                if item and str(item).strip() not in project.tech_stack:
+                    project.tech_stack.append(str(item).strip())
+
+        # Update requirements
+        if 'requirements' in insights:
+            req_items = insights['requirements']
+            if not isinstance(req_items, list):
+                req_items = [req_items] if req_items else []
+
+            for item in req_items:
+                if item and str(item).strip() not in project.requirements:
+                    project.requirements.append(str(item).strip())
+
+        # Update constraints
+        if 'constraints' in insights:
+            const_items = insights['constraints']
+            if not isinstance(const_items, list):
+                const_items = [const_items] if const_items else []
+
+            for item in const_items:
+                if item and str(item).strip() not in project.constraints:
+                    project.constraints.append(str(item).strip())
+
+    def _advance_phase(self, request: Dict) -> Dict:
+        project = request.get('project')
+
+        phases = ['discovery', 'analysis', 'design', 'implementation']
+        current_index = phases.index(project.phase) if project.phase in phases else 0
+
+        if current_index < len(phases) - 1:
+            project.phase = phases[current_index + 1]
+            self.log(f"Advanced to {project.phase} phase")
+            return {'status': 'success', 'new_phase': project.phase}
+        else:
+            return {'status': 'error', 'message': 'Already in final phase'}
+
+
+class DatabaseManager:
+    def __init__(self, data_dir: str):
+        self.data_dir = data_dir
+        self.db_path = os.path.join(data_dir, 'socratic_system.db')
+        self.pool = DatabaseConnectionPool(self.db_path, pool_size=5)
+        self._init_database()
+
+    def _init_database(self):
+        """Initialize database schema"""
+        os.makedirs(self.data_dir, exist_ok=True)
+
+        with self.pool.get_connection() as conn:
+            # Users table
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    username TEXT PRIMARY KEY,
+                    passcode_hash TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    projects TEXT DEFAULT '[]'
+                )
+            ''')
+
+            # Projects table
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS projects (
+                    project_id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    owner TEXT NOT NULL,
+                    data TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            ''')
+
+            # Knowledge base table
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS knowledge_entries (
+                    id TEXT PRIMARY KEY,
+                    content TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    metadata TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+            ''')
+
+            conn.commit()
+
+    def save_user(self, user: User):
+        """Save user to database"""
+        with self.pool.get_connection() as conn:
+            conn.execute('''
+                INSERT OR REPLACE INTO users (username, passcode_hash, created_at, projects)
+                VALUES (?, ?, ?, ?)
+            ''', (user.username, user.passcode_hash, user.created_at.isoformat(),
+                  json.dumps(user.projects)))
+            conn.commit()
+
+    def load_user(self, username: str) -> Optional[User]:
+        """Load user from database"""
+        with self.pool.get_connection() as conn:
+            row = conn.execute('''
+                SELECT username, passcode_hash, created_at, projects
+                FROM users WHERE username = ?
+            ''', (username,)).fetchone()
+
+            if row:
+                return User(
+                    username=row['username'],
+                    passcode_hash=row['passcode_hash'],
+                    created_at=datetime.datetime.fromisoformat(row['created_at']),
+                    projects=json.loads(row['projects'] or '[]')
+                )
+            return None
+
+    def user_exists(self, username: str) -> bool:
+        """Check if user exists"""
+        with self.pool.get_connection() as conn:
+            result = conn.execute('SELECT 1 FROM users WHERE username = ?', (username,)).fetchone()
+            return result is not None
+
+    def save_project(self, project: ProjectContext):
+        """Save project to database"""
+        with self.pool.get_connection() as conn:
+            conn.execute('''
+                INSERT OR REPLACE INTO projects (project_id, name, owner, data, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (project.project_id, project.name, project.owner,
+                  json.dumps(asdict(project)),
+                  project.created_at.isoformat(),
+                  project.updated_at.isoformat()))
+            conn.commit()
+
+    def load_project(self, project_id: str) -> Optional[ProjectContext]:
+        """Load project from database"""
+        with self.pool.get_connection() as conn:
+            row = conn.execute('''
+                SELECT data FROM projects WHERE project_id = ?
+            ''', (project_id,)).fetchone()
+
+            if row:
+                data = json.loads(row['data'])
+                data['created_at'] = datetime.datetime.fromisoformat(data['created_at'])
+                data['updated_at'] = datetime.datetime.fromisoformat(data['updated_at'])
+                return ProjectContext(**data)
+            return None
+
+    def get_user_projects(self, username: str) -> List[Dict]:
+        """Get all projects for a user"""
+        with self.pool.get_connection() as conn:
+            rows = conn.execute('''
+                SELECT project_id, name, created_at, updated_at
+                FROM projects WHERE owner = ? OR data LIKE ?
+            ''', (username, f'%"collaborators":%"{username}"%')).fetchall()
+
+            projects = []
+            for row in rows:
+                projects.append({
+                    'project_id': row['project_id'],
+                    'name': row['name'],
+                    'created_at': row['created_at'],
+                    'updated_at': row['updated_at']
+                })
+            return projects
+
+
+# Vector Database for Semantic Search
+class VectorDatabase:
+    def __init__(self, data_dir: str):
+        self.data_dir = data_dir
+        self.chroma_dir = os.path.join(data_dir, 'chroma_db')
+        self.model = SentenceTransformer(CONFIG['EMBEDDING_MODEL'])
+
+        # Initialize ChromaDB
+        self.client = chromadb.PersistentClient(
+            path=self.chroma_dir,
+            settings=Settings(anonymized_telemetry=False)
+        )
+
+        # Get or create collection
+        self.collection = self.client.get_or_create_collection(
+            name="socratic_knowledge",
+            metadata={"description": "Knowledge base for Socratic system"}
+        )
+
+    def add_knowledge(self, entry: KnowledgeEntry):
+        """Add knowledge entry to vector database"""
+        if not entry.embedding:
+            entry.embedding = self.model.encode(entry.content).tolist()
+
+        self.collection.add(
+            documents=[entry.content],
+            metadatas=[entry.metadata],
+            ids=[entry.id],
+            embeddings=[entry.embedding]
+        )
+
+    def search_similar(self, query: str, top_k: int = 5) -> List[Dict]:
+        """Search for similar knowledge entries"""
+        query_embedding = self.model.encode(query).tolist()
+
+        results = self.collection.query(
+            query_embeddings=[query_embedding],
+            n_results=top_k
+        )
+
+        knowledge_results = []
+        if results['documents'] and results['documents'][0]:
+            for i, doc in enumerate(results['documents'][0]):
+                knowledge_results.append({
+                    'content': doc,
+                    'metadata': results['metadatas'][0][i] if results['metadatas'] else {},
+                    'distance': results['distances'][0][i] if results['distances'] else 0.0
+                })
+
+        return knowledge_results
+
+
+# Context Analyzer
+class ContextAnalyzer:
+    def __init__(self, max_length: int = 8000):
+        self.max_length = max_length
+
+    def get_context_summary(self, project: ProjectContext) -> str:
+        """Generate a context summary for the project"""
+        context_parts = []
+
+        if project.goals:
+            context_parts.append(f"Goals: {project.goals}")
+
+        if project.tech_stack:
+            context_parts.append(f"Tech Stack: {', '.join(project.tech_stack[:5])}")
+
+        if project.requirements:
+            context_parts.append(f"Requirements: {', '.join(project.requirements[:3])}")
+
+        if project.constraints:
+            context_parts.append(f"Constraints: {', '.join(project.constraints[:3])}")
+
+        context_parts.append(f"Phase: {project.phase}")
+        context_parts.append(f"Team: {project.team_structure}")
+
+        # Add recent conversation
+        if project.conversation_history:
+            recent_messages = project.conversation_history[-3:]
+            context_parts.append("Recent discussion:")
+            for msg in recent_messages:
+                role = "Q" if msg['type'] == 'assistant' else "A"
+                content = msg['content'][:100] + "..." if len(msg['content']) > 100 else msg['content']
+                context_parts.append(f"{role}: {content}")
+
+        full_context = " | ".join(context_parts)
+
+        # Truncate if too long
+        if len(full_context) > self.max_length:
+            full_context = full_context[:self.max_length - 3] + "..."
+
+        return full_context
+
+
+# Claude API Client
+class ClaudeClient:
+    def __init__(self, api_key: str):
+        self.client = anthropic.Anthropic(api_key=api_key)
+        self.model = CONFIG['CLAUDE_MODEL']
+
+    def generate_socratic_question(self, prompt: str) -> str:
+        """Generate a Socratic question using Claude"""
+        try:
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=300,
+                temperature=0.7,
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }]
+            )
+            return response.content[0].text.strip()
+        except Exception as e:
+            logger.error(f"Error generating question: {e}")
+            raise
+
+    def extract_insights(self, user_response: str, project: ProjectContext) -> Dict:
+        """Extract insights from user response"""
+        prompt = f"""Analyze this user response and extract structured insights:
+
+Project Phase: {project.phase}
+User Response: "{user_response}"
+
+Extract and return ONLY a JSON object with these fields (use empty lists/strings if nothing found):
+{{
+    "goals": "extracted goals or empty string",
+    "tech_stack": ["tech", "stack", "items"],
+    "requirements": ["functional", "requirements"],
+    "constraints": ["project", "constraints"],
+    "concerns": ["user", "concerns"],
+    "decisions": ["key", "decisions"]
+}}
+
+JSON only:"""
+
+        try:
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=500,
+                temperature=0.3,
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }]
+            )
+
+            response_text = response.content[0].text.strip()
+            # Try to extract JSON from response
+            if response_text.startswith('{') and response_text.endswith('}'):
+                return json.loads(response_text)
+            else:
+                # Fallback parsing
+                return self._fallback_insight_extraction(user_response)
+
+        except Exception as e:
+            logger.error(f"Error extracting insights: {e}")
+            return self._fallback_insight_extraction(user_response)
+
+    def _fallback_insight_extraction(self, user_response: str) -> Dict:
+        """Simple fallback insight extraction"""
+        insights = {
+            "goals": "",
+            "tech_stack": [],
+            "requirements": [],
+            "constraints": [],
+            "concerns": [],
+            "decisions": []
+        }
+
+        response_lower = user_response.lower()
+
+        # Simple keyword-based extraction
+        tech_keywords = ['python', 'javascript', 'react', 'django', 'flask', 'mysql', 'postgresql']
+        for tech in tech_keywords:
+            if tech in response_lower:
+                insights['tech_stack'].append(tech)
+
+        # Extract requirements patterns
+        if 'need' in response_lower or 'require' in response_lower:
+            insights['requirements'].append(user_response[:100])
+
+        # Extract constraints
+        if 'budget' in response_lower or 'time' in response_lower or 'cannot' in response_lower:
+            insights['constraints'].append(user_response[:100])
+
+        return insights
+
+
+# Main Agent Orchestrator
+class AgentOrchestrator:
+    def __init__(self, api_key: str, data_dir: str = None):
+        self.data_dir = data_dir or CONFIG['DATA_DIR']
+
+        # Initialize components
+        self.database = DatabaseManager(self.data_dir)
+        self.vector_db = VectorDatabase(self.data_dir)
+        self.context_analyzer = ContextAnalyzer(CONFIG['MAX_CONTEXT_LENGTH'])
+        self.claude_client = ClaudeClient(api_key)
+
+        # Initialize agents
+        self.session_manager = SessionManagerAgent(self)
+        self.conversation_engine = ConversationEngineAgent(self)
+
+        # System state
+        self.current_user = None
+        self.current_project = None
+
+        self.log("Agent Orchestrator initialized successfully")
+
+    def log(self, message: str, level: str = "INFO"):
+        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+        color = Fore.CYAN
+        print(f"{color}[{timestamp}] Orchestrator: {message}")
+
+        if level == "ERROR":
+            logger.error(message)
+        elif level == "WARN":
+            logger.warning(message)
+        else:
+            logger.info(message)
+
+
+# CLI Interface
+class SocraticCLI:
+    def __init__(self, orchestrator: AgentOrchestrator):
+        self.orchestrator = orchestrator
+        self.running = True
+
+    def start(self):
+        """Start the CLI interface"""
+        print(f"{Fore.YELLOW}{'=' * 60}")
+        print(f"{Fore.YELLOW}    🎓 SOCRATIC SOFTWARE DEVELOPMENT SYSTEM 🎓")
+        print(f"{Fore.YELLOW}{'=' * 60}")
+        print(f"{Fore.GREEN}Welcome to your AI-powered Socratic tutor for software projects!")
+        print(f"{Fore.WHITE}Type 'help' for commands, 'quit' to exit\n")
+
+        # Try to restore session
+        self._try_restore_session()
+
+        while self.running:
+            try:
+                if not self.orchestrator.current_user:
+                    self._handle_authentication()
+                elif not self.orchestrator.current_project:
+                    self._handle_project_selection()
+                else:
+                    self._handle_conversation()
+            except KeyboardInterrupt:
+                print(f"\n{Fore.YELLOW}Goodbye!")
+                self._save_session()
+                break
+            except Exception as e:
+                print(f"{Fore.RED}Error: {e}")
+                logger.error(f"CLI error: {e}")
+
+    def _try_restore_session(self):
+        """Try to restore the last session"""
+        result = self.orchestrator.session_manager.process({
+            'action': 'restore_session_state'
+        })
+
+        if result['status'] == 'success':
+            session_data = result['session_data']
+            username = session_data.get('current_user')
+            project_id = session_data.get('current_project_id')
+
+            if username:
+                # Try to restore user
+                auth_result = self.orchestrator.session_manager.process({
+                    'action': 'authenticate_user',
+                    'username': username,
+                    'passcode': input(f"Welcome back {username}! Enter passcode: ")
+                })
+
+                if auth_result['status'] == 'success':
+                    self.orchestrator.current_user = username
+                    print(f"{Fore.GREEN}Session restored for {username}")
+
+                    if project_id:
+                        # Try to restore project
+                        project_result = self.orchestrator.session_manager.process({
+                            'action': 'load_project',
+                            'project_id': project_id
+                        })
+
+                        if project_result['status'] == 'success':
+                            self.orchestrator.current_project = project_result['project']
+                            print(f"{Fore.GREEN}Restored project: {self.orchestrator.current_project.name}")
+
+    def _save_session(self):
+        """Save current session state"""
+        if self.orchestrator.current_user:
+            self.orchestrator.session_manager.process({
+                'action': 'save_session_state',
+                'current_user': self.orchestrator.current_user,
+                'current_project_id': self.orchestrator.current_project.project_id if self.orchestrator.current_project else None
+            })
+
+    def _handle_authentication(self):
+        """Handle user authentication"""
+        print(f"\n{Fore.CYAN}=== AUTHENTICATION ===")
+        choice = input("1) Login  2) Register  3) Quit\nChoice: ").strip()
+
+        if choice == '1':
+            self._login()
+        elif choice == '2':
+            self._register()
+        elif choice == '3':
+            self.running = False
+        else:
+            print(f"{Fore.RED}Invalid choice")
+
+    def _login(self):
+        """Handle user login"""
+        username = input("Username: ").strip()
+        passcode = input("Passcode: ").strip()
+
+        result = self.orchestrator.session_manager.process({
+            'action': 'authenticate_user',
+            'username': username,
+            'passcode': passcode
+        })
+
+        if result['status'] == 'success':
+            self.orchestrator.current_user = username
+            print(f"{Fore.GREEN}Welcome, {username}!")
+        else:
+            print(f"{Fore.RED}Authentication failed: {result['message']}")
+
+    def _register(self):
+        """Handle user registration"""
+        username = input("Choose username: ").strip()
+        passcode = input("Choose passcode: ").strip()
+        confirm = input("Confirm passcode: ").strip()
+
+        if passcode != confirm:
+            print(f"{Fore.RED}Passcodes don't match")
+            return
+
+        result = self.orchestrator.session_manager.process({
+            'action': 'create_user',
+            'username': username,
+            'passcode': passcode
+        })
+
+        if result['status'] == 'success':
+            self.orchestrator.current_user = username
+            print(f"{Fore.GREEN}Account created! Welcome, {username}!")
+        else:
+            print(f"{Fore.RED}Registration failed: {result['message']}")
+
+    def _handle_project_selection(self):
+        """Handle project selection or creation"""
+        print(f"\n{Fore.CYAN}=== PROJECT SELECTION ===")
+
+        # List existing projects
+        result = self.orchestrator.session_manager.process({
+            'action': 'list_projects',
+            'username': self.orchestrator.current_user
+        })
+
+        if result['status'] == 'success' and result['projects']:
+            print(f"{Fore.WHITE}Your projects:")
+            for i, project in enumerate(result['projects'], 1):
+                print(f"{i}) {project['name']} (ID: {project['project_id'][:8]}...)")
+
+        print(f"\n{Fore.WHITE}Options:")
+        print("1) Create new project")
+        print("2) Load existing project")
+        print("3) Logout")
+
+        choice = input("Choice: ").strip()
+
+        if choice == '1':
+            self._create_project()
+        elif choice == '2':
+            self._load_project()
+        elif choice == '3':
+            self.orchestrator.current_user = None
+        else:
+            print(f"{Fore.RED}Invalid choice")
+
+    def _create_project(self):
+        """Create a new project"""
+        project_name = input("Project name: ").strip()
+
+        if not project_name:
+            print(f"{Fore.RED}Project name cannot be empty")
+            return
+
+        result = self.orchestrator.session_manager.process({
+            'action': 'create_project',
+            'project_name': project_name,
+            'owner': self.orchestrator.current_user
+        })
+
+        if result['status'] == 'success':
+            self.orchestrator.current_project = result['project']
+            print(f"{Fore.GREEN}Created project: {project_name}")
+            print(f"{Fore.WHITE}Starting in discovery phase...")
+        else:
+            print(f"{Fore.RED}Failed to create project: {result['message']}")
+
+    def _load_project(self):
+        """Load an existing project"""
+        project_id = input("Enter project ID (or first 8 characters): ").strip()
+
+        # If short ID provided, try to find full ID
+        if len(project_id) == 8:
+            result = self.orchestrator.session_manager.process({
+                'action': 'list_projects',
+                'username': self.orchestrator.current_user
+            })
+
+            if result['status'] == 'success':
+                for project in result['projects']:
+                    if project['project_id'].startswith(project_id):
+                        project_id = project['project_id']
+                        break
+
+        result = self.orchestrator.session_manager.process({
+            'action': 'load_project',
+            'project_id': project_id
+        })
+
+        if result['status'] == 'success':
+            self.orchestrator.current_project = result['project']
+            print(f"{Fore.GREEN}Loaded project: {self.orchestrator.current_project.name}")
+            print(f"{Fore.WHITE}Current phase: {self.orchestrator.current_project.phase}")
+        else:
+            print(f"{Fore.RED}Failed to load project: {result['message']}")
+
+    def _handle_conversation(self
+

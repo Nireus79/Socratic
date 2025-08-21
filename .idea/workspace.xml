@@ -5,9 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7.1">
-      <change afterPath="$PROJECT_DIR$/socratic_data/last_session.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Socratic7.1.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic7.1.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -171,22 +169,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1750504324591</updated>
-    </task>
-    <task id="LOCAL-00054" summary="Socratic 6,1">
-      <option name="closed" value="true" />
-      <created>1754249935945</created>
-      <option name="number" value="00054" />
-      <option name="presentableId" value="LOCAL-00054" />
-      <option name="project" value="LOCAL" />
-      <updated>1754249935946</updated>
-    </task>
-    <task id="LOCAL-00055" summary="Socratic 6,1">
-      <option name="closed" value="true" />
-      <created>1754250333131</created>
-      <option name="number" value="00055" />
-      <option name="presentableId" value="LOCAL-00055" />
-      <option name="project" value="LOCAL" />
-      <updated>1754250333131</updated>
     </task>
     <task id="LOCAL-00056" summary="Socratic 6,1">
       <option name="closed" value="true" />
@@ -564,7 +546,23 @@
       <option name="project" value="LOCAL" />
       <updated>1755764494399</updated>
     </task>
-    <option name="localTasksCounter" value="103" />
+    <task id="LOCAL-00103" summary="7.1">
+      <option name="closed" value="true" />
+      <created>1755778210399</created>
+      <option name="number" value="00103" />
+      <option name="presentableId" value="LOCAL-00103" />
+      <option name="project" value="LOCAL" />
+      <updated>1755778210399</updated>
+    </task>
+    <task id="LOCAL-00104" summary="7.1">
+      <option name="closed" value="true" />
+      <created>1755778652927</created>
+      <option name="number" value="00104" />
+      <option name="presentableId" value="LOCAL-00104" />
+      <option name="project" value="LOCAL" />
+      <updated>1755778652927</updated>
+    </task>
+    <option name="localTasksCounter" value="105" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
