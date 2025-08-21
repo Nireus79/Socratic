@@ -781,4 +781,10 @@ Question only:"""
     def _find_conflict_category(self, item1: str, item2: str) -> Optional[str]:
         for category, items in self.conflict_rules.items():
             if any(item1 in tech.lower() for tech in items) and any(item2 in tech.lower() for tech in items):
-                return
+                return category
+        return None
+
+    def _find_spec_author(self, project: ProjectContext, spec_type: str, spec_value: str) -> str:
+        """Find the author who originally specified this value"""
+        for msg in project.conversation_history:
+            if msg
