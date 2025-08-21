@@ -787,4 +787,778 @@ Question only:"""
     def _find_spec_author(self, project: ProjectContext, spec_type: str, spec_value: str) -> str:
         """Find the author who originally specified this value"""
         for msg in project.conversation_history:
-            if msg
+            if msg.get('type') == 'user' and spec_value.lower() in msg.get('content', '').lower():
+                return msg.get('author', project.owner)
+        return project.owner
+
+    def _generate_tech_suggestions(self, category: str, old_tech: str, new_tech: str) -> List[str]:
+        """Generate suggestions for resolving tech stack conflicts"""
+        suggestions = []
+
+        if category == 'databases':
+            suggestions.extend([
+                f"Consider using {old_tech} as primary database and {new_tech} for specific use cases",
+                f"Evaluate performance requirements to choose between {old_tech} and {new_tech}",
+                f"Use {old_tech} for structured data and {new_tech} for different data patterns"
+            ])
+        elif category == 'frontend_frameworks':
+            suggestions.extend([
+                f"Standardize on either {old_tech} or {new_tech} for consistency",
+                f"Consider team expertise when choosing between {old_tech} and {new_tech}",
+                f"Evaluate project requirements to determine if {old_tech} or {new_tech} fits better"
+            ])
+        elif category == 'languages':
+            suggestions.extend([
+                f"Use {old_tech} for backend and {new_tech} for specific modules",
+                f"Consider migration path from {old_tech} to {new_tech} if needed",
+                f"Evaluate team skills and project needs for {old_tech} vs {new_tech}"
+            ])
+        else:
+            suggestions.extend([
+                f"Discuss trade-offs between {old_tech} and {new_tech}",
+                f"Consider combining both {old_tech} and {new_tech} if compatible",
+                f"Evaluate which approach ({old_tech} or {new_tech}) better serves project goals"
+            ])
+
+        return suggestions
+
+    def _check_requirements_conflicts(self, project: ProjectContext, new_insights: Dict, current_user: str) -> List[
+        ConflictInfo]:
+        """Check for conflicts in requirements"""
+        conflicts = []
+        new_requirements = new_insights.get('requirements', [])
+        if not isinstance(new_requirements, list):
+            new_requirements = [new_requirements] if new_requirements else []
+
+        for new_req in new_requirements:
+            if not new_req:
+                continue
+
+            for existing_req in project.requirements:
+                if self._requirements_conflict(new_req, existing_req):
+                    original_author = self._find_spec_author(project, 'requirements', existing_req)
+                    conflict = ConflictInfo(
+                        conflict_id=str(uuid.uuid4()),
+                        conflict_type='requirements',
+                        old_value=existing_req,
+                        new_value=new_req,
+                        old_author=original_author,
+                        new_author=current_user,
+                        old_timestamp=project.created_at.isoformat(),
+                        new_timestamp=datetime.datetime.now().isoformat(),
+                        severity='medium',
+                        suggestions=[
+                            f"Clarify priority between '{existing_req}' and '{new_req}'",
+                            f"Consider if both requirements can coexist",
+                            f"Refine requirements to resolve contradiction"
+                        ]
+                    )
+                    conflicts.append(conflict)
+
+        return conflicts
+
+    def _requirements_conflict(self, req1: str, req2: str) -> bool:
+        """Check if two requirements conflict"""
+        conflict_keywords = [
+            ('fast', 'slow'), ('quick', 'thorough'), ('simple', 'complex'),
+            ('minimal', 'comprehensive'), ('lightweight', 'feature-rich'),
+            ('basic', 'advanced'), ('free', 'premium'), ('offline', 'online')
+        ]
+
+        req1_lower = req1.lower()
+        req2_lower = req2.lower()
+
+        for word1, word2 in conflict_keywords:
+            if word1 in req1_lower and word2 in req2_lower:
+                return True
+            if word2 in req1_lower and word1 in req2_lower:
+                return True
+
+        return False
+
+    def _check_goals_conflicts(self, project: ProjectContext, new_insights: Dict, current_user: str) -> List[
+        ConflictInfo]:
+        """Check for conflicts in project goals"""
+        conflicts = []
+        new_goals = new_insights.get('goals', '')
+
+        if new_goals and project.goals and self._goals_conflict(project.goals, new_goals):
+            original_author = self._find_spec_author(project, 'goals', project.goals)
+            conflict = ConflictInfo(
+                conflict_id=str(uuid.uuid4()),
+                conflict_type='goals',
+                old_value=project.goals,
+                new_value=new_goals,
+                old_author=original_author,
+                new_author=current_user,
+                old_timestamp=project.created_at.isoformat(),
+                new_timestamp=datetime.datetime.now().isoformat(),
+                severity='high',
+                suggestions=[
+                    "Clarify the primary objective of the project",
+                    "Consider if goals can be combined or refined",
+                    "Prioritize goals by importance and timeline"
+                ]
+            )
+            conflicts.append(conflict)
+
+        return conflicts
+
+    def _goals_conflict(self, goal1: str, goal2: str) -> bool:
+        """Check if two goals conflict"""
+        conflicting_pairs = [
+            ('profit', 'free'), ('commercial', 'open source'),
+            ('speed', 'security'), ('simple', 'comprehensive'),
+            ('individual', 'team'), ('prototype', 'production')
+        ]
+
+        goal1_lower = goal1.lower()
+        goal2_lower = goal2.lower()
+
+        for word1, word2 in conflicting_pairs:
+            if word1 in goal1_lower and word2 in goal2_lower:
+                return True
+            if word2 in goal1_lower and word1 in goal2_lower:
+                return True
+
+        return False
+
+    def _check_constraints_conflicts(self, project: ProjectContext, new_insights: Dict, current_user: str) -> List[
+        ConflictInfo]:
+        """Check for conflicts in project constraints"""
+        conflicts = []
+        new_constraints = new_insights.get('constraints', [])
+        if not isinstance(new_constraints, list):
+            new_constraints = [new_constraints] if new_constraints else []
+
+        for new_constraint in new_constraints:
+            if not new_constraint:
+                continue
+
+            for existing_constraint in project.constraints:
+                if self._constraints_conflict(existing_constraint, new_constraint):
+                    original_author = self._find_spec_author(project, 'constraints', existing_constraint)
+                    conflict = ConflictInfo(
+                        conflict_id=str(uuid.uuid4()),
+                        conflict_type='constraints',
+                        old_value=existing_constraint,
+                        new_value=new_constraint,
+                        old_author=original_author,
+                        new_author=current_user,
+                        old_timestamp=project.created_at.isoformat(),
+                        new_timestamp=datetime.datetime.now().isoformat(),
+                        severity='medium',
+                        suggestions=[
+                            f"Evaluate feasibility of both '{existing_constraint}' and '{new_constraint}'",
+                            "Consider trade-offs between constraints",
+                            "Prioritize constraints by business impact"
+                        ]
+                    )
+                    conflicts.append(conflict)
+
+        return conflicts
+
+    def _constraints_conflict(self, constraint1: str, constraint2: str) -> bool:
+        """Check if two constraints conflict"""
+        conflicting_patterns = [
+            ('budget', 'no budget'), ('time', 'no deadline'),
+            ('team', 'solo'), ('cloud', 'on-premise'),
+            ('mobile', 'desktop only'), ('real-time', 'batch processing')
+        ]
+
+        c1_lower = constraint1.lower()
+        c2_lower = constraint2.lower()
+
+        for pattern1, pattern2 in conflicting_patterns:
+            if pattern1 in c1_lower and pattern2 in c2_lower:
+                return True
+            if pattern2 in c1_lower and pattern1 in c2_lower:
+                return True
+
+        return False
+
+    def _handle_conflicts_realtime(self, conflicts: List[ConflictInfo], project: ProjectContext) -> bool:
+        """Handle conflicts in real-time with user interaction"""
+        if not conflicts:
+            return True
+
+        print(f"\n{Fore.RED}🚨 Conflicts Detected! 🚨")
+        print(f"{Style.BRIGHT}The following conflicts need resolution:")
+
+        for i, conflict in enumerate(conflicts, 1):
+            print(f"\n{Fore.YELLOW}Conflict {i}: {conflict.conflict_type.title()}")
+            print(f"  Previous: {conflict.old_value} (by {conflict.old_author})")
+            print(f"  Current:  {conflict.new_value} (by {conflict.new_author})")
+            print(f"  Severity: {conflict.severity}")
+
+            print(f"\n{Fore.CYAN}Suggestions:")
+            for j, suggestion in enumerate(conflict.suggestions, 1):
+                print(f"  {j}. {suggestion}")
+
+        print(f"\n{Style.BRIGHT}How would you like to proceed?")
+        print("1. Keep original values")
+        print("2. Use new values")
+        print("3. Merge/combine values")
+        print("4. Discuss with team")
+        print("5. Skip for now")
+
+        try:
+            choice = input(f"\n{Fore.GREEN}Choice (1-5): ").strip()
+            if choice == '1':
+                self.log("Keeping original values", "INFO")
+                return True
+            elif choice == '2':
+                self.log("Using new values", "INFO")
+                return True
+            elif choice == '3':
+                self.log("Values will need manual merging", "INFO")
+                return False
+            elif choice == '4':
+                self.log("Conflicts marked for team discussion", "INFO")
+                return False
+            else:
+                self.log("Conflicts skipped", "WARN")
+                return False
+        except KeyboardInterrupt:
+            self.log("Conflict resolution interrupted", "WARN")
+            return False
+
+    def _update_project_context(self, project: ProjectContext, insights: Dict):
+        """Update project context with extracted insights"""
+        if not insights:
+            return
+
+        # Update goals
+        if 'goals' in insights and insights['goals']:
+            project.goals = insights['goals']
+
+        # Update requirements
+        if 'requirements' in insights:
+            new_requirements = insights['requirements']
+            if isinstance(new_requirements, list):
+                for req in new_requirements:
+                    if req and req not in project.requirements:
+                        project.requirements.append(req)
+            elif new_requirements and new_requirements not in project.requirements:
+                project.requirements.append(new_requirements)
+
+        # Update tech stack
+        if 'tech_stack' in insights:
+            new_tech = insights['tech_stack']
+            if isinstance(new_tech, list):
+                for tech in new_tech:
+                    if tech and tech not in project.tech_stack:
+                        project.tech_stack.append(tech)
+            elif new_tech and new_tech not in project.tech_stack:
+                project.tech_stack.append(new_tech)
+
+        # Update constraints
+        if 'constraints' in insights:
+            new_constraints = insights['constraints']
+            if isinstance(new_constraints, list):
+                for constraint in new_constraints:
+                    if constraint and constraint not in project.constraints:
+                        project.constraints.append(constraint)
+            elif new_constraints and new_constraints not in project.constraints:
+                project.constraints.append(new_constraints)
+
+        # Update other fields
+        if 'deployment_target' in insights and insights['deployment_target']:
+            project.deployment_target = insights['deployment_target']
+
+        if 'language_preferences' in insights and insights['language_preferences']:
+            project.language_preferences = insights['language_preferences']
+
+        self.log(f"Updated project context for '{project.name}'")
+
+    def _advance_phase(self, request: Dict) -> Dict:
+        """Advance project to next phase"""
+        project = request.get('project')
+
+        phases = ['discovery', 'analysis', 'design', 'implementation']
+        current_index = phases.index(project.phase) if project.phase in phases else 0
+
+        if current_index < len(phases) - 1:
+            project.phase = phases[current_index + 1]
+            project.updated_at = datetime.datetime.now()
+            self.log(f"Advanced project '{project.name}' to {project.phase} phase")
+            return {'status': 'success', 'new_phase': project.phase}
+        else:
+            return {'status': 'info', 'message': 'Project is already in final phase'}
+
+
+class ContextAnalyzerAgent(Agent):
+    def __init__(self, orchestrator):
+        super().__init__("ContextAnalyzer", orchestrator)
+
+    def process(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        action = request.get('action')
+
+        if action == 'get_context_summary':
+            project = request.get('project')
+            return {'status': 'success', 'summary': self.get_context_summary(project)}
+        elif action == 'analyze_completeness':
+            project = request.get('project')
+            return {'status': 'success', 'completeness': self.analyze_completeness(project)}
+        elif action == 'suggest_next_steps':
+            project = request.get('project')
+            return {'status': 'success', 'next_steps': self.suggest_next_steps(project)}
+
+        return {'status': 'error', 'message': 'Unknown action'}
+
+    def get_context_summary(self, project: ProjectContext) -> str:
+        """Generate a comprehensive context summary for the project"""
+        summary_parts = []
+
+        # Basic project info
+        summary_parts.append(f"Project: {project.name}")
+        summary_parts.append(f"Owner: {project.owner}")
+        summary_parts.append(f"Phase: {project.phase}")
+
+        # Goals and requirements
+        if project.goals:
+            summary_parts.append(f"Goals: {project.goals}")
+
+        if project.requirements:
+            summary_parts.append(f"Requirements: {', '.join(project.requirements[:3])}")
+
+        # Technical details
+        if project.tech_stack:
+            summary_parts.append(f"Tech Stack: {', '.join(project.tech_stack[:3])}")
+
+        if project.constraints:
+            summary_parts.append(f"Constraints: {', '.join(project.constraints[:2])}")
+
+        # Recent conversation context
+        if project.conversation_history:
+            recent_messages = project.conversation_history[-3:]
+            context_msgs = []
+            for msg in recent_messages:
+                if msg['type'] == 'user':
+                    context_msgs.append(msg['content'][:100])
+            if context_msgs:
+                summary_parts.append(f"Recent discussion: {' | '.join(context_msgs)}")
+
+        return ' | '.join(summary_parts)
+
+    def analyze_completeness(self, project: ProjectContext) -> Dict[str, float]:
+        """Analyze how complete each aspect of the project is"""
+        completeness = {}
+
+        # Goals completeness (0-1)
+        completeness['goals'] = 1.0 if project.goals and len(project.goals) > 20 else 0.0
+
+        # Requirements completeness (0-1)
+        completeness['requirements'] = min(len(project.requirements) / 5.0, 1.0)
+
+        # Tech stack completeness (0-1)
+        completeness['tech_stack'] = min(len(project.tech_stack) / 3.0, 1.0)
+
+        # Constraints completeness (0-1)
+        completeness['constraints'] = min(len(project.constraints) / 3.0, 1.0)
+
+        # Conversation depth (0-1)
+        user_messages = [msg for msg in project.conversation_history if msg['type'] == 'user']
+        completeness['discussion'] = min(len(user_messages) / 10.0, 1.0)
+
+        # Overall completeness
+        completeness['overall'] = sum(completeness.values()) / len(completeness)
+
+        return completeness
+
+    def suggest_next_steps(self, project: ProjectContext) -> List[str]:
+        """Suggest next steps based on project state"""
+        completeness = self.analyze_completeness(project)
+        suggestions = []
+
+        if completeness['goals'] < 0.5:
+            suggestions.append("Define clearer project goals and objectives")
+
+        if completeness['requirements'] < 0.7:
+            suggestions.append("Gather more detailed requirements")
+
+        if completeness['tech_stack'] < 0.5:
+            suggestions.append("Research and select appropriate technologies")
+
+        if completeness['constraints'] < 0.5:
+            suggestions.append("Identify project constraints and limitations")
+
+        if completeness['discussion'] < 0.3:
+            suggestions.append("Continue exploring the problem space")
+
+        # Phase-specific suggestions
+        phase_suggestions = {
+            'discovery': [
+                "Interview potential users or stakeholders",
+                "Research existing solutions and competitors",
+                "Define success metrics and KPIs"
+            ],
+            'analysis': [
+                "Create technical specifications",
+                "Plan testing and validation strategy",
+                "Identify potential risks and mitigation plans"
+            ],
+            'design': [
+                "Create system architecture diagrams",
+                "Design database schema and API endpoints",
+                "Plan development workflow and coding standards"
+            ],
+            'implementation': [
+                "Set up development environment",
+                "Create project repository and documentation",
+                "Plan deployment and monitoring strategy"
+            ]
+        }
+
+        if project.phase in phase_suggestions:
+            suggestions.extend(phase_suggestions[project.phase][:2])
+
+        return suggestions[:5]  # Limit to 5 suggestions
+
+
+# Vector Database Handler
+class VectorDatabaseHandler:
+    def __init__(self, data_dir: str):
+        self.data_dir = data_dir
+        self.collection_name = "socratic_knowledge"
+
+        # Initialize ChromaDB
+        self.client = chromadb.PersistentClient(
+            path=os.path.join(data_dir, "chroma_db"),
+            settings=Settings(anonymized_telemetry=False)
+        )
+
+        # Initialize embedding model
+        try:
+            self.embedding_model = SentenceTransformer(CONFIG['EMBEDDING_MODEL'])
+        except Exception as e:
+            logger.error(f"Failed to load embedding model: {e}")
+            self.embedding_model = None
+
+        # Get or create collection
+        try:
+            self.collection = self.client.get_collection(self.collection_name)
+        except:
+            self.collection = self.client.create_collection(self.collection_name)
+
+        logger.info("Vector database initialized successfully")
+
+    def add_knowledge(self, entries: List[KnowledgeEntry]):
+        """Add knowledge entries to vector database"""
+        if not self.embedding_model:
+            logger.error("Embedding model not available")
+            return False
+
+        try:
+            texts = [entry.content for entry in entries]
+            embeddings = self.embedding_model.encode(texts).tolist()
+
+            ids = [entry.id for entry in entries]
+            metadatas = [entry.metadata for entry in entries]
+
+            self.collection.add(
+                embeddings=embeddings,
+                documents=texts,
+                metadatas=metadatas,
+                ids=ids
+            )
+
+            logger.info(f"Added {len(entries)} knowledge entries to vector database")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to add knowledge entries: {e}")
+            return False
+
+    def search_similar(self, query: str, top_k: int = 5) -> List[Dict]:
+        """Search for similar content in vector database"""
+        if not self.embedding_model:
+            logger.warning("Embedding model not available for search")
+            return []
+
+        try:
+            query_embedding = self.embedding_model.encode([query]).tolist()
+
+            results = self.collection.query(
+                query_embeddings=query_embedding,
+                n_results=top_k
+            )
+
+            # Format results
+            formatted_results = []
+            if results['documents'] and results['documents'][0]:
+                for i, doc in enumerate(results['documents'][0]):
+                    formatted_results.append({
+                        'content': doc,
+                        'metadata': results['metadatas'][0][i] if results['metadatas'][0] else {},
+                        'distance': results['distances'][0][i] if results['distances'][0] else 0.0
+                    })
+
+            return formatted_results
+
+        except Exception as e:
+            logger.error(f"Failed to search vector database: {e}")
+            return []
+
+    def delete_entry(self, entry_id: str) -> bool:
+        """Delete an entry from vector database"""
+        try:
+            self.collection.delete(ids=[entry_id])
+            logger.info(f"Deleted entry {entry_id} from vector database")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete entry {entry_id}: {e}")
+            return False
+
+    def get_collection_stats(self) -> Dict:
+        """Get statistics about the vector database collection"""
+        try:
+            count = self.collection.count()
+            return {
+                'total_entries': count,
+                'collection_name': self.collection_name,
+                'embedding_model': CONFIG['EMBEDDING_MODEL']
+            }
+        except Exception as e:
+            logger.error(f"Failed to get collection stats: {e}")
+            return {'total_entries': 0, 'error': str(e)}
+
+
+# Database Handler
+class DatabaseHandler:
+    def __init__(self, data_dir: str):
+        self.data_dir = data_dir
+        os.makedirs(data_dir, exist_ok=True)
+
+        self.db_path = os.path.join(data_dir, 'socratic_system.db')
+        self.connection_pool = DatabaseConnectionPool(self.db_path)
+
+        self._init_database()
+        logger.info("Database handler initialized successfully")
+
+    def _init_database(self):
+        """Initialize database tables"""
+        with self.connection_pool.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Users table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    username TEXT PRIMARY KEY,
+                    passcode_hash TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    projects TEXT DEFAULT '[]'
+                )
+            ''')
+
+            # Projects table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS projects (
+                    project_id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    owner TEXT NOT NULL,
+                    data TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY (owner) REFERENCES users (username)
+                )
+            ''')
+
+            # Token usage tracking
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS token_usage (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    project_id TEXT,
+                    username TEXT,
+                    input_tokens INTEGER,
+                    output_tokens INTEGER,
+                    total_tokens INTEGER,
+                    cost_estimate REAL,
+                    timestamp TEXT,
+                    FOREIGN KEY (project_id) REFERENCES projects (project_id),
+                    FOREIGN KEY (username) REFERENCES users (username)
+                )
+            ''')
+
+            # Knowledge entries
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS knowledge_entries (
+                    id TEXT PRIMARY KEY,
+                    content TEXT NOT NULL,
+                    category TEXT,
+                    metadata TEXT,
+                    created_at TEXT NOT NULL
+                )
+            ''')
+
+            conn.commit()
+
+    def save_user(self, user: User) -> bool:
+        """Save user to database"""
+        try:
+            with self.connection_pool.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT OR REPLACE INTO users (username, passcode_hash, created_at, projects)
+                    VALUES (?, ?, ?, ?)
+                ''', (user.username, user.passcode_hash, user.created_at.isoformat(), json.dumps(user.projects)))
+                conn.commit()
+                return True
+        except Exception as e:
+            logger.error(f"Failed to save user {user.username}: {e}")
+            return False
+
+    def load_user(self, username: str) -> Optional[User]:
+        """Load user from database"""
+        try:
+            with self.connection_pool.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT * FROM users WHERE username = ?', (username,))
+                row = cursor.fetchone()
+
+                if row:
+                    return User(
+                        username=row['username'],
+                        passcode_hash=row['passcode_hash'],
+                        created_at=datetime.datetime.fromisoformat(row['created_at']),
+                        projects=json.loads(row['projects'])
+                    )
+                return None
+        except Exception as e:
+            logger.error(f"Failed to load user {username}: {e}")
+            return None
+
+    def user_exists(self, username: str) -> bool:
+        """Check if user exists"""
+        try:
+            with self.connection_pool.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT 1 FROM users WHERE username = ?', (username,))
+                return cursor.fetchone() is not None
+        except Exception as e:
+            logger.error(f"Failed to check user existence {username}: {e}")
+            return False
+
+    def save_project(self, project: ProjectContext) -> bool:
+        """Save project to database"""
+        try:
+            with self.connection_pool.get_connection() as conn:
+                cursor = conn.cursor()
+                project_data = json.dumps(asdict(project), default=str)
+
+                cursor.execute('''
+                    INSERT OR REPLACE INTO projects (project_id, name, owner, data, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (
+                    project.project_id,
+                    project.name,
+                    project.owner,
+                    project_data,
+                    project.created_at.isoformat(),
+                    project.updated_at.isoformat()
+                ))
+                conn.commit()
+                return True
+        except Exception as e:
+            logger.error(f"Failed to save project {project.project_id}: {e}")
+            return False
+
+    def load_project(self, project_id: str) -> Optional[ProjectContext]:
+        """Load project from database"""
+        try:
+            with self.connection_pool.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT data FROM projects WHERE project_id = ?', (project_id,))
+                row = cursor.fetchone()
+
+                if row:
+                    project_data = json.loads(row['data'])
+                    # Convert datetime strings back to datetime objects
+                    project_data['created_at'] = datetime.datetime.fromisoformat(project_data['created_at'])
+                    project_data['updated_at'] = datetime.datetime.fromisoformat(project_data['updated_at'])
+                    return ProjectContext(**project_data)
+                return None
+        except Exception as e:
+            logger.error(f"Failed to load project {project_id}: {e}")
+            return None
+
+    def get_user_projects(self, username: str) -> List[Dict]:
+        """Get all projects for a user"""
+        try:
+            with self.connection_pool.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT project_id, name, created_at, updated_at 
+                    FROM projects 
+                    WHERE owner = ? OR json_extract(data, '$.collaborators') LIKE ?
+                    ORDER BY updated_at DESC
+                ''', (username, f'%{username}%'))
+
+                projects = []
+                for row in cursor.fetchall():
+                    projects.append({
+                        'project_id': row['project_id'],
+                        'name': row['name'],
+                        'created_at': row['created_at'],
+                        'updated_at': row['updated_at']
+                    })
+                return projects
+        except Exception as e:
+            logger.error(f"Failed to get projects for user {username}: {e}")
+            return []
+
+    def save_token_usage(self, usage: TokenUsage, project_id: str = None, username: str = None) -> bool:
+        """Save token usage statistics"""
+        try:
+            with self.connection_pool.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO token_usage (project_id, username, input_tokens, output_tokens, 
+                                           total_tokens, cost_estimate, timestamp)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    project_id, username, usage.input_tokens, usage.output_tokens,
+                    usage.total_tokens, usage.cost_estimate, usage.timestamp.isoformat()
+                ))
+                conn.commit()
+                return True
+        except Exception as e:
+            logger.error(f"Failed to save token usage: {e}")
+            return False
+
+    def get_token_usage_stats(self, username: str = None, days: int = 30) -> Dict:
+        """Get token usage statistics"""
+        try:
+            with self.connection_pool.get_connection() as conn:
+                cursor = conn.cursor()
+
+                since_date = (datetime.datetime.now() - datetime.timedelta(days=days)).isoformat()
+
+                if username:
+                    cursor.execute('''
+                        SELECT SUM(input_tokens) as total_input, SUM(output_tokens) as total_output,
+                               SUM(total_tokens) as total_all, SUM(cost_estimate) as total_cost,
+                               COUNT(*) as request_count
+                        FROM token_usage 
+                        WHERE username = ? AND timestamp > ?
+                    ''', (username, since_date))
+                else:
+                    cursor.execute('''
+                        SELECT SUM(input_tokens) as total_input, SUM(output_tokens) as total_output,
+                               SUM(total_tokens) as total_all, SUM(cost_estimate) as total_cost,
+                               COUNT(*) as request_count
+                        FROM token_usage 
+                        WHERE timestamp > ?
+                    ''', (since_date,))
+
+                row = cursor.fetchone()
+                if row:
+                    return {
+                        'total_input_tokens': row['total_input'] or 0,
+                        'total_output_tokens': row['total_output'] or 0,
+                        'total_tokens': row['total_all'] or 0,
+                        'estimated_cost': row['total_cost'] or 0.0,
+                        'request_count': row['request_count'] or 0,
+                        'period_days': days
+                    }
+                return {'total_tokens': 0, 'estimated_cost':
