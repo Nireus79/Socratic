@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-
+# TODO An unexpected error occurred. Please check the logs.
+# 2025-08-21 11:13:18,285 - httpx - INFO - HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+# 2025-08-21 11:13:18,287 - __main__ - ERROR - Unexpected error in CLI: 'list' object has no attribute 'lower'
 import os
 import json
 import hashlib
