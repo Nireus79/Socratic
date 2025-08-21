@@ -42,3 +42,19 @@
 2025-08-21 11:12:27,875 - Agent.ConversationEngine - INFO - Generated dynamic question for discovery phase
 2025-08-21 11:13:18,285 - httpx - INFO - HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
 2025-08-21 11:13:18,287 - __main__ - ERROR - Unexpected error in CLI: 'list' object has no attribute 'lower'
+2025-08-21 15:11:03,842 - __main__ - INFO - Database handler initialized successfully
+2025-08-21 15:11:04,600 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-08-21 15:11:04,600 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-08-21 15:11:08,657 - __main__ - INFO - Vector database initialized successfully
+2025-08-21 15:11:09,166 - __main__ - INFO - Claude client initialized with model: claude-3-5-sonnet-20241022
+2025-08-21 15:11:09,166 - __main__ - INFO - Agent orchestrator initialized successfully
+2025-08-21 15:11:09,167 - Agent.SessionManager - INFO - Loaded project 'ProductSeeker' from database
+2025-08-21 15:12:01,452 - httpx - INFO - HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2025-08-21 15:12:01,463 - Agent.ConversationEngine - INFO - Generated dynamic question for discovery phase
+2025-08-21 15:12:26,764 - httpx - INFO - HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2025-08-21 15:12:26,767 - Agent.ConversationEngine - INFO - Updated project context for 'ProductSeeker'
+2025-08-21 15:12:26,782 - Agent.SessionManager - INFO - Saved project 'ProductSeeker'
+2025-08-21 15:12:30,465 - httpx - INFO - HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2025-08-21 15:12:30,467 - Agent.ConversationEngine - INFO - Generated dynamic question for discovery phase
+2025-08-21 15:13:17,636 - httpx - INFO - HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2025-08-21 15:13:17,638 - __main__ - ERROR - Unexpected error in CLI: 'list' object has no attribute 'lower'
