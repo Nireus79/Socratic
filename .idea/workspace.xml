@@ -5,15 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7 lower">
-      <change afterPath="$PROJECT_DIR$/socratic_data/vector_db/51fa9101-4c77-4d6e-8e72-ed57b8debfec/length.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Socratic7.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic7.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Socratic7tst.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic7tst.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/socratic_data/projects.db" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/projects.db" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/chroma.sqlite3" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/chroma.sqlite3" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/e03dcd69-599c-4c56-8194-b746e5173e62/data_level0.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/51fa9101-4c77-4d6e-8e72-ed57b8debfec/data_level0.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/e03dcd69-599c-4c56-8194-b746e5173e62/header.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/51fa9101-4c77-4d6e-8e72-ed57b8debfec/header.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/e03dcd69-599c-4c56-8194-b746e5173e62/length.bin" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/e03dcd69-599c-4c56-8194-b746e5173e62/link_lists.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/51fa9101-4c77-4d6e-8e72-ed57b8debfec/link_lists.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/51fa9101-4c77-4d6e-8e72-ed57b8debfec/length.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/51fa9101-4c77-4d6e-8e72-ed57b8debfec/length.bin" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -174,22 +169,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1750504324591</updated>
-    </task>
-    <task id="LOCAL-00071" summary="7.1">
-      <option name="closed" value="true" />
-      <created>1755585448974</created>
-      <option name="number" value="00071" />
-      <option name="presentableId" value="LOCAL-00071" />
-      <option name="project" value="LOCAL" />
-      <updated>1755585448974</updated>
-    </task>
-    <task id="LOCAL-00072" summary="7.1">
-      <option name="closed" value="true" />
-      <created>1755585541050</created>
-      <option name="number" value="00072" />
-      <option name="presentableId" value="LOCAL-00072" />
-      <option name="project" value="LOCAL" />
-      <updated>1755585541050</updated>
     </task>
     <task id="LOCAL-00073" summary="7.1">
       <option name="closed" value="true" />
@@ -567,7 +546,23 @@
       <option name="project" value="LOCAL" />
       <updated>1755891880350</updated>
     </task>
-    <option name="localTasksCounter" value="120" />
+    <task id="LOCAL-00120" summary="7 lower">
+      <option name="closed" value="true" />
+      <created>1755892809987</created>
+      <option name="number" value="00120" />
+      <option name="presentableId" value="LOCAL-00120" />
+      <option name="project" value="LOCAL" />
+      <updated>1755892809987</updated>
+    </task>
+    <task id="LOCAL-00121" summary="7 lower">
+      <option name="closed" value="true" />
+      <created>1755892968233</created>
+      <option name="number" value="00121" />
+      <option name="presentableId" value="LOCAL-00121" />
+      <option name="project" value="LOCAL" />
+      <updated>1755892968233</updated>
+    </task>
+    <option name="localTasksCounter" value="122" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">

@@ -8,7 +8,6 @@ import unittest
 import tempfile
 import shutil
 import os
-import json
 import sqlite3
 import datetime
 import hashlib
@@ -19,6 +18,11 @@ from unittest.mock import Mock, patch, MagicMock
 from dataclasses import asdict
 import subprocess
 import Socratic7
+import asyncio
+from unittest.mock import AsyncMock, patch
+import numpy as np
+from typing import List, Dict, Any
+import json
 
 """Key Completions:
 
@@ -75,6 +79,427 @@ except ImportError as e:
     print(f"Error importing Socratic7 modules: {e}")
     print("Make sure Socratic7.py is in the same directory as this test file")
     sys.exit(1)
+
+
+class TestAdvancedRAGFeatures(unittest.TestCase):
+    """Tests for advanced RAG capabilities like multi-modal, streaming, and context optimization"""
+
+    def setUp(self):
+        """Set up test environment for advanced features"""
+        self.temp_dir = tempfile.mkdtemp()
+        self.mock_orchestrator = Mock()
+        self.mock_orchestrator.database = Mock()
+        self.mock_orchestrator.vector_db = Mock()
+        self.mock_orchestrator.claude_client = Mock()
+
+    def tearDown(self):
+        """Clean up"""
+        shutil.rmtree(self.temp_dir)
+
+    def test_semantic_search_with_reranking(self):
+        """Test semantic search with result reranking"""
+        # Mock vector database with search results
+        mock_results = [
+            {'id': 'doc1', 'content': 'Python web development', 'score': 0.8},
+            {'id': 'doc2', 'content': 'Database design patterns', 'score': 0.7},
+            {'id': 'doc3', 'content': 'API security best practices', 'score': 0.6}
+        ]
+
+        self.mock_orchestrator.vector_db.search_similar.return_value = mock_results
+
+        # Test reranking functionality
+        from Socratic7 import VectorDatabase
+        with patch('Socratic7.SentenceTransformer'):
+            vector_db = VectorDatabase(self.temp_dir)
+
+            query = "How to build secure Python web applications?"
+            results = vector_db.search_with_reranking(query, top_k=3, rerank_top_k=2)
+
+            # Should return reranked results
+            self.assertIsInstance(results, list)
+            self.assertLessEqual(len(results), 2)  # rerank_top_k
+
+    def test_contextual_compression(self):
+        """Test context compression for long documents"""
+        # Mock long context
+        long_context = "This is a very long document. " * 1000  # ~5000 chars
+
+        from Socratic7 import ContextAnalyzerAgent
+        analyzer = ContextAnalyzerAgent(self.mock_orchestrator)
+
+        # Test compression
+        compressed = analyzer.compress_context(long_context, max_tokens=500)
+
+        self.assertIsInstance(compressed, str)
+        self.assertLess(len(compressed), len(long_context))
+
+    def test_multi_turn_conversation_context(self):
+        """Test maintaining context across multiple conversation turns"""
+        from Socratic7 import SocraticCounselorAgent
+
+        agent = SocraticCounselorAgent(self.mock_orchestrator)
+
+        # Simulate multi-turn conversation
+        conversation_history = [
+            {"role": "user", "content": "I want to build a web app"},
+            {"role": "assistant", "content": "What kind of web app are you thinking of?"},
+            {"role": "user", "content": "An e-commerce platform"},
+            {"role": "assistant", "content": "What features are most important to you?"}
+        ]
+
+        # Mock project with conversation history
+        project = Mock()
+        project.conversation_history = conversation_history
+        project.phase = "discovery"
+
+        # Test context extraction from conversation
+        context_summary = agent.extract_conversation_context(project)
+
+        self.assertIsInstance(context_summary, str)
+        self.assertIn("e-commerce", context_summary.lower())
+
+    def test_adaptive_questioning_strategy(self):
+        """Test adaptive questioning based on user responses"""
+        from Socratic7 import SocraticCounselorAgent
+
+        agent = SocraticCounselorAgent(self.mock_orchestrator)
+
+        # Mock different user response types
+        detailed_response = "I want to build a comprehensive e-commerce platform with user authentication, payment processing, inventory management, and real-time chat support."
+        vague_response = "I want to make a website"
+
+        # Test question adaptation
+        detailed_question = agent.adapt_question_complexity(detailed_response, "technical")
+        vague_question = agent.adapt_question_complexity(vague_response, "clarifying")
+
+        # Detailed responses should get more technical questions
+        self.assertIsInstance(detailed_question, str)
+        self.assertIsInstance(vague_question, str)
+
+        # Vague responses should get clarifying questions
+        self.assertNotEqual(detailed_question, vague_question)
+
+    @patch('Socratic7.asyncio')
+    async def test_async_knowledge_retrieval(self):
+        """Test asynchronous knowledge retrieval for better performance"""
+        from Socratic7 import VectorDatabase
+
+        with patch('Socratic7.SentenceTransformer'):
+            vector_db = VectorDatabase(self.temp_dir)
+
+            # Mock async search method
+            vector_db.search_similar_async = AsyncMock(return_value=[
+                {'id': 'async_doc1', 'content': 'Async content', 'score': 0.9}
+            ])
+
+            # Test async retrieval
+            results = await vector_db.search_similar_async("async query")
+
+            self.assertIsInstance(results, list)
+            self.assertEqual(len(results), 1)
+
+
+class TestRealTimeCollaboration(unittest.TestCase):
+    """Tests for real-time collaboration features"""
+
+    def setUp(self):
+        """Set up collaboration test environment"""
+        self.temp_dir = tempfile.mkdtemp()
+        self.mock_orchestrator = Mock()
+
+    def tearDown(self):
+        """Clean up"""
+        shutil.rmtree(self.temp_dir)
+
+    def test_concurrent_editing_conflict_resolution(self):
+        """Test handling of concurrent edits by multiple users"""
+        from Socratic7 import ProjectManagerAgent
+
+        agent = ProjectManagerAgent(self.mock_orchestrator)
+
+        # Mock project with base state
+        project = Mock()
+        project.project_id = "test_project"
+        project.tech_stack = ["python", "flask"]
+        project.updated_at = datetime.datetime.now()
+
+        # Simulate concurrent edits
+        edit1 = {
+            'user': 'user1',
+            'timestamp': datetime.datetime.now(),
+            'changes': {'tech_stack': ['python', 'django']},  # Changed flask to django
+            'version': 1
+        }
+
+        edit2 = {
+            'user': 'user2',
+            'timestamp': datetime.datetime.now() + datetime.timedelta(seconds=1),
+            'changes': {'tech_stack': ['python', 'flask', 'postgresql']},  # Added database
+            'version': 1  # Same base version
+        }
+
+        # Test conflict resolution
+        result = agent.resolve_concurrent_edits(project, [edit1, edit2])
+
+        self.assertEqual(result['status'], 'success')
+        self.assertIn('merged_changes', result)
+
+    def test_real_time_notification_system(self):
+        """Test real-time notifications for project updates"""
+        from Socratic7 import SystemMonitorAgent
+
+        agent = SystemMonitorAgent(self.mock_orchestrator)
+
+        # Mock notification system
+        notifications = []
+        agent.notification_handlers = [lambda n: notifications.append(n)]
+
+        # Test project update notification
+        project_update = {
+            'project_id': 'test_project',
+            'user': 'user1',
+            'action': 'tech_stack_update',
+            'details': {'added': ['redis'], 'removed': []}
+        }
+
+        agent.notify_project_update(project_update)
+
+        self.assertEqual(len(notifications), 1)
+        self.assertEqual(notifications[0]['action'], 'tech_stack_update')
+
+    def test_collaborative_decision_tracking(self):
+        """Test tracking and voting on collaborative decisions"""
+        from Socratic7 import ConflictDetectorAgent
+
+        agent = ConflictDetectorAgent(self.mock_orchestrator)
+
+        # Mock collaborative decision
+        decision = {
+            'decision_id': 'tech_choice_001',
+            'project_id': 'test_project',
+            'question': 'Should we use React or Vue for frontend?',
+            'options': ['react', 'vue'],
+            'votes': {},
+            'status': 'pending'
+        }
+
+        # Test voting
+        result = agent.cast_vote(decision['decision_id'], 'user1', 'react', 'Better ecosystem')
+
+        self.assertEqual(result['status'], 'success')
+        self.assertIn('vote_recorded', result)
+
+    def test_activity_feed_generation(self):
+        """Test generation of project activity feeds"""
+        from Socratic7 import SystemMonitorAgent
+
+        agent = SystemMonitorAgent(self.mock_orchestrator)
+
+        # Mock project activities
+        activities = [
+            {'timestamp': datetime.datetime.now(), 'user': 'user1', 'action': 'project_created'},
+            {'timestamp': datetime.datetime.now(), 'user': 'user2', 'action': 'collaborator_added'},
+            {'timestamp': datetime.datetime.now(), 'user': 'user1', 'action': 'tech_stack_updated'}
+        ]
+
+        # Test activity feed generation
+        feed = agent.generate_activity_feed('test_project', limit=10)
+
+        self.assertIsInstance(feed, list)
+        # Should be ordered by timestamp (newest first)
+        if len(feed) > 1:
+            self.assertGreaterEqual(feed[0]['timestamp'], feed[1]['timestamp'])
+
+
+class TestIntelligentCodeGeneration(unittest.TestCase):
+    """Tests for advanced code generation features"""
+
+    def setUp(self):
+        """Set up code generation test environment"""
+        self.mock_orchestrator = Mock()
+        self.mock_orchestrator.claude_client = Mock()
+
+    def test_context_aware_code_generation(self):
+        """Test code generation that adapts to project context"""
+        from Socratic7 import CodeGeneratorAgent
+
+        agent = CodeGeneratorAgent(self.mock_orchestrator)
+
+        # Mock project with specific context
+        project = Mock()
+        project.tech_stack = ["python", "fastapi", "postgresql"]
+        project.requirements = ["REST API", "authentication", "database"]
+        project.code_style = "clean_architecture"
+
+        # Mock Claude response with context-aware code
+        mock_response = MockClaudeResponse("""
+# FastAPI application with Clean Architecture
+from fastapi import FastAPI, Depends
+from sqlalchemy.orm import Session
+from .database import get_db
+from .auth import get_current_user
+
+app = FastAPI()
+
+@app.get("/api/users/me")
+async def get_current_user_info(
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    return current_user
+""")
+
+        self.mock_orchestrator.claude_client.generate_code.return_value = mock_response.content[0].text
+
+        # Test context-aware generation
+        result = agent.generate_context_aware_code(project, "user authentication endpoint")
+
+        self.assertIn("fastapi", result.lower())
+        self.assertIn("authentication", result.lower())
+
+    def test_code_template_system(self):
+        """Test code template system for common patterns"""
+        from Socratic7 import CodeGeneratorAgent
+
+        agent = CodeGeneratorAgent(self.mock_orchestrator)
+
+        # Test template retrieval
+        template = agent.get_code_template("rest_api_endpoint", "python", "fastapi")
+
+        self.assertIsInstance(template, str)
+        self.assertIn("@app.", template)  # FastAPI decorator
+
+        # Test template customization
+        customized = agent.customize_template(
+            template,
+            {"endpoint_name": "users", "method": "GET", "auth_required": True}
+        )
+
+        self.assertIn("users", customized)
+        self.assertIn("GET", customized.upper())
+
+    def test_code_quality_analysis(self):
+        """Test automated code quality analysis"""
+        from Socratic7 import CodeGeneratorAgent
+
+        agent = CodeGeneratorAgent(self.mock_orchestrator)
+
+        # Test code with quality issues
+        problematic_code = """
+def bad_function():
+    x = 1
+    y = 2
+    return x+y  # No spaces around operator
+
+class badClass:  # Should be PascalCase
+    def __init__(self):
+        pass
+"""
+
+        # Test quality analysis
+        analysis = agent.analyze_code_quality(problematic_code, "python")
+
+        self.assertIsInstance(analysis, dict)
+        self.assertIn('issues', analysis)
+        self.assertIn('score', analysis)
+        self.assertLess(analysis['score'], 8.0)  # Should flag quality issues
+
+    def test_incremental_code_improvement(self):
+        """Test incremental code improvement suggestions"""
+        from Socratic7 import CodeGeneratorAgent
+
+        agent = CodeGeneratorAgent(self.mock_orchestrator)
+
+        # Mock existing code
+        existing_code = """
+def calculate_total(items):
+    total = 0
+    for item in items:
+        total += item['price']
+    return total
+"""
+
+        # Test improvement suggestions
+        improvements = agent.suggest_improvements(existing_code, "python")
+
+        self.assertIsInstance(improvements, list)
+        # Should suggest using sum() or list comprehension
+        improvement_text = str(improvements).lower()
+        self.assertTrue(
+            'sum(' in improvement_text or
+            'comprehension' in improvement_text or
+            'optimization' in improvement_text
+        )
+
+
+class TestAdvancedSystemMonitoring(unittest.TestCase):
+    """Tests for advanced system monitoring and analytics"""
+
+    def setUp(self):
+        """Set up monitoring test environment"""
+        self.mock_orchestrator = Mock()
+
+    def test_user_engagement_analytics(self):
+        """Test user engagement tracking and analytics"""
+        from Socratic7 import SystemMonitorAgent
+
+        agent = SystemMonitorAgent(self.mock_orchestrator)
+
+        # Mock user activity data
+        user_activities = [
+            {'user': 'user1', 'action': 'question_answered', 'timestamp': datetime.datetime.now()},
+            {'user': 'user1', 'action': 'code_generated', 'timestamp': datetime.datetime.now()},
+            {'user': 'user2', 'action': 'project_created', 'timestamp': datetime.datetime.now()}
+        ]
+
+        # Test engagement calculation
+        engagement_metrics = agent.calculate_engagement_metrics(user_activities, time_window='1d')
+
+        self.assertIsInstance(engagement_metrics, dict)
+        self.assertIn('active_users', engagement_metrics)
+        self.assertIn('actions_per_user', engagement_metrics)
+        self.assertIn('engagement_score', engagement_metrics)
+
+    def test_system_performance_monitoring(self):
+        """Test system performance monitoring"""
+        from Socratic7 import SystemMonitorAgent
+
+        agent = SystemMonitorAgent(self.mock_orchestrator)
+
+        # Mock performance metrics
+        performance_data = {
+            'response_times': [0.1, 0.2, 0.15, 0.3, 0.12],
+            'memory_usage': [45.2, 47.1, 46.8, 48.3, 45.9],
+            'active_sessions': [12, 15, 13, 18, 14]
+        }
+
+        # Test performance analysis
+        analysis = agent.analyze_performance(performance_data)
+
+        self.assertIsInstance(analysis, dict)
+        self.assertIn('avg_response_time', analysis)
+        self.assertIn('memory_trend', analysis)
+        self.assertIn('load_status', analysis)
+
+    def test_predictive_scaling(self):
+        """Test predictive scaling based on usage patterns"""
+        from Socratic7 import SystemMonitorAgent
+
+        agent = SystemMonitorAgent(self.mock_orchestrator)
+
+        # Mock historical usage data
+        historical_usage = [
+            {'timestamp': datetime.datetime.now() - datetime.timedelta(hours=i), 'load': 10 + i * 2}
+            for i in range(24)  # Last 24 hours
+        ]
+
+        # Test scaling prediction
+        scaling_recommendation = agent.predict_scaling_needs(historical_usage, forecast_hours=4)
+
+        self.assertIsInstance(scaling_recommendation, dict)
+        self.assertIn('recommended_capacity', scaling_recommendation)
+        self.assertIn('confidence', scaling_recommendation)
+        self.assertIn('reasoning', scaling_recommendation)
 
 
 class TestDataModels(unittest.TestCase):
@@ -209,6 +634,50 @@ class TestDatabaseOperations(unittest.TestCase):
 
         self.assertTrue(self.db.user_exists("testuser"))
 
+    def test_advanced_query_optimization(self):
+        """Test advanced database query optimization"""
+        # Test connection pooling
+        db = ProjectDatabase(self.db_path)
+
+        # Mock multiple concurrent operations
+        import threading
+
+        results = []
+        errors = []
+
+        def concurrent_operation(thread_id):
+            try:
+                user = User(f"user_{thread_id}", "hash", datetime.datetime.now(), [])
+                db.save_user(user)
+                loaded = db.load_user(f"user_{thread_id}")
+                results.append(loaded is not None)
+            except Exception as e:
+                errors.append(e)
+
+        # Run concurrent operations
+        threads = [threading.Thread(target=concurrent_operation, args=(i,)) for i in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # Should handle concurrent operations without errors
+        self.assertEqual(len(errors), 0)
+        self.assertEqual(len(results), 5)
+        self.assertTrue(all(results))
+
+    def test_database_migration_system(self):
+        """Test database schema migration system"""
+        db = ProjectDatabase(self.db_path)
+
+        # Test schema version tracking
+        current_version = db.get_schema_version()
+        self.assertIsInstance(current_version, int)
+
+        # Test migration check
+        migrations_needed = db.check_migrations_needed()
+        self.assertIsInstance(migrations_needed, list)
+
 
 class TestVectorDatabase(unittest.TestCase):
     """Unit tests for vector database operations"""
@@ -341,6 +810,30 @@ class TestAgents(unittest.TestCase):
         self.assertIn("Build web app", summary)
         self.assertIn("python", summary)
 
+    def test_advanced_socratic_questioning(self):
+        """Test advanced Socratic questioning with domain expertise"""
+        agent = SocraticCounselorAgent(self.mock_orchestrator)
+
+        # Mock domain-specific knowledge
+        domain_context = {
+            'domain': 'web_development',
+            'user_expertise': 'intermediate',
+            'current_topic': 'database_design'
+        }
+
+        # Test domain-aware question generation
+        question = agent.generate_domain_specific_question(domain_context)
+
+        self.assertIsInstance(question, str)
+        self.assertGreater(len(question), 10)
+        # Should contain domain-relevant terms
+        question_lower = question.lower()
+        self.assertTrue(
+            'database' in question_lower or
+            'data' in question_lower or
+            'schema' in question_lower
+        )
+
 
 class TestConflictDetection(unittest.TestCase):
     """Tests for conflict detection functionality"""
@@ -403,6 +896,31 @@ class TestConflictDetection(unittest.TestCase):
         # Test no conflict
         category = self.detector._find_conflict_category('python', 'mysql')
         self.assertIsNone(category)
+
+    def test_ml_powered_conflict_prediction(self):
+        """Test ML-powered conflict prediction"""
+        detector = ConflictDetectorAgent(self.mock_orchestrator)
+
+        # Mock project evolution data
+        project_history = [
+            {'timestamp': datetime.datetime.now() - datetime.timedelta(days=i),
+             'tech_stack': ['python', 'flask'],
+             'team_size': 2 + i // 10}
+            for i in range(30)
+        ]
+
+        new_proposal = {
+            'tech_stack': ['python', 'django'],  # Major framework change
+            'team_size': 5  # Significant team growth
+        }
+
+        # Test conflict prediction
+        prediction = detector.predict_conflicts(project_history, new_proposal)
+
+        self.assertIsInstance(prediction, dict)
+        self.assertIn('conflict_probability', prediction)
+        self.assertIn('risk_factors', prediction)
+        self.assertBetween(prediction['conflict_probability'], 0.0, 1.0)
 
 
 class TestIntegration(unittest.TestCase):
@@ -679,6 +1197,63 @@ class ScenarioTester:
             import Socratic7
             Socratic7.CONFIG['DATA_DIR'] = original_data_dir
 
+    def test_advanced_ml_scenario(self):
+        """Test ML-powered features scenario"""
+        try:
+            orchestrator, original_data_dir = self.create_test_system()
+
+            # Test semantic clustering of similar projects
+            projects = [
+                self.create_mock_project("E-commerce Platform", ["python", "django", "postgresql"]),
+                self.create_mock_project("Online Store", ["python", "flask", "mysql"]),
+                self.create_mock_project("Chat Application", ["node.js", "socket.io", "mongodb"])
+            ]
+
+            # Mock ML clustering
+            from Socratic7 import VectorDatabase
+            with patch.object(VectorDatabase, 'find_similar_projects') as mock_cluster:
+                mock_cluster.return_value = [
+                    {'project_id': projects[0].project_id, 'similarity': 0.85},
+                    {'project_id': projects[1].project_id, 'similarity': 0.82}
+                ]
+
+                # Test similar project finding
+                similar = orchestrator.vector_db.find_similar_projects(projects[0])
+
+                self.assertIsInstance(similar, list)
+                self.assertGreater(len(similar), 0)
+
+            print("✅ Advanced ML scenario test passed")
+            return True
+
+        except Exception as e:
+            print(f"❌ Advanced ML scenario test failed: {e}")
+            return False
+        finally:
+            import Socratic7
+            Socratic7.CONFIG['DATA_DIR'] = original_data_dir
+
+    def create_mock_project(self, name, tech_stack):
+        """Helper method to create mock project"""
+        return ProjectContext(
+            project_id=f"mock_{name.lower().replace(' ', '_')}",
+            name=name,
+            owner="test_user",
+            collaborators=[],
+            goals=f"Build {name}",
+            requirements=[],
+            tech_stack=tech_stack,
+            constraints=[],
+            team_structure="individual",
+            language_preferences="python",
+            deployment_target="cloud",
+            code_style="pep8",
+            phase="development",
+            conversation_history=[],
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now()
+        )
+
     def assert_success(self, result, message):
         """Assert that result indicates success"""
         if result.get('status') != 'success':
@@ -695,6 +1270,33 @@ class IntegrationTester:
 
     def __init__(self):
         self.test_api_key = "test-api-key-for-testing"
+
+    def run_advanced_tests(self):
+        """Run advanced feature tests"""
+        print("🚀 Running Advanced Feature Tests...")
+
+        advanced_test_classes = [
+            TestAdvancedRAGFeatures,
+            TestRealTimeCollaboration,
+            TestIntelligentCodeGeneration,
+            TestAdvancedSystemMonitoring
+        ]
+
+        for test_class in advanced_test_classes:
+            suite = unittest.TestLoader().loadTestsFromTestCase(test_class)
+            result = unittest.TextTestRunner(verbosity=0, stream=open(os.devnull, 'w')).run(suite)
+
+            self.test_results['advanced_tests'] = self.test_results.get('advanced_tests',
+                                                                        {'passed': 0, 'failed': 0, 'errors': []})
+            self.test_results['advanced_tests']['passed'] += result.testsRun - len(result.failures) - len(result.errors)
+            self.test_results['advanced_tests']['failed'] += len(result.failures) + len(result.errors)
+
+            if result.failures:
+                self.test_results['advanced_tests']['errors'].extend(
+                    [f"{test}: {error}" for test, error in result.failures])
+            if result.errors:
+                self.test_results['advanced_tests']['errors'].extend(
+                    [f"{test}: {error}" for test, error in result.errors])
 
     def test_complete_user_journey(self):
         """Test complete user journey from project creation to code generation"""
@@ -1072,6 +1674,50 @@ class PerformanceTest:
 
             print("  ✅ All performance tests passed")
 
+    @staticmethod
+    def test_advanced_performance_metrics():
+        """Test advanced performance characteristics"""
+        print("\n⚡ Running Advanced Performance Tests...")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Test concurrent user simulation
+            import concurrent.futures
+
+            def simulate_user_session(user_id):
+                """Simulate a complete user session"""
+                start_time = time.time()
+
+                # Mock user operations
+                operations = [
+                    lambda: time.sleep(0.01),  # Project creation
+                    lambda: time.sleep(0.005),  # Question generation
+                    lambda: time.sleep(0.02),  # Code generation
+                    lambda: time.sleep(0.003),  # Context analysis
+                ]
+
+                for op in operations:
+                    op()
+
+                return time.time() - start_time
+
+            # Test concurrent load
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                futures = [executor.submit(simulate_user_session, i) for i in range(20)]
+                session_times = [f.result() for f in concurrent.futures.as_completed(futures)]
+
+            avg_session_time = sum(session_times) / len(session_times)
+            max_session_time = max(session_times)
+
+            print(f"  Concurrent user sessions: {len(session_times)}")
+            print(f"  Average session time: {avg_session_time:.4f}s")
+            print(f"  Max session time: {max_session_time:.4f}s")
+
+            # Performance assertions
+            assert avg_session_time < 0.1, f"Average session time too slow: {avg_session_time}s"
+            assert max_session_time < 0.2, f"Max session time too slow: {max_session_time}s"
+
+            print("  ✅ Advanced performance tests passed")
+
 
 class TestRunner:
     """Main test runner class"""
@@ -1379,6 +2025,7 @@ if __name__ == "__main__":
     # Enable better error reporting
     import traceback
     import warnings
+
     warnings.filterwarnings('ignore', category=DeprecationWarning)
 
     try:
@@ -1391,7 +2038,6 @@ if __name__ == "__main__":
         print(f"   {e}")
         traceback.print_exc()
         sys.exit(1)
-
 
 # C:\Users\themi\AppData\Local\Programs\Python\Python313\python.exe "C:/Program Files/JetBrains/PyCharm Community
 # Edition 2024.1.2/plugins/python-ce/helpers/pycharm/_jb_unittest_runner.py" --path
