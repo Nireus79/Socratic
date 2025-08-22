@@ -426,6 +426,7 @@ class UserManagerAgent(Agent):
         archived = self.orchestrator.database.get_archived_items('users')
         return {'status': 'success', 'archived_users': archived}
 
+
 class SocraticCounselorAgent(Agent):
     def __init__(self, orchestrator):
         super().__init__("SocraticCounselor", orchestrator)
@@ -716,60 +717,82 @@ Return only the question, no additional text or explanation."""
         return {'status': 'success', 'new_phase': project.phase}
 
     def _update_project_context(self, project: ProjectContext, insights: Dict):
-        """Update project context based on extracted insights - with better error handling"""
+        """Update project context based on extracted insights - COMPLETELY FIXED VERSION"""
         if not insights or not isinstance(insights, dict):
             return  # Skip if insights is None or not a dict
 
         try:
+            # Handle goals
             if 'goals' in insights and insights['goals']:
-                if isinstance(insights['goals'], str):
-                    project.goals = insights['goals']
+                goals_value = insights['goals']
+                if isinstance(goals_value, list):
+                    # Join list items into a single string
+                    project.goals = ' '.join(str(item) for item in goals_value if item)
+                elif isinstance(goals_value, str):
+                    project.goals = goals_value.strip()
+                else:
+                    project.goals = str(goals_value).strip()
 
+            # Handle requirements
             if 'requirements' in insights and insights['requirements']:
-                if isinstance(insights['requirements'], list):
-                    # Filter out empty strings and duplicates
-                    new_requirements = []
-                    for req in insights['requirements']:
-                        # Convert to string and clean up
+                requirements_value = insights['requirements']
+
+                if isinstance(requirements_value, list):
+                    # Process each item in the list
+                    for req in requirements_value:
                         req_str = str(req).strip() if req else ""
                         if req_str and req_str not in project.requirements:
-                            new_requirements.append(req_str)
-                    project.requirements.extend(new_requirements)
-                elif isinstance(insights['requirements'], str):
-                    req_str = insights['requirements'].strip()
+                            project.requirements.append(req_str)
+                elif isinstance(requirements_value, str):
+                    req_str = requirements_value.strip()
+                    if req_str and req_str not in project.requirements:
+                        project.requirements.append(req_str)
+                else:
+                    req_str = str(requirements_value).strip()
                     if req_str and req_str not in project.requirements:
                         project.requirements.append(req_str)
 
+            # Handle tech_stack
             if 'tech_stack' in insights and insights['tech_stack']:
-                if isinstance(insights['tech_stack'], list):
-                    new_tech = []
-                    for tech in insights['tech_stack']:
-                        # Convert to string and clean up
+                tech_value = insights['tech_stack']
+
+                if isinstance(tech_value, list):
+                    # Process each item in the list
+                    for tech in tech_value:
                         tech_str = str(tech).strip() if tech else ""
                         if tech_str and tech_str not in project.tech_stack:
-                            new_tech.append(tech_str)
-                    project.tech_stack.extend(new_tech)
-                elif isinstance(insights['tech_stack'], str):
-                    tech_str = insights['tech_stack'].strip()
+                            project.tech_stack.append(tech_str)
+                elif isinstance(tech_value, str):
+                    tech_str = tech_value.strip()
+                    if tech_str and tech_str not in project.tech_stack:
+                        project.tech_stack.append(tech_str)
+                else:
+                    tech_str = str(tech_value).strip()
                     if tech_str and tech_str not in project.tech_stack:
                         project.tech_stack.append(tech_str)
 
+            # Handle constraints
             if 'constraints' in insights and insights['constraints']:
-                if isinstance(insights['constraints'], list):
-                    new_constraints = []
-                    for constraint in insights['constraints']:
-                        # Convert to string and clean up
+                constraints_value = insights['constraints']
+
+                if isinstance(constraints_value, list):
+                    # Process each item in the list
+                    for constraint in constraints_value:
                         constraint_str = str(constraint).strip() if constraint else ""
                         if constraint_str and constraint_str not in project.constraints:
-                            new_constraints.append(constraint_str)
-                    project.constraints.extend(new_constraints)
-                elif isinstance(insights['constraints'], str):
-                    constraint_str = insights['constraints'].strip()
+                            project.constraints.append(constraint_str)
+                elif isinstance(constraints_value, str):
+                    constraint_str = constraints_value.strip()
+                    if constraint_str and constraint_str not in project.constraints:
+                        project.constraints.append(constraint_str)
+                else:
+                    constraint_str = str(constraints_value).strip()
                     if constraint_str and constraint_str not in project.constraints:
                         project.constraints.append(constraint_str)
 
         except Exception as e:
             print(f"{Fore.YELLOW}Warning: Error updating project context: {e}")
+            print(f"Insights received: {insights}")
 
     def _remove_from_insights(self, value: str, insight_type: str):
         """Remove a value from insights before context update"""
@@ -1062,46 +1085,60 @@ class ConflictDetectorAgent(Agent):
 
     def _check_tech_stack_conflicts(self, project: ProjectContext, new_insights: Dict, current_user: str) -> List[
         ConflictInfo]:
-        """Check for technology stack conflicts"""
+        """Check for technology stack conflicts - FIXED VERSION"""
         conflicts = []
+
+        # Handle new_insights safely
+        if not new_insights or not isinstance(new_insights, dict):
+            return conflicts
+
         new_tech = new_insights.get('tech_stack', [])
 
-        # Handle both list and string inputs
-        if isinstance(new_tech, str):
+        # Normalize new_tech to list of strings
+        if not new_tech:
+            return conflicts
+        elif isinstance(new_tech, str):
             new_tech = [new_tech]
-        elif not isinstance(new_tech, list):
-            new_tech = []
+        elif isinstance(new_tech, list):
+            # Convert all items to strings
+            new_tech = [str(item).strip() for item in new_tech if item]
+        else:
+            new_tech = [str(new_tech)]
+
+        # Remove empty strings
+        new_tech = [item for item in new_tech if item.strip()]
 
         for new_item in new_tech:
-            if not new_item:
+            if not new_item or not isinstance(new_item, str):
                 continue
 
-            # Ensure new_item is a string
-            new_item_str = str(new_item) if not isinstance(new_item, str) else new_item
-            new_item_lower = new_item_str.lower()
+            new_item_lower = new_item.lower()
 
             # Check against existing tech stack
             for existing_item in project.tech_stack:
-                existing_str = str(existing_item) if not isinstance(existing_item, str) else existing_item
-                existing_lower = existing_str.lower()
+                if not existing_item:
+                    continue
+
+                existing_item_str = str(existing_item)
+                existing_lower = existing_item_str.lower()
 
                 # Check if they belong to same conflicting category
-                conflict_category = self._find_conflict_category(new_item_str, existing_str)
+                conflict_category = self._find_conflict_category(new_item, existing_item_str)
                 if conflict_category:
-                    # Find who added the original (simplified - assume owner for now)
-                    original_author = self._find_spec_author(project, 'tech_stack', existing_str)
+                    # Find who added the original
+                    original_author = self._find_spec_author(project, 'tech_stack', existing_item_str)
 
                     conflict = ConflictInfo(
                         conflict_id=str(uuid.uuid4()),
                         conflict_type='tech_stack',
-                        old_value=existing_str,
-                        new_value=new_item_str,
+                        old_value=existing_item_str,
+                        new_value=new_item,
                         old_author=original_author,
                         new_author=current_user,
                         old_timestamp=project.created_at.isoformat(),
                         new_timestamp=datetime.datetime.now().isoformat(),
                         severity='high' if conflict_category in ['databases', 'languages'] else 'medium',
-                        suggestions=self._generate_tech_suggestions(conflict_category, existing_str, new_item_str)
+                        suggestions=self._generate_tech_suggestions(conflict_category, existing_item_str, new_item)
                     )
                     conflicts.append(conflict)
 
@@ -1109,102 +1146,160 @@ class ConflictDetectorAgent(Agent):
 
     def _check_requirements_conflicts(self, project: ProjectContext, new_insights: Dict, current_user: str) -> List[
         ConflictInfo]:
-        """Check for requirement conflicts"""
+        """Check for requirement conflicts - FIXED VERSION"""
         conflicts = []
+
+        if not new_insights or not isinstance(new_insights, dict):
+            return conflicts
+
         new_requirements = new_insights.get('requirements', [])
-        if not isinstance(new_requirements, list):
-            new_requirements = [new_requirements] if new_requirements else []
+
+        # Normalize requirements to list of strings
+        if not new_requirements:
+            return conflicts
+        elif isinstance(new_requirements, str):
+            new_requirements = [new_requirements]
+        elif isinstance(new_requirements, list):
+            new_requirements = [str(item).strip() for item in new_requirements if item]
+        else:
+            new_requirements = [str(new_requirements)]
+
+        # Remove empty strings
+        new_requirements = [req for req in new_requirements if req.strip()]
 
         # Use Claude to detect semantic conflicts in requirements
         for new_req in new_requirements:
             if not new_req:
                 continue
 
-            semantic_conflicts = self._check_semantic_conflicts(new_req, project.requirements, 'requirements')
-            for conflict_data in semantic_conflicts:
-                conflict = ConflictInfo(
-                    conflict_id=str(uuid.uuid4()),
-                    conflict_type='requirements',
-                    old_value=conflict_data['existing'],
-                    new_value=new_req,
-                    old_author=self._find_spec_author(project, 'requirements', conflict_data['existing']),
-                    new_author=current_user,
-                    old_timestamp=project.created_at.isoformat(),
-                    new_timestamp=datetime.datetime.now().isoformat(),
-                    severity=conflict_data['severity'],
-                    suggestions=conflict_data['suggestions']
-                )
-                conflicts.append(conflict)
+            try:
+                semantic_conflicts = self._check_semantic_conflicts(new_req, project.requirements, 'requirements')
+                for conflict_data in semantic_conflicts:
+                    conflict = ConflictInfo(
+                        conflict_id=str(uuid.uuid4()),
+                        conflict_type='requirements',
+                        old_value=conflict_data['existing'],
+                        new_value=new_req,
+                        old_author=self._find_spec_author(project, 'requirements', conflict_data['existing']),
+                        new_author=current_user,
+                        old_timestamp=project.created_at.isoformat(),
+                        new_timestamp=datetime.datetime.now().isoformat(),
+                        severity=conflict_data.get('severity', 'medium'),
+                        suggestions=conflict_data.get('suggestions', [])
+                    )
+                    conflicts.append(conflict)
+            except Exception as e:
+                print(f"{Fore.YELLOW}Warning: Could not check semantic conflicts for requirement: {e}")
 
         return conflicts
 
     def _check_goals_conflicts(self, project: ProjectContext, new_insights: Dict, current_user: str) -> List[
         ConflictInfo]:
-        """Check for goal conflicts"""
+        """Check for goal conflicts - FIXED VERSION"""
         conflicts = []
+
+        if not new_insights or not isinstance(new_insights, dict):
+            return conflicts
+
         new_goals = new_insights.get('goals', '')
 
-        if new_goals and project.goals and new_goals.lower() != project.goals.lower():
-            # Use Claude to determine if goals actually conflict
-            conflict_data = self._check_semantic_conflicts(new_goals, [project.goals], 'goals')
-            if conflict_data:
-                conflict = ConflictInfo(
-                    conflict_id=str(uuid.uuid4()),
-                    conflict_type='goals',
-                    old_value=project.goals,
-                    new_value=new_goals,
-                    old_author=self._find_spec_author(project, 'goals', project.goals),
-                    new_author=current_user,
-                    old_timestamp=project.created_at.isoformat(),
-                    new_timestamp=datetime.datetime.now().isoformat(),
-                    severity='high',
-                    suggestions=conflict_data[0]['suggestions'] if conflict_data else []
-                )
-                conflicts.append(conflict)
+        # Convert to string if needed
+        if isinstance(new_goals, list):
+            new_goals = ' '.join(str(item) for item in new_goals if item)
+        elif not isinstance(new_goals, str):
+            new_goals = str(new_goals) if new_goals else ''
+
+        if new_goals and project.goals and new_goals.lower().strip() != project.goals.lower().strip():
+            try:
+                # Use Claude to determine if goals actually conflict
+                conflict_data = self._check_semantic_conflicts(new_goals, [project.goals], 'goals')
+                if conflict_data:
+                    conflict = ConflictInfo(
+                        conflict_id=str(uuid.uuid4()),
+                        conflict_type='goals',
+                        old_value=project.goals,
+                        new_value=new_goals,
+                        old_author=self._find_spec_author(project, 'goals', project.goals),
+                        new_author=current_user,
+                        old_timestamp=project.created_at.isoformat(),
+                        new_timestamp=datetime.datetime.now().isoformat(),
+                        severity='high',
+                        suggestions=conflict_data[0].get('suggestions', []) if conflict_data else []
+                    )
+                    conflicts.append(conflict)
+            except Exception as e:
+                print(f"{Fore.YELLOW}Warning: Could not check semantic conflicts for goals: {e}")
 
         return conflicts
 
     def _check_constraints_conflicts(self, project: ProjectContext, new_insights: Dict, current_user: str) -> List[
         ConflictInfo]:
-        """Check for constraint conflicts"""
+        """Check for constraint conflicts - FIXED VERSION"""
         conflicts = []
+
+        if not new_insights or not isinstance(new_insights, dict):
+            return conflicts
+
         new_constraints = new_insights.get('constraints', [])
-        if not isinstance(new_constraints, list):
-            new_constraints = [new_constraints] if new_constraints else []
+
+        # Normalize constraints to list of strings
+        if not new_constraints:
+            return conflicts
+        elif isinstance(new_constraints, str):
+            new_constraints = [new_constraints]
+        elif isinstance(new_constraints, list):
+            new_constraints = [str(item).strip() for item in new_constraints if item]
+        else:
+            new_constraints = [str(new_constraints)]
+
+        # Remove empty strings
+        new_constraints = [constraint for constraint in new_constraints if constraint.strip()]
 
         for new_constraint in new_constraints:
             if not new_constraint:
                 continue
 
-            semantic_conflicts = self._check_semantic_conflicts(new_constraint, project.constraints, 'constraints')
-            for conflict_data in semantic_conflicts:
-                conflict = ConflictInfo(
-                    conflict_id=str(uuid.uuid4()),
-                    conflict_type='constraints',
-                    old_value=conflict_data['existing'],
-                    new_value=new_constraint,
-                    old_author=self._find_spec_author(project, 'constraints', conflict_data['existing']),
-                    new_author=current_user,
-                    old_timestamp=project.created_at.isoformat(),
-                    new_timestamp=datetime.datetime.now().isoformat(),
-                    severity=conflict_data['severity'],
-                    suggestions=conflict_data['suggestions']
-                )
-                conflicts.append(conflict)
+            try:
+                semantic_conflicts = self._check_semantic_conflicts(new_constraint, project.constraints, 'constraints')
+                for conflict_data in semantic_conflicts:
+                    conflict = ConflictInfo(
+                        conflict_id=str(uuid.uuid4()),
+                        conflict_type='constraints',
+                        old_value=conflict_data['existing'],
+                        new_value=new_constraint,
+                        old_author=self._find_spec_author(project, 'constraints', conflict_data['existing']),
+                        new_author=current_user,
+                        old_timestamp=project.created_at.isoformat(),
+                        new_timestamp=datetime.datetime.now().isoformat(),
+                        severity=conflict_data.get('severity', 'medium'),
+                        suggestions=conflict_data.get('suggestions', [])
+                    )
+                    conflicts.append(conflict)
+            except Exception as e:
+                print(f"{Fore.YELLOW}Warning: Could not check semantic conflicts for constraint: {e}")
 
         return conflicts
 
-    def _find_conflict_category(self, item1: str, item2: str) -> Optional[str]:
+    def _find_conflict_category(self, item1, item2) -> Optional[str]:
         """Find if two items belong to same conflicting category"""
-        # Ensure inputs are strings, not lists
-        if isinstance(item1, list):
-            item1 = item1[0] if item1 else ""
-        if isinstance(item2, list):
-            item2 = item2[0] if item2 else ""
+        # Handle None inputs
+        if not item1 or not item2:
+            return None
 
-        # Convert to strings if they're not already
-        item1_str = str(item1).lower()
-        item2_str = str(item2).lower()
+        # Convert any input type to string
+        def to_string(item):
+            if isinstance(item, list):
+                return str(item[0]) if item else ""
+            elif isinstance(item, dict):
+                return str(item)
+            else:
+                return str(item)
+
+        item1_str = to_string(item1).lower().strip()
+        item2_str = to_string(item2).lower().strip()
+
+        if not item1_str or not item2_str:
+            return None
 
         for category, items in self.conflict_rules.items():
             if any(item1_str in tech.lower() for tech in items) and any(item2_str in tech.lower() for tech in items):
@@ -1782,7 +1877,7 @@ class ClaudeClient:
         self.orchestrator = orchestrator
 
     def extract_insights(self, user_response: str, project: ProjectContext) -> Dict:
-        """Extract insights from user response using Claude"""
+        """Extract insights from user response using Claude - FIXED VERSION"""
 
         # Handle empty or non-informative responses
         if not user_response or len(user_response.strip()) < 3:
@@ -1811,8 +1906,17 @@ class ClaudeClient:
         4. Constraints or limitations
         5. Team structure preferences
 
-        """ + """Return as valid JSON with keys: goals, requirements, tech_stack, constraints, team_structure
-        If no insights found, return empty JSON object {}.
+        """ + """IMPORTANT: Return ONLY valid JSON. Each field should be a string or array of strings.
+        Example format:
+        {
+            "goals": "string describing the goal",
+            "requirements": ["requirement 1", "requirement 2"],
+            "tech_stack": ["technology 1", "technology 2"],
+            "constraints": ["constraint 1", "constraint 2"],
+            "team_structure": "description of team structure"
+        }
+
+        If no insights found, return: {}
         """
 
         try:
@@ -1837,6 +1941,9 @@ class ClaudeClient:
                 import json
                 response_text = response.content[0].text.strip()
 
+                # Debug output
+                print(f"{Fore.CYAN}[DEBUG] Raw Claude response: {response_text[:200]}...")
+
                 # Clean up the response - sometimes Claude adds extra text
                 if response_text.startswith('```json'):
                     response_text = response_text.replace('```json', '').replace('```', '').strip()
@@ -1849,25 +1956,35 @@ class ClaudeClient:
 
                 if 0 <= start < end:
                     json_text = response_text[start:end]
+                    print(f"{Fore.CYAN}[DEBUG] Extracted JSON: {json_text}")
+
                     parsed_insights = json.loads(json_text)
 
-                    # Ensure it's a dictionary
+                    # Validate and clean the insights
                     if isinstance(parsed_insights, dict):
-                        return parsed_insights
+                        cleaned_insights = {}
+                        for key, value in parsed_insights.items():
+                            if key in ['goals', 'requirements', 'tech_stack', 'constraints', 'team_structure']:
+                                if value:  # Only add non-empty values
+                                    cleaned_insights[key] = value
+
+                        print(f"{Fore.CYAN}[DEBUG] Cleaned insights: {cleaned_insights}")
+                        return cleaned_insights
                     else:
+                        print(f"{Fore.YELLOW}[DEBUG] Parsed insights is not a dict: {type(parsed_insights)}")
                         return {}
                 else:
-                    # No JSON found, return empty dict
+                    print(f"{Fore.YELLOW}[DEBUG] No JSON found in response")
                     return {}
 
             except (json.JSONDecodeError, ValueError, IndexError) as json_error:
                 print(f"{Fore.YELLOW}Warning: Could not parse JSON response: {json_error}")
-                # Fallback to simple text analysis
-                return {'extracted_text': response.content[0].text}
+                print(f"{Fore.YELLOW}Raw response: {response.content[0].text}")
+                return {}
 
         except Exception as e:
             print(f"{Fore.RED}Error extracting insights: {e}")
-            return {}  # Return empty dict instead of None
+            return {}
 
     def generate_conflict_resolution_suggestions(self, conflict: ConflictInfo, project: ProjectContext) -> str:
         """Generate suggestions for resolving a specific conflict"""
