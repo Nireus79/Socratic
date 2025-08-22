@@ -4,15 +4,15 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7 testing">
-      <change afterPath="$PROJECT_DIR$/socratic_data/vector_db/e0883f54-6f38-4be4-a3c0-14ae4b903ed6/length.bin" afterDir="false" />
+    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7 User simulator">
+      <change afterPath="$PROJECT_DIR$/socratic_data/vector_db/e03dcd69-599c-4c56-8194-b746e5173e62/length.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/socratic_data/projects.db" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/projects.db" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/6d0d2fe3-ce0d-4779-99b9-6aa3fa56626e/data_level0.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/e0883f54-6f38-4be4-a3c0-14ae4b903ed6/data_level0.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/6d0d2fe3-ce0d-4779-99b9-6aa3fa56626e/header.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/e0883f54-6f38-4be4-a3c0-14ae4b903ed6/header.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/6d0d2fe3-ce0d-4779-99b9-6aa3fa56626e/length.bin" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/6d0d2fe3-ce0d-4779-99b9-6aa3fa56626e/link_lists.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/e0883f54-6f38-4be4-a3c0-14ae4b903ed6/link_lists.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/chroma.sqlite3" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/chroma.sqlite3" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/e0883f54-6f38-4be4-a3c0-14ae4b903ed6/data_level0.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/e03dcd69-599c-4c56-8194-b746e5173e62/data_level0.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/e0883f54-6f38-4be4-a3c0-14ae4b903ed6/header.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/e03dcd69-599c-4c56-8194-b746e5173e62/header.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/e0883f54-6f38-4be4-a3c0-14ae4b903ed6/length.bin" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/e0883f54-6f38-4be4-a3c0-14ae4b903ed6/link_lists.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/e03dcd69-599c-4c56-8194-b746e5173e62/link_lists.bin" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -147,8 +147,8 @@
       <method v="2" />
     </configuration>
     <list>
-      <item itemvalue="Python.Socratic7" />
       <item itemvalue="Python.main" />
+      <item itemvalue="Python.Socratic7" />
       <item itemvalue="Python tests.Python tests in Socratic7tst.py" />
     </list>
     <recent_temporary>
@@ -173,14 +173,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1750504324591</updated>
-    </task>
-    <task id="LOCAL-00066" summary="7">
-      <option name="closed" value="true" />
-      <created>1754549586060</created>
-      <option name="number" value="00066" />
-      <option name="presentableId" value="LOCAL-00066" />
-      <option name="project" value="LOCAL" />
-      <updated>1754549586060</updated>
     </task>
     <task id="LOCAL-00067" summary="7 dynamic">
       <option name="closed" value="true" />
@@ -566,12 +558,19 @@
       <option name="project" value="LOCAL" />
       <updated>1755853542359</updated>
     </task>
-    <option name="localTasksCounter" value="115" />
+    <task id="LOCAL-00115" summary="7 User simulator">
+      <option name="closed" value="true" />
+      <created>1755867895515</created>
+      <option name="number" value="00115" />
+      <option name="presentableId" value="LOCAL-00115" />
+      <option name="project" value="LOCAL" />
+      <updated>1755867895515</updated>
+    </task>
+    <option name="localTasksCounter" value="116" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <option name="ADD_EXTERNAL_FILES_SILENTLY" value="true" />
-    <MESSAGE value="Socratic 2" />
     <MESSAGE value="Socratic 2 db" />
     <MESSAGE value="collaborative_socratic" />
     <MESSAGE value="Socratic 3" />
@@ -596,6 +595,7 @@
     <MESSAGE value="7.1" />
     <MESSAGE value="7" />
     <MESSAGE value="7 testing" />
-    <option name="LAST_COMMIT_MESSAGE" value="7 testing" />
+    <MESSAGE value="7 User simulator" />
+    <option name="LAST_COMMIT_MESSAGE" value="7 User simulator" />
   </component>
 </project>

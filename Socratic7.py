@@ -565,35 +565,48 @@ Return only the question, no additional text or explanation."""
             if 'requirements' in insights and insights['requirements']:
                 if isinstance(insights['requirements'], list):
                     # Filter out empty strings and duplicates
-                    new_requirements = [req for req in insights['requirements']
-                                        if req and isinstance(req, str) and req not in project.requirements]
+                    new_requirements = []
+                    for req in insights['requirements']:
+                        # Convert to string and clean up
+                        req_str = str(req).strip() if req else ""
+                        if req_str and req_str not in project.requirements:
+                            new_requirements.append(req_str)
                     project.requirements.extend(new_requirements)
                 elif isinstance(insights['requirements'], str):
-                    if insights['requirements'] not in project.requirements:
-                        project.requirements.append(insights['requirements'])
+                    req_str = insights['requirements'].strip()
+                    if req_str and req_str not in project.requirements:
+                        project.requirements.append(req_str)
 
             if 'tech_stack' in insights and insights['tech_stack']:
                 if isinstance(insights['tech_stack'], list):
-                    new_tech = [tech for tech in insights['tech_stack']
-                                if tech and isinstance(tech, str) and tech not in project.tech_stack]
+                    new_tech = []
+                    for tech in insights['tech_stack']:
+                        # Convert to string and clean up
+                        tech_str = str(tech).strip() if tech else ""
+                        if tech_str and tech_str not in project.tech_stack:
+                            new_tech.append(tech_str)
                     project.tech_stack.extend(new_tech)
                 elif isinstance(insights['tech_stack'], str):
-                    if insights['tech_stack'] not in project.tech_stack:
-                        project.tech_stack.append(insights['tech_stack'])
+                    tech_str = insights['tech_stack'].strip()
+                    if tech_str and tech_str not in project.tech_stack:
+                        project.tech_stack.append(tech_str)
 
             if 'constraints' in insights and insights['constraints']:
                 if isinstance(insights['constraints'], list):
-                    new_constraints = [constraint for constraint in insights['constraints']
-                                       if constraint and isinstance(constraint,
-                                                                    str) and constraint not in project.constraints]
+                    new_constraints = []
+                    for constraint in insights['constraints']:
+                        # Convert to string and clean up
+                        constraint_str = str(constraint).strip() if constraint else ""
+                        if constraint_str and constraint_str not in project.constraints:
+                            new_constraints.append(constraint_str)
                     project.constraints.extend(new_constraints)
                 elif isinstance(insights['constraints'], str):
-                    if insights['constraints'] not in project.constraints:
-                        project.constraints.append(insights['constraints'])
+                    constraint_str = insights['constraints'].strip()
+                    if constraint_str and constraint_str not in project.constraints:
+                        project.constraints.append(constraint_str)
 
         except Exception as e:
             print(f"{Fore.YELLOW}Warning: Error updating project context: {e}")
-            # Continue execution even if context update fails
 
     def _remove_from_insights(self, value: str, insight_type: str):
         """Remove a value from insights before context update"""
@@ -889,36 +902,43 @@ class ConflictDetectorAgent(Agent):
         """Check for technology stack conflicts"""
         conflicts = []
         new_tech = new_insights.get('tech_stack', [])
-        if not isinstance(new_tech, list):
-            new_tech = [new_tech] if new_tech else []
+
+        # Handle both list and string inputs
+        if isinstance(new_tech, str):
+            new_tech = [new_tech]
+        elif not isinstance(new_tech, list):
+            new_tech = []
 
         for new_item in new_tech:
             if not new_item:
                 continue
 
-            new_item_lower = new_item.lower()
+            # Ensure new_item is a string
+            new_item_str = str(new_item) if not isinstance(new_item, str) else new_item
+            new_item_lower = new_item_str.lower()
 
             # Check against existing tech stack
             for existing_item in project.tech_stack:
-                existing_lower = existing_item.lower()
+                existing_str = str(existing_item) if not isinstance(existing_item, str) else existing_item
+                existing_lower = existing_str.lower()
 
                 # Check if they belong to same conflicting category
-                conflict_category = self._find_conflict_category(new_item_lower, existing_lower)
+                conflict_category = self._find_conflict_category(new_item_str, existing_str)
                 if conflict_category:
                     # Find who added the original (simplified - assume owner for now)
-                    original_author = self._find_spec_author(project, 'tech_stack', existing_item)
+                    original_author = self._find_spec_author(project, 'tech_stack', existing_str)
 
                     conflict = ConflictInfo(
                         conflict_id=str(uuid.uuid4()),
                         conflict_type='tech_stack',
-                        old_value=existing_item,
-                        new_value=new_item,
+                        old_value=existing_str,
+                        new_value=new_item_str,
                         old_author=original_author,
                         new_author=current_user,
                         old_timestamp=project.created_at.isoformat(),
                         new_timestamp=datetime.datetime.now().isoformat(),
                         severity='high' if conflict_category in ['databases', 'languages'] else 'medium',
-                        suggestions=self._generate_tech_suggestions(conflict_category, existing_item, new_item)
+                        suggestions=self._generate_tech_suggestions(conflict_category, existing_str, new_item_str)
                     )
                     conflicts.append(conflict)
 
@@ -1013,8 +1033,18 @@ class ConflictDetectorAgent(Agent):
 
     def _find_conflict_category(self, item1: str, item2: str) -> Optional[str]:
         """Find if two items belong to same conflicting category"""
+        # Ensure inputs are strings, not lists
+        if isinstance(item1, list):
+            item1 = item1[0] if item1 else ""
+        if isinstance(item2, list):
+            item2 = item2[0] if item2 else ""
+
+        # Convert to strings if they're not already
+        item1_str = str(item1).lower()
+        item2_str = str(item2).lower()
+
         for category, items in self.conflict_rules.items():
-            if any(item1 in tech.lower() for tech in items) and any(item2 in tech.lower() for tech in items):
+            if any(item1_str in tech.lower() for tech in items) and any(item2_str in tech.lower() for tech in items):
                 return category
         return None
 
