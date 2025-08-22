@@ -5,7 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7 lower">
-      <change beforePath="$PROJECT_DIR$/Socratic7tst.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic7tst.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Readme7" beforeDir="false" afterPath="$PROJECT_DIR$/Readme7" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -166,14 +167,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1750504324591</updated>
-    </task>
-    <task id="LOCAL-00075" summary="7.1">
-      <option name="closed" value="true" />
-      <created>1755586444192</created>
-      <option name="number" value="00075" />
-      <option name="presentableId" value="LOCAL-00075" />
-      <option name="project" value="LOCAL" />
-      <updated>1755586444192</updated>
     </task>
     <task id="LOCAL-00076" summary="7.1">
       <option name="closed" value="true" />
@@ -559,7 +552,15 @@
       <option name="project" value="LOCAL" />
       <updated>1755894300215</updated>
     </task>
-    <option name="localTasksCounter" value="124" />
+    <task id="LOCAL-00124" summary="7 lower">
+      <option name="closed" value="true" />
+      <created>1755896084506</created>
+      <option name="number" value="00124" />
+      <option name="presentableId" value="LOCAL-00124" />
+      <option name="project" value="LOCAL" />
+      <updated>1755896084506</updated>
+    </task>
+    <option name="localTasksCounter" value="125" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
