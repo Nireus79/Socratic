@@ -2044,7 +2044,7 @@ if __name__ == "__main__":
 # Launching unittests with arguments python -m unittest C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py in C:\Users\themi\PycharmProjects\Socratic
 #
 #
-# Error
+# TODO Error
 # Traceback (most recent call last):
 #   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 172, in test_adaptive_questioning_strategy
 #     detailed_question = agent.adapt_question_complexity(detailed_response, "technical")
@@ -2057,7 +2057,7 @@ if __name__ == "__main__":
 # C:\Users\themi\AppData\Local\Programs\Python\Python313\Lib\unittest\case.py:707: DeprecationWarning: It is deprecated to return a value that is not None from a test case (<bound method TestAdvancedRAGFeatures.test_async_knowledge_retrieval of <Socratic7tst.TestAdvancedRAGFeatures testMethod=test_async_knowledge_retrieval>>)
 #   return self.run(*args, **kwds)
 #
-# Error
+# TODO Error
 # Traceback (most recent call last):
 #   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 131, in test_contextual_compression
 #     compressed = analyzer.compress_context(long_context, max_tokens=500)
@@ -2065,7 +2065,7 @@ if __name__ == "__main__":
 # AttributeError: 'ContextAnalyzerAgent' object has no attribute 'compress_context'
 #
 #
-# Error
+# TODO Error
 # Traceback (most recent call last):
 #   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 156, in test_multi_turn_conversation_context
 #     context_summary = agent.extract_conversation_context(project)
@@ -2073,7 +2073,7 @@ if __name__ == "__main__":
 # AttributeError: 'SocraticCounselorAgent' object has no attribute 'extract_conversation_context'
 #
 #
-# Error
+# TODO Error
 # Traceback (most recent call last):
 #   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 116, in test_semantic_search_with_reranking
 #     results = vector_db.search_with_reranking(query, top_k=3, rerank_top_k=2)
@@ -2081,7 +2081,7 @@ if __name__ == "__main__":
 # AttributeError: 'VectorDatabase' object has no attribute 'search_with_reranking'
 #
 #
-# Error
+# TODO Error
 # Traceback (most recent call last):
 #   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 97, in tearDown
 #     shutil.rmtree(self.temp_dir)
@@ -2097,7 +2097,7 @@ if __name__ == "__main__":
 # PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\themi\\AppData\\Local\\Temp\\tmp_su6i7x0\\chroma.sqlite3'
 #
 #
-# Error
+# TODO Error
 # Traceback (most recent call last):
 #   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 497, in test_predictive_scaling
 #     scaling_recommendation = agent.predict_scaling_needs(historical_usage, forecast_hours=4)
@@ -2105,7 +2105,7 @@ if __name__ == "__main__":
 # AttributeError: 'SystemMonitorAgent' object has no attribute 'predict_scaling_needs'
 #
 #
-# Error
+# TODO Error
 # Traceback (most recent call last):
 #   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 477, in test_system_performance_monitoring
 #     analysis = agent.analyze_performance(performance_data)
@@ -2113,7 +2113,7 @@ if __name__ == "__main__":
 # AttributeError: 'SystemMonitorAgent' object has no attribute 'analyze_performance'
 #
 #
-# Error
+# TODO Error
 # Traceback (most recent call last):
 #   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 456, in test_user_engagement_analytics
 #     engagement_metrics = agent.calculate_engagement_metrics(user_activities, time_window='1d')
@@ -2121,7 +2121,7 @@ if __name__ == "__main__":
 # AttributeError: 'SystemMonitorAgent' object has no attribute 'calculate_engagement_metrics'
 #
 #
-# Error
+# TODO Error
 # Traceback (most recent call last):
 #   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 825, in test_advanced_socratic_questioning
 #     question = agent.generate_domain_specific_question(domain_context)
@@ -2130,7 +2130,7 @@ if __name__ == "__main__":
 #
 # [23:22:45] ProjectManager: Created project 'Test Project' with ID 133abeb3-86cb-4910-a2e2-daa12b867ff5
 #
-# Error
+# TODO Error
 # Traceback (most recent call last):
 #   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 918, in test_ml_powered_conflict_prediction
 #     prediction = detector.predict_conflicts(project_history, new_proposal)
@@ -2138,7 +2138,7 @@ if __name__ == "__main__":
 # AttributeError: 'ConflictDetectorAgent' object has no attribute 'predict_conflicts'
 #
 #
-# Error
+# TODO Error
 # Traceback (most recent call last):
 #   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 674, in test_database_migration_system
 #     current_version = db.get_schema_version()
@@ -2157,7 +2157,7 @@ if __name__ == "__main__":
 # ✓ Knowledge base loaded (5 entries)
 # ✓ Socratic RAG System v7.0 initialized successfully!
 #
-# Error
+# TODO Error
 # Traceback (most recent call last):
 #   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 400, in test_code_quality_analysis
 #     analysis = agent.analyze_code_quality(problematic_code, "python")
@@ -2165,7 +2165,7 @@ if __name__ == "__main__":
 # AttributeError: 'CodeGeneratorAgent' object has no attribute 'analyze_code_quality'
 #
 #
-# Error
+# TODO Error
 # Traceback (most recent call last):
 #   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 367, in test_code_template_system
 #     template = agent.get_code_template("rest_api_endpoint", "python", "fastapi")
@@ -2173,7 +2173,7 @@ if __name__ == "__main__":
 # AttributeError: 'CodeGeneratorAgent' object has no attribute 'get_code_template'
 #
 #
-# Error
+# TODO Error
 # Traceback (most recent call last):
 #   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 355, in test_context_aware_code_generation
 #     result = agent.generate_context_aware_code(project, "user authentication endpoint")
@@ -2181,7 +2181,7 @@ if __name__ == "__main__":
 # AttributeError: 'CodeGeneratorAgent' object has no attribute 'generate_context_aware_code'
 #
 #
-# Error
+# TODO Error
 # Traceback (most recent call last):
 #   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 423, in test_incremental_code_improvement
 #     improvements = agent.suggest_improvements(existing_code, "python")
@@ -2189,7 +2189,7 @@ if __name__ == "__main__":
 # AttributeError: 'CodeGeneratorAgent' object has no attribute 'suggest_improvements'
 #
 #
-# Error
+# TODO Error
 # Traceback (most recent call last):
 #   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 306, in test_activity_feed_generation
 #     feed = agent.generate_activity_feed('test_project', limit=10)
@@ -2197,7 +2197,7 @@ if __name__ == "__main__":
 # AttributeError: 'SystemMonitorAgent' object has no attribute 'generate_activity_feed'
 #
 #
-# Error
+# TODO Error
 # Traceback (most recent call last):
 #   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 287, in test_collaborative_decision_tracking
 #     result = agent.cast_vote(decision['decision_id'], 'user1', 'react', 'Better ecosystem')
@@ -2205,7 +2205,7 @@ if __name__ == "__main__":
 # AttributeError: 'ConflictDetectorAgent' object has no attribute 'cast_vote'
 #
 #
-# Error
+# TODO Error
 # Traceback (most recent call last):
 #   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 242, in test_concurrent_editing_conflict_resolution
 #     result = agent.resolve_concurrent_edits(project, [edit1, edit2])
@@ -2213,7 +2213,7 @@ if __name__ == "__main__":
 # AttributeError: 'ProjectManagerAgent' object has no attribute 'resolve_concurrent_edits'
 #
 #
-# Error
+# TODO Error
 # Traceback (most recent call last):
 #   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 265, in test_real_time_notification_system
 #     agent.notify_project_update(project_update)
