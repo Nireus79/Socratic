@@ -4,9 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7 User simulator">
+    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7 files">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Socratic7.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic7.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/e03dcd69-599c-4c56-8194-b746e5173e62/length.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/e03dcd69-599c-4c56-8194-b746e5173e62/length.bin" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -167,14 +168,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1750504324591</updated>
-    </task>
-    <task id="LOCAL-00068" summary="7 dynamic">
-      <option name="closed" value="true" />
-      <created>1754814918101</created>
-      <option name="number" value="00068" />
-      <option name="presentableId" value="LOCAL-00068" />
-      <option name="project" value="LOCAL" />
-      <updated>1754814918101</updated>
     </task>
     <task id="LOCAL-00069" summary="generated code pst">
       <option name="closed" value="true" />
@@ -560,12 +553,19 @@
       <option name="project" value="LOCAL" />
       <updated>1755888517462</updated>
     </task>
-    <option name="localTasksCounter" value="117" />
+    <task id="LOCAL-00117" summary="7 files">
+      <option name="closed" value="true" />
+      <created>1755890172408</created>
+      <option name="number" value="00117" />
+      <option name="presentableId" value="LOCAL-00117" />
+      <option name="project" value="LOCAL" />
+      <updated>1755890172408</updated>
+    </task>
+    <option name="localTasksCounter" value="118" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <option name="ADD_EXTERNAL_FILES_SILENTLY" value="true" />
-    <MESSAGE value="Socratic 2 db" />
     <MESSAGE value="collaborative_socratic" />
     <MESSAGE value="Socratic 3" />
     <MESSAGE value="claude-sonnet-4-20250514" />
@@ -590,6 +590,7 @@
     <MESSAGE value="7" />
     <MESSAGE value="7 testing" />
     <MESSAGE value="7 User simulator" />
-    <option name="LAST_COMMIT_MESSAGE" value="7 User simulator" />
+    <MESSAGE value="7 files" />
+    <option name="LAST_COMMIT_MESSAGE" value="7 files" />
   </component>
 </project>

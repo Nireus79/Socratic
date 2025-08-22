@@ -72,6 +72,8 @@ class User:
     passcode_hash: str
     created_at: datetime.datetime
     projects: List[str]
+    is_archived: bool = False
+    archived_at: Optional[datetime.datetime] = None
 
 
 @dataclass
@@ -92,6 +94,8 @@ class ProjectContext:
     conversation_history: List[Dict]
     created_at: datetime.datetime
     updated_at: datetime.datetime
+    is_archived: bool = False
+    archived_at: Optional[datetime.datetime] = None
 
 
 @dataclass
@@ -164,6 +168,14 @@ class ProjectManagerAgent(Agent):
             return self._list_collaborators(request)
         elif action == 'remove_collaborator':
             return self._remove_collaborator(request)
+        elif action == 'archive_project':
+            return self._archive_project(request)
+        elif action == 'restore_project':
+            return self._restore_project(request)
+        elif action == 'delete_project_permanently':
+            return self._delete_project_permanently(request)
+        elif action == 'get_archived_projects':
+            return self._get_archived_projects(request)
 
         return {'status': 'error', 'message': 'Unknown action'}
 
@@ -276,6 +288,143 @@ class ProjectManagerAgent(Agent):
         else:
             return {'status': 'error', 'message': 'User is not a collaborator'}
 
+    def _archive_project(self, request: Dict) -> Dict:
+        project_id = request.get('project_id')
+        requester = request.get('requester')
+
+        # Load project to check ownership
+        project = self.orchestrator.database.load_project(project_id)
+        if not project:
+            return {'status': 'error', 'message': 'Project not found'}
+
+        # Only owner can archive
+        if requester != project.owner:
+            return {'status': 'error', 'message': 'Only project owner can archive project'}
+
+        success = self.orchestrator.database.archive_project(project_id)
+        if success:
+            self.log(f"Archived project '{project.name}' (ID: {project_id})")
+            return {'status': 'success', 'message': 'Project archived successfully'}
+        else:
+            return {'status': 'error', 'message': 'Failed to archive project'}
+
+    def _restore_project(self, request: Dict) -> Dict:
+        project_id = request.get('project_id')
+        requester = request.get('requester')
+
+        # Load project to check ownership
+        project = self.orchestrator.database.load_project(project_id)
+        if not project:
+            return {'status': 'error', 'message': 'Project not found'}
+
+        # Only owner can restore
+        if requester != project.owner:
+            return {'status': 'error', 'message': 'Only project owner can restore project'}
+
+        success = self.orchestrator.database.restore_project(project_id)
+        if success:
+            self.log(f"Restored project '{project.name}' (ID: {project_id})")
+            return {'status': 'success', 'message': 'Project restored successfully'}
+        else:
+            return {'status': 'error', 'message': 'Failed to restore project'}
+
+    def _delete_project_permanently(self, request: Dict) -> Dict:
+        project_id = request.get('project_id')
+        requester = request.get('requester')
+        confirmation = request.get('confirmation', '')
+
+        # Load project to check ownership
+        project = self.orchestrator.database.load_project(project_id)
+        if not project:
+            return {'status': 'error', 'message': 'Project not found'}
+
+        # Only owner can delete
+        if requester != project.owner:
+            return {'status': 'error', 'message': 'Only project owner can delete project'}
+
+        # Require confirmation
+        if confirmation != 'DELETE':
+            return {'status': 'error', 'message': 'Must type "DELETE" to confirm permanent deletion'}
+
+        success = self.orchestrator.database.permanently_delete_project(project_id)
+        if success:
+            self.log(f"PERMANENTLY DELETED project '{project.name}' (ID: {project_id})")
+            return {'status': 'success', 'message': 'Project permanently deleted'}
+        else:
+            return {'status': 'error', 'message': 'Failed to delete project'}
+
+    def _get_archived_projects(self, request: Dict) -> Dict:
+        archived = self.orchestrator.database.get_archived_items('projects')
+        return {'status': 'success', 'archived_projects': archived}
+
+
+class UserManagerAgent(Agent):
+    def __init__(self, orchestrator):
+        super().__init__("UserManager", orchestrator)
+
+    def process(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        action = request.get('action')
+
+        if action == 'archive_user':
+            return self._archive_user(request)
+        elif action == 'restore_user':
+            return self._restore_user(request)
+        elif action == 'delete_user_permanently':
+            return self._delete_user_permanently(request)
+        elif action == 'get_archived_users':
+            return self._get_archived_users(request)
+
+        return {'status': 'error', 'message': 'Unknown action'}
+
+    def _archive_user(self, request: Dict) -> Dict:
+        username = request.get('username')
+        requester = request.get('requester')
+        archive_projects = request.get('archive_projects', True)
+
+        # Users can only archive themselves
+        if requester != username:
+            return {'status': 'error', 'message': 'Users can only archive their own accounts'}
+
+        success = self.orchestrator.database.archive_user(username, archive_projects)
+        if success:
+            self.log(f"Archived user '{username}'")
+            return {'status': 'success', 'message': 'Account archived successfully'}
+        else:
+            return {'status': 'error', 'message': 'Failed to archive account'}
+
+    def _restore_user(self, request: Dict) -> Dict:
+        username = request.get('username')
+
+        success = self.orchestrator.database.restore_user(username)
+        if success:
+            self.log(f"Restored user '{username}'")
+            return {'status': 'success', 'message': 'Account restored successfully'}
+        else:
+            return {'status': 'error', 'message': 'Failed to restore account or account not archived'}
+
+    def _delete_user_permanently(self, request: Dict) -> Dict:
+        username = request.get('username')
+        requester = request.get('requester')
+        confirmation = request.get('confirmation', '')
+
+        # Users can only delete themselves
+        if requester != username:
+            return {'status': 'error', 'message': 'Users can only delete their own accounts'}
+
+        # Require confirmation
+        if confirmation != 'DELETE':
+            return {'status': 'error', 'message': 'Must type "DELETE" to confirm permanent deletion'}
+
+        success = self.orchestrator.database.permanently_delete_user(username)
+        if success:
+            self.log(f"PERMANENTLY DELETED user '{username}'")
+            return {'status': 'success', 'message': 'Account permanently deleted'}
+        else:
+            return {'status': 'error', 'message': 'Failed to delete account'}
+
+    def _get_archived_users(self, request: Dict) -> Dict:
+        archived = self.orchestrator.database.get_archived_items('users')
+        return {'status': 'success', 'archived_users': archived}
 
 class SocraticCounselorAgent(Agent):
     def __init__(self, orchestrator):
@@ -1369,6 +1518,262 @@ class ProjectDatabase:
         conn.close()
         return result is not None
 
+    def archive_user(self, username: str, archive_projects: bool = True) -> bool:
+        """Archive a user (soft delete)"""
+        try:
+            user = self.load_user(username)
+            if not user:
+                return False
+
+            # Archive user
+            user.is_archived = True
+            user.archived_at = datetime.datetime.now()
+            self.save_user(user)
+
+            if archive_projects:
+                # Archive all projects owned by this user
+                conn = sqlite3.connect(self.db_path)
+                cursor = conn.cursor()
+
+                cursor.execute('SELECT project_id, data FROM projects')
+                results = cursor.fetchall()
+
+                for project_id, data in results:
+                    try:
+                        project_data = pickle.loads(data)
+                        if project_data['owner'] == username and not project_data.get('is_archived', False):
+                            # Archive this project
+                            project_data['is_archived'] = True
+                            project_data['archived_at'] = datetime.datetime.now()
+                            updated_data = pickle.dumps(project_data)
+
+                            cursor.execute('''
+                                UPDATE projects SET data = ?, updated_at = ?
+                                WHERE project_id = ?
+                            ''', (updated_data, datetime.datetime.now().isoformat(), project_id))
+
+                    except Exception as e:
+                        print(f"Warning: Could not archive project {project_id}: {e}")
+
+                conn.commit()
+                conn.close()
+
+            return True
+
+        except Exception as e:
+            print(f"Error archiving user: {e}")
+            return False
+
+    def restore_user(self, username: str) -> bool:
+        """Restore an archived user"""
+        try:
+            user = self.load_user(username)
+            if not user or not user.is_archived:
+                return False
+
+            user.is_archived = False
+            user.archived_at = None
+            self.save_user(user)
+            return True
+
+        except Exception as e:
+            print(f"Error restoring user: {e}")
+            return False
+
+    def permanently_delete_user(self, username: str) -> bool:
+        """Permanently delete a user and transfer their projects"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # First, handle projects owned by this user
+            cursor.execute('SELECT project_id, data FROM projects')
+            results = cursor.fetchall()
+
+            projects_to_delete = []
+            projects_to_transfer = []
+
+            for project_id, data in results:
+                try:
+                    project_data = pickle.loads(data)
+                    if project_data['owner'] == username:
+                        if project_data.get('collaborators'):
+                            # Transfer to first collaborator
+                            new_owner = project_data['collaborators'][0]
+                            project_data['owner'] = new_owner
+                            project_data['collaborators'].remove(new_owner)
+                            project_data['updated_at'] = datetime.datetime.now()
+
+                            updated_data = pickle.dumps(project_data)
+                            cursor.execute('''
+                                UPDATE projects SET data = ?, updated_at = ?
+                                WHERE project_id = ?
+                            ''', (updated_data, project_data['updated_at'].isoformat(), project_id))
+
+                            projects_to_transfer.append((project_id, new_owner))
+                        else:
+                            # No collaborators, mark for deletion
+                            projects_to_delete.append(project_id)
+
+                except Exception as e:
+                    print(f"Warning: Could not process project {project_id}: {e}")
+
+            # Delete projects with no collaborators
+            for project_id in projects_to_delete:
+                cursor.execute('DELETE FROM projects WHERE project_id = ?', (project_id,))
+
+            # Delete the user
+            cursor.execute('DELETE FROM users WHERE username = ?', (username,))
+
+            conn.commit()
+            conn.close()
+
+            print(
+                f"User {username} deleted. {len(projects_to_transfer)} projects transferred, {len(projects_to_delete)} projects deleted.")
+            return True
+
+        except Exception as e:
+            print(f"Error permanently deleting user: {e}")
+            return False
+
+    def archive_project(self, project_id: str) -> bool:
+        """Archive a project (soft delete)"""
+        try:
+            project = self.load_project(project_id)
+            if not project:
+                return False
+
+            project.is_archived = True
+            project.archived_at = datetime.datetime.now()
+            project.updated_at = datetime.datetime.now()
+            self.save_project(project)
+            return True
+
+        except Exception as e:
+            print(f"Error archiving project: {e}")
+            return False
+
+    def restore_project(self, project_id: str) -> bool:
+        """Restore an archived project"""
+        try:
+            project = self.load_project(project_id)
+            if not project or not project.is_archived:
+                return False
+
+            project.is_archived = False
+            project.archived_at = None
+            project.updated_at = datetime.datetime.now()
+            self.save_project(project)
+            return True
+
+        except Exception as e:
+            print(f"Error restoring project: {e}")
+            return False
+
+    def permanently_delete_project(self, project_id: str) -> bool:
+        """Permanently delete a project"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            cursor.execute('DELETE FROM projects WHERE project_id = ?', (project_id,))
+            conn.commit()
+            conn.close()
+            return True
+
+        except Exception as e:
+            print(f"Error permanently deleting project: {e}")
+            return False
+
+    def get_user_projects(self, username: str, include_archived: bool = False) -> List[Dict]:
+        """Get all projects for a user - MODIFY EXISTING METHOD"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT project_id, data FROM projects')
+        results = cursor.fetchall()
+        conn.close()
+
+        projects = []
+        for project_id, data in results:
+            try:
+                project_data = pickle.loads(data)
+
+                # Handle datetime deserialization if needed
+                if isinstance(project_data.get('updated_at'), str):
+                    project_data['updated_at'] = self._deserialize_datetime(project_data['updated_at'])
+
+                # Skip archived projects unless requested
+                if project_data.get('is_archived', False) and not include_archived:
+                    continue
+
+                # Check if user is owner or collaborator
+                if (project_data['owner'] == username or
+                        username in project_data.get('collaborators', [])):
+                    status = "archived" if project_data.get('is_archived', False) else "active"
+
+                    projects.append({
+                        'project_id': project_id,
+                        'name': project_data['name'],
+                        'phase': project_data['phase'],
+                        'status': status,  # ADD THIS LINE
+                        'updated_at': project_data['updated_at'].strftime("%Y-%m-%d %H:%M:%S") if isinstance(
+                            project_data['updated_at'], datetime.datetime) else str(project_data['updated_at'])
+                    })
+            except Exception as e:
+                print(f"Warning: Could not load project {project_id}: {e}")
+
+        return projects
+
+    def get_archived_items(self, item_type: str) -> List[Dict]:
+        """Get all archived users or projects"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        if item_type == 'users':
+            cursor.execute('SELECT username, data FROM users')
+            results = cursor.fetchall()
+
+            archived_users = []
+            for username, data in results:
+                try:
+                    user_data = pickle.loads(data)
+                    if user_data.get('is_archived', False):
+                        archived_users.append({
+                            'username': username,
+                            'archived_at': user_data.get('archived_at'),
+                            'project_count': len(user_data.get('projects', []))
+                        })
+                except Exception as e:
+                    print(f"Warning: Could not load user {username}: {e}")
+
+            conn.close()
+            return archived_users
+
+        elif item_type == 'projects':
+            cursor.execute('SELECT project_id, data FROM projects')
+            results = cursor.fetchall()
+
+            archived_projects = []
+            for project_id, data in results:
+                try:
+                    project_data = pickle.loads(data)
+                    if project_data.get('is_archived', False):
+                        archived_projects.append({
+                            'project_id': project_id,
+                            'name': project_data['name'],
+                            'owner': project_data['owner'],
+                            'archived_at': project_data.get('archived_at')
+                        })
+                except Exception as e:
+                    print(f"Warning: Could not load project {project_id}: {e}")
+
+            conn.close()
+            return archived_projects
+
+        conn.close()
+        return []
+
 
 # Claude API Client
 class ClaudeClient:
@@ -2053,6 +2458,7 @@ class AgentOrchestrator:
         self.system_monitor = SystemMonitorAgent(self)
         self.conflict_detector = ConflictDetectorAgent(self)
         self.document_agent = DocumentAgent(self)
+        self.user_manager = UserManagerAgent(self)
 
     def _load_knowledge_base(self):
         """Load default knowledge base if not already loaded"""
@@ -2121,7 +2527,8 @@ class AgentOrchestrator:
             'code_generator': self.code_generator,
             'system_monitor': self.system_monitor,
             'conflict_detector': self.conflict_detector,
-            'document_agent': self.document_agent
+            'document_agent': self.document_agent,
+            'user_manager': self.user_manager
         }
 
         agent = agents.get(agent_name)
@@ -2355,6 +2762,370 @@ class SocraticRAGSystem:
         else:
             print(f"{Fore.RED}Error: {result['message']}")
 
+    def _account_management(self):
+        """Account management menu"""
+        while True:
+            print(f"\n{Fore.CYAN}Account Management")
+            print(f"{Fore.WHITE}Current User: {self.current_user.username}")
+
+            print(f"\n{Fore.YELLOW}Options:")
+            print("1. Archive my account (soft delete)")
+            print("2. Permanently delete my account")
+            print("3. View archived accounts (restore option)")
+            print("4. Back to main menu")
+
+            choice = input(f"{Fore.WHITE}Choose option (1-4): ").strip()
+
+            if choice == '1':
+                self._archive_current_account()
+            elif choice == '2':
+                self._delete_current_account()
+            elif choice == '3':
+                self._view_archived_accounts()
+            elif choice == '4':
+                break
+            else:
+                print(f"{Fore.RED}Invalid choice.")
+
+    def _archive_current_account(self):
+        """Archive current user account"""
+        print(f"\n{Fore.YELLOW}⚠️  Account Archiving")
+        print("This will:")
+        print("• Archive your account (you can restore it later)")
+        print("• Archive all projects you own")
+        print("• Remove you from collaborations")
+        print("• Keep all data for potential restoration")
+
+        confirm = input(f"\n{Fore.RED}Are you sure? (yes/no): ").lower()
+        if confirm != 'yes':
+            print(f"{Fore.GREEN}Archiving cancelled.")
+            return
+
+        result = self.orchestrator.process_request('user_manager', {
+            'action': 'archive_user',
+            'username': self.current_user.username,
+            'requester': self.current_user.username
+        })
+
+        if result['status'] == 'success':
+            print(f"{Fore.GREEN}✓ {result['message']}")
+            print("You will be logged out now.")
+            self.current_user = None
+            self.current_project = None
+            input("Press Enter to continue...")
+        else:
+            print(f"{Fore.RED}Error: {result['message']}")
+
+    def _delete_current_account(self):
+        """Permanently delete current user account"""
+        print(f"\n{Fore.RED}⚠️  PERMANENT ACCOUNT DELETION")
+        print("This will:")
+        print("• PERMANENTLY delete your account")
+        print("• Transfer owned projects to collaborators")
+        print("• Delete projects with no collaborators")
+        print("• Remove all your data FOREVER")
+
+        print(f"\n{Fore.YELLOW}This action CANNOT be undone!")
+
+        confirm1 = input(f"\n{Fore.RED}Type 'I UNDERSTAND' to continue: ").strip()
+        if confirm1 != 'I UNDERSTAND':
+            print(f"{Fore.GREEN}Deletion cancelled.")
+            return
+
+        confirm2 = input(f"{Fore.RED}Type 'DELETE' to confirm permanent deletion: ").strip()
+        if confirm2 != 'DELETE':
+            print(f"{Fore.GREEN}Deletion cancelled.")
+            return
+
+        result = self.orchestrator.process_request('user_manager', {
+            'action': 'delete_user_permanently',
+            'username': self.current_user.username,
+            'requester': self.current_user.username,
+            'confirmation': 'DELETE'
+        })
+
+        if result['status'] == 'success':
+            print(f"{Fore.GREEN}✓ {result['message']}")
+            print("Account has been permanently deleted.")
+            print("Goodbye.")
+            self.current_user = None
+            self.current_project = None
+            input("Press Enter to exit...")
+            exit()
+        else:
+            print(f"{Fore.RED}Error: {result['message']}")
+
+    def _view_archived_accounts(self):
+        """View and restore archived accounts"""
+        result = self.orchestrator.process_request('user_manager', {
+            'action': 'get_archived_users'
+        })
+
+        if result['status'] != 'success' or not result['archived_users']:
+            print(f"{Fore.YELLOW}No archived accounts found.")
+            return
+
+        print(f"\n{Fore.CYAN}Archived Accounts:")
+        archived_users = result['archived_users']
+
+        for i, user_info in enumerate(archived_users, 1):
+            archived_date = user_info.get('archived_at', 'Unknown')
+            if isinstance(archived_date, str):
+                try:
+                    archived_date = datetime.datetime.fromisoformat(archived_date).strftime("%Y-%m-%d %H:%M")
+                except:
+                    pass
+
+            print(f"{i}. {user_info['username']} (archived: {archived_date})")
+
+        try:
+            choice = input(
+                f"\n{Fore.WHITE}Select account to restore (1-{len(archived_users)}, or 0 to cancel): ").strip()
+
+            if choice == '0':
+                return
+
+            index = int(choice) - 1
+            if 0 <= index < len(archived_users):
+                username = archived_users[index]['username']
+
+                confirm = input(f"{Fore.CYAN}Restore account '{username}'? (y/n): ").lower()
+                if confirm == 'y':
+                    result = self.orchestrator.process_request('user_manager', {
+                        'action': 'restore_user',
+                        'username': username
+                    })
+
+                    if result['status'] == 'success':
+                        print(f"{Fore.GREEN}✓ Account '{username}' restored successfully!")
+                    else:
+                        print(f"{Fore.RED}Error: {result['message']}")
+            else:
+                print(f"{Fore.RED}Invalid selection.")
+
+        except ValueError:
+            print(f"{Fore.RED}Invalid input.")
+
+    def _project_management(self):
+        """Extended project management menu"""
+        while True:
+            print(f"\n{Fore.CYAN}Project Management")
+            if self.current_project:
+                status = "archived" if getattr(self.current_project, 'is_archived', False) else "active"
+                print(f"{Fore.WHITE}Current Project: {self.current_project.name} ({status})")
+
+            print(f"\n{Fore.YELLOW}Options:")
+            print("1. List all projects")
+            print("2. Archive current project")
+            print("3. View archived projects")
+            print("4. Permanently delete project")
+            print("5. Back to main menu")
+
+            choice = input(f"{Fore.WHITE}Choose option (1-5): ").strip()
+
+            if choice == '1':
+                self._list_all_projects()
+            elif choice == '2':
+                self._archive_current_project()
+            elif choice == '3':
+                self._view_archived_projects()
+            elif choice == '4':
+                self._delete_project_permanently_ui()
+            elif choice == '5':
+                break
+            else:
+                print(f"{Fore.RED}Invalid choice.")
+
+    def _archive_current_project(self):
+        """Archive current project"""
+        if not self.current_project:
+            print(f"{Fore.RED}No current project loaded.")
+            return
+
+        if self.current_user.username != self.current_project.owner:
+            print(f"{Fore.RED}Only the project owner can archive projects.")
+            return
+
+        print(f"\n{Fore.YELLOW}Archive project '{self.current_project.name}'?")
+        print("This will hide it from normal view but preserve all data.")
+
+        confirm = input(f"{Fore.CYAN}Continue? (y/n): ").lower()
+        if confirm != 'y':
+            return
+
+        result = self.orchestrator.process_request('project_manager', {
+            'action': 'archive_project',
+            'project_id': self.current_project.project_id,
+            'requester': self.current_user.username
+        })
+
+        if result['status'] == 'success':
+            print(f"{Fore.GREEN}✓ {result['message']}")
+            self.current_project = None
+        else:
+            print(f"{Fore.RED}Error: {result['message']}")
+
+    def _view_archived_projects(self):
+        """View and restore archived projects"""
+        result = self.orchestrator.process_request('project_manager', {
+            'action': 'get_archived_projects'
+        })
+
+        if result['status'] != 'success' or not result['archived_projects']:
+            print(f"{Fore.YELLOW}No archived projects found.")
+            return
+
+        print(f"\n{Fore.CYAN}Archived Projects:")
+        archived_projects = result['archived_projects']
+
+        for i, project_info in enumerate(archived_projects, 1):
+            archived_date = project_info.get('archived_at', 'Unknown')
+            if isinstance(archived_date, str):
+                try:
+                    archived_date = datetime.datetime.fromisoformat(archived_date).strftime("%Y-%m-%d %H:%M")
+                except:
+                    pass
+
+            print(f"{i}. {project_info['name']} by {project_info['owner']} (archived: {archived_date})")
+
+        try:
+            choice = input(
+                f"\n{Fore.WHITE}Select project to restore (1-{len(archived_projects)}, or 0 to cancel): ").strip()
+
+            if choice == '0':
+                return
+
+            index = int(choice) - 1
+            if 0 <= index < len(archived_projects):
+                project = archived_projects[index]
+
+                # Check if user has permission
+                if (self.current_user.username != project['owner']):
+                    print(f"{Fore.RED}Only the project owner can restore projects.")
+                    return
+
+                confirm = input(f"{Fore.CYAN}Restore project '{project['name']}'? (y/n): ").lower()
+                if confirm == 'y':
+                    result = self.orchestrator.process_request('project_manager', {
+                        'action': 'restore_project',
+                        'project_id': project['project_id'],
+                        'requester': self.current_user.username
+                    })
+
+                    if result['status'] == 'success':
+                        print(f"{Fore.GREEN}✓ Project '{project['name']}' restored successfully!")
+                    else:
+                        print(f"{Fore.RED}Error: {result['message']}")
+            else:
+                print(f"{Fore.RED}Invalid selection.")
+
+        except ValueError:
+            print(f"{Fore.RED}Invalid input.")
+
+    def _list_all_projects(self):
+        """List all projects including archived ones"""
+        result = self.orchestrator.process_request('project_manager', {
+            'action': 'list_projects',
+            'username': self.current_user.username
+        })
+
+        if result['status'] != 'success' or not result['projects']:
+            print(f"{Fore.YELLOW}No projects found.")
+            return
+
+        print(f"\n{Fore.CYAN}All Your Projects:")
+        for project in result['projects']:
+            status_color = Fore.YELLOW if project.get('status') == 'archived' else Fore.WHITE
+            print(
+                f"{status_color}• {project['name']} ({project['phase']}) - {project['status']} - {project['updated_at']}")
+
+    def _delete_project_permanently_ui(self):
+        """UI for permanent project deletion"""
+        # Get user's projects including archived
+        result = self.orchestrator.process_request('project_manager', {
+            'action': 'list_projects',
+            'username': self.current_user.username
+        })
+
+        if result['status'] != 'success' or not result['projects']:
+            print(f"{Fore.YELLOW}No projects found.")
+            return
+
+        # Filter to only owned projects
+        owned_projects = []
+        for project_info in result['projects']:
+            # Load full project to check ownership
+            project = self.orchestrator.database.load_project(project_info['project_id'])
+            if project and project.owner == self.current_user.username:
+                owned_projects.append({
+                    'project_id': project.project_id,
+                    'name': project.name,
+                    'status': project_info.get('status', 'active'),
+                    'collaborator_count': len(project.collaborators)
+                })
+
+        if not owned_projects:
+            print(f"{Fore.YELLOW}You don't own any projects.")
+            return
+
+        print(f"\n{Fore.RED}⚠️  PERMANENT PROJECT DELETION")
+        print("Select a project to permanently delete:")
+
+        for i, project in enumerate(owned_projects, 1):
+            status_indicator = "🗄️" if project['status'] == 'archived' else "📁"
+            collab_text = f"({project['collaborator_count']} collaborators)" if project[
+                                                                                    'collaborator_count'] > 0 else "(no collaborators)"
+            print(f"{i}. {status_indicator} {project['name']} {collab_text}")
+
+        try:
+            choice = input(f"\n{Fore.WHITE}Select project (1-{len(owned_projects)}, or 0 to cancel): ").strip()
+
+            if choice == '0':
+                return
+
+            index = int(choice) - 1
+            if 0 <= index < len(owned_projects):
+                project = owned_projects[index]
+
+                print(f"\n{Fore.RED}⚠️  You are about to PERMANENTLY DELETE:")
+                print(f"Project: {project['name']}")
+                print(f"Status: {project['status']}")
+                print(f"Collaborators: {project['collaborator_count']}")
+                print(f"\n{Fore.YELLOW}This action CANNOT be undone!")
+                print("All conversation history, context, and project data will be lost forever.")
+
+                confirm1 = input(f"\n{Fore.RED}Type the project name to continue: ").strip()
+                if confirm1 != project['name']:
+                    print(f"{Fore.GREEN}Deletion cancelled.")
+                    return
+
+                confirm2 = input(f"{Fore.RED}Type 'DELETE' to confirm permanent deletion: ").strip()
+                if confirm2 != 'DELETE':
+                    print(f"{Fore.GREEN}Deletion cancelled.")
+                    return
+
+                result = self.orchestrator.process_request('project_manager', {
+                    'action': 'delete_project_permanently',
+                    'project_id': project['project_id'],
+                    'requester': self.current_user.username,
+                    'confirmation': 'DELETE'
+                })
+
+                if result['status'] == 'success':
+                    print(f"{Fore.GREEN}✓ {result['message']}")
+
+                    # Clear current project if it was the deleted one
+                    if (self.current_project and
+                            self.current_project.project_id == project['project_id']):
+                        self.current_project = None
+                else:
+                    print(f"{Fore.RED}Error: {result['message']}")
+            else:
+                print(f"{Fore.RED}Invalid selection.")
+
+        except ValueError:
+            print(f"{Fore.RED}Invalid input.")
+
     def _main_loop(self):
         """Main application loop"""
         while True:
@@ -2365,17 +3136,20 @@ class SocraticRAGSystem:
                 if self.current_project:
                     print(f"Current Project: {self.current_project.name} ({self.current_project.phase})")
 
+                print(f"\n{Fore.YELLOW}Options:")
                 print("1. Create new project")
                 print("2. Load existing project")
                 print("3. Continue current project")
                 print("4. Generate code")
                 print("5. Manage collaborators")
-                print("6. Import documents")  # ADD THIS LINE
-                print("7. View system status")
-                print("8. Switch user")
-                print("9. Exit")
+                print("6. Import documents")
+                print("7. Project management (archive/delete)")
+                print("8. Account management (archive/delete)")
+                print("9. View system status")
+                print("10. Switch user")
+                print("11. Exit")
 
-                choice = input(f"{Fore.WHITE}Choose option (1-9): ").strip()
+                choice = input(f"{Fore.WHITE}Choose option (1-11): ").strip()
 
                 if choice == '1':
                     self._create_project()
@@ -2383,27 +3157,41 @@ class SocraticRAGSystem:
                     self._load_project()
                 elif choice == '3':
                     if self.current_project:
-                        self._continue_project()
+                        # Check if project is archived
+                        if getattr(self.current_project, 'is_archived', False):
+                            print(f"{Fore.YELLOW}This project is archived. Restore it first in Project Management.")
+                        else:
+                            self._continue_project()
                     else:
                         print(f"{Fore.RED}No current project loaded.")
                 elif choice == '4':
                     if self.current_project:
-                        self._generate_code()
+                        if getattr(self.current_project, 'is_archived', False):
+                            print(f"{Fore.YELLOW}Cannot generate code for archived project. Restore it first.")
+                        else:
+                            self._generate_code()
                     else:
                         print(f"{Fore.RED}No current project loaded.")
                 elif choice == '5':
                     if self.current_project:
-                        self._manage_collaborators()
+                        if getattr(self.current_project, 'is_archived', False):
+                            print(f"{Fore.YELLOW}Cannot manage collaborators for archived project. Restore it first.")
+                        else:
+                            self._manage_collaborators()
                     else:
                         print(f"{Fore.RED}No current project loaded.")
-                elif choice == '6':  # ADD THIS BLOCK
+                elif choice == '6':
                     self._import_documents()
-                elif choice == '7':
+                elif choice == '7':  # MODIFY THIS
+                    self._project_management()
+                elif choice == '8':  # ADD THIS
+                    self._account_management()
+                elif choice == '9':
                     self._show_system_status()
-                elif choice == '8':
+                elif choice == '10':
                     if self._handle_user_authentication():
                         self.current_project = None
-                elif choice == '9':
+                elif choice == '11':
                     print(f"{Fore.GREEN}           Thank you for using Socratic RAG System")
                     print(f"{Fore.GREEN}..τω Ασκληπιώ οφείλομεν αλετρυόνα, απόδοτε και μη αμελήσετε..")
                     break
@@ -2411,7 +3199,7 @@ class SocraticRAGSystem:
                     print(f"{Fore.RED}Invalid choice. Please try again.")
 
             except KeyboardInterrupt:
-                print(f"\n{Fore.YELLOW}Use option 9 to exit properly.")
+                print(f"\n{Fore.YELLOW}Use option 11 to exit properly.")
             except Exception as e:
                 print(f"{Fore.RED}Error: {e}")
 
@@ -2440,7 +3228,7 @@ class SocraticRAGSystem:
 
     def _load_project(self):
         """Load an existing project"""
-        # Get user's projects
+        # Get user's projects including archived
         result = self.orchestrator.process_request('project_manager', {
             'action': 'list_projects',
             'username': self.current_user.username
@@ -2450,16 +3238,31 @@ class SocraticRAGSystem:
             print(f"{Fore.YELLOW}No projects found.")
             return
 
-        print(f"\n{Fore.CYAN}Your Projects:")
-        projects = result['projects']
+        # Separate active and archived projects
+        active_projects = [p for p in result['projects'] if p.get('status') != 'archived']
+        archived_projects = [p for p in result['projects'] if p.get('status') == 'archived']
 
-        for i, project in enumerate(projects, 1):
-            print(f"{i}. {project['name']} ({project['phase']}) - {project['updated_at']}")
+        print(f"\n{Fore.CYAN}Your Projects:")
+
+        all_projects = []
+
+        if active_projects:
+            print(f"{Fore.GREEN}Active Projects:")
+            for project in active_projects:
+                all_projects.append(project)
+                print(f"{len(all_projects)}. 📁 {project['name']} ({project['phase']}) - {project['updated_at']}")
+
+        if archived_projects:
+            print(f"{Fore.YELLOW}Archived Projects:")
+            for project in archived_projects:
+                all_projects.append(project)
+                print(f"{len(all_projects)}. 🗄️ {project['name']} ({project['phase']}) - {project['updated_at']}")
 
         try:
-            choice = int(input(f"{Fore.WHITE}Select project (1-{len(projects)}): ")) - 1
-            if 0 <= choice < len(projects):
-                project_id = projects[choice]['project_id']
+            choice = int(input(f"{Fore.WHITE}Select project (1-{len(all_projects)}): ")) - 1
+            if 0 <= choice < len(all_projects):
+                project_info = all_projects[choice]
+                project_id = project_info['project_id']
 
                 # Load project
                 result = self.orchestrator.process_request('project_manager', {
@@ -2469,7 +3272,12 @@ class SocraticRAGSystem:
 
                 if result['status'] == 'success':
                     self.current_project = result['project']
-                    print(f"{Fore.GREEN}✓ Project loaded successfully!")
+
+                    if getattr(self.current_project, 'is_archived', False):
+                        print(f"{Fore.YELLOW}✓ Archived project loaded successfully!")
+                        print(f"{Fore.YELLOW}Note: This project is archived. Some features may be limited.")
+                    else:
+                        print(f"{Fore.GREEN}✓ Project loaded successfully!")
                 else:
                     print(f"{Fore.RED}Error loading project: {result['message']}")
             else:
