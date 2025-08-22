@@ -2,6 +2,12 @@
 """
 User Simulation Agent for Socratic RAG System
 Simulates diverse user behaviors for comprehensive testing and validation
+Comprehensive User Simulation: Simulates 5 different user personalities with realistic behavior patterns
+Multi-User Scenarios: Handles collaborative scenarios with multiple simulated users
+Conflict Detection: Integrates with the Socratic system's conflict detection mechanisms
+Analytics & Reporting: Provides detailed analytics on user behavior patterns and system performance
+Data Export: Allows exporting simulation results for further analysis
+Extensible Design: Easy to add new user profiles and interaction patterns
 """
 
 import random
@@ -735,4 +741,343 @@ class UserSimulationAgent:
             }
 
     def _check_for_conflicts(self, project, current_user: str) -> List[Dict[str, Any]]:
-        """Check for conflicts in
+        """Check for conflicts in the project after user interactions"""
+        conflicts = []
+
+        try:
+            # Use the orchestrator's conflict detection system
+            conflict_result = self.orchestrator.process_request('conflict_detector', {
+                'action': 'detect_conflicts',
+                'project': project,
+                'current_user': current_user
+            })
+
+            if conflict_result.get('status') == 'success':
+                detected_conflicts = conflict_result.get('conflicts', [])
+
+                for conflict in detected_conflicts:
+                    conflicts.append({
+                        'type': 'project_conflict',
+                        'description': conflict.get('description', 'Unknown conflict'),
+                        'severity': conflict.get('severity', 'medium'),
+                        'affected_users': conflict.get('affected_users', []),
+                        'detected_by': current_user,
+                        'timestamp': datetime.datetime.now()
+                    })
+
+        except Exception as e:
+            # Log error but don't break simulation
+            conflicts.append({
+                'type': 'detection_error',
+                'description': f'Error detecting conflicts: {str(e)}',
+                'severity': 'low',
+                'timestamp': datetime.datetime.now()
+            })
+
+        return conflicts
+
+    def _capture_final_project_state(self, project) -> Dict[str, Any]:
+        """Capture the final state of a project after simulation"""
+        final_state = {
+            'project_id': getattr(project, 'project_id', 'unknown'),
+            'name': getattr(project, 'name', 'unnamed'),
+            'phase': getattr(project, 'phase', 'unknown'),
+            'completion_timestamp': datetime.datetime.now()
+        }
+
+        # Capture various project attributes if they exist
+        attributes_to_capture = [
+            'goals', 'requirements', 'tech_stack', 'constraints',
+            'collaborators', 'team_structure', 'deployment_target'
+        ]
+
+        for attr in attributes_to_capture:
+            if hasattr(project, attr):
+                value = getattr(project, attr)
+                if isinstance(value, (list, dict, str, int, float, bool)):
+                    final_state[attr] = value
+                else:
+                    final_state[attr] = str(value)
+
+        # Calculate metrics
+        final_state['metrics'] = {
+            'requirements_count': len(getattr(project, 'requirements', [])),
+            'tech_stack_size': len(getattr(project, 'tech_stack', [])),
+            'collaborator_count': len(getattr(project, 'collaborators', [])),
+            'completion_score': self._calculate_completion_score(project)
+        }
+
+        return final_state
+
+    def generate_simulation_report(self, simulation_id: str = None) -> Dict[str, Any]:
+        """Generate a comprehensive report of simulation results"""
+        if simulation_id and simulation_id in self.active_simulations:
+            # Report on specific simulation
+            context = self.active_simulations[simulation_id]
+            return self._generate_single_simulation_report(context)
+        else:
+            # Report on all simulations
+            return self._generate_comprehensive_report()
+
+    def _generate_single_simulation_report(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate report for a single simulation"""
+        profile = context['profile']
+
+        report = {
+            'simulation_id': context['simulation_id'],
+            'user_profile': {
+                'user_id': profile.user_id,
+                'personality': profile.personality.value,
+                'interaction_pattern': profile.interaction_pattern.value,
+                'technical_expertise': profile.technical_expertise,
+                'collaboration_tendency': profile.collaboration_tendency
+            },
+            'session_metrics': {
+                'start_time': context['start_time'],
+                'status': context['status'],
+                'interactions_count': len(context.get('conversation_history', [])),
+                'current_step': context['current_step']
+            }
+        }
+
+        if context['project']:
+            report['project_state'] = self._capture_final_project_state(context['project'])
+
+        return report
+
+    def _generate_comprehensive_report(self) -> Dict[str, Any]:
+        """Generate comprehensive report across all simulations"""
+        analytics = self.get_simulation_analytics()
+
+        report = {
+            'report_timestamp': datetime.datetime.now(),
+            'analytics': analytics,
+            'recommendations': self._generate_recommendations(analytics),
+            'simulation_profiles': [
+                {
+                    'user_id': p.user_id,
+                    'personality': p.personality.value,
+                    'expertise': p.technical_expertise
+                } for p in self.simulation_profiles
+            ]
+        }
+
+        return report
+
+    def _generate_recommendations(self, analytics: Dict[str, Any]) -> List[str]:
+        """Generate recommendations based on simulation analytics"""
+        recommendations = []
+
+        # Check conflict frequency
+        if analytics.get('conflict_frequency', 0) > 2:
+            recommendations.append(
+                "High conflict frequency detected. Consider improving conflict detection and resolution mechanisms."
+            )
+
+        # Check collaboration success
+        if analytics.get('collaboration_success_rate', 0) < 0.5:
+            recommendations.append(
+                "Low collaboration success rate. Consider enhancing team coordination features."
+            )
+
+        # Check session lengths
+        avg_length = analytics.get('average_session_length', 0)
+        if avg_length < 5:
+            recommendations.append(
+                "Short average session length suggests users may not be fully engaging with the system."
+            )
+        elif avg_length > 25:
+            recommendations.append(
+                "Long average session length may indicate the system is not efficiently guiding users."
+            )
+
+        # Personality-specific recommendations
+        personality_dist = analytics.get('personality_distribution', {})
+        if personality_dist.get('impatient_startup', 0) > 0:
+            recommendations.append(
+                "Consider implementing quick-start templates for impatient startup users."
+            )
+
+        if personality_dist.get('novice_explorer', 0) > 0:
+            recommendations.append(
+                "Ensure comprehensive help documentation and tutorials are available for novice users."
+            )
+
+        if not recommendations:
+            recommendations.append("System performance appears to be within acceptable parameters.")
+
+        return recommendations
+
+    def cleanup_simulation(self, simulation_id: str) -> bool:
+        """Clean up resources from a completed simulation"""
+        if simulation_id in self.active_simulations:
+            context = self.active_simulations[simulation_id]
+
+            # Mark as completed
+            context['status'] = 'cleaned_up'
+            context['cleanup_time'] = datetime.datetime.now()
+
+            # Move to history if not already there
+            if not any(s.get('simulation_id') == simulation_id for s in self.simulation_history):
+                session_summary = {
+                    'simulation_id': simulation_id,
+                    'profile': context['profile'].user_id,
+                    'personality': context['profile'].personality.value,
+                    'final_status': context['status'],
+                    'duration': context['cleanup_time'] - context['start_time']
+                }
+                self.simulation_history.append(session_summary)
+
+            # Remove from active simulations
+            del self.active_simulations[simulation_id]
+            return True
+
+        return False
+
+    def export_simulation_data(self, filename: str = None) -> str:
+        """Export all simulation data to JSON file"""
+        if not filename:
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"socratic_simulation_data_{timestamp}.json"
+
+        export_data = {
+            'export_timestamp': datetime.datetime.now().isoformat(),
+            'simulation_profiles': [
+                {
+                    'user_id': p.user_id,
+                    'personality': p.personality.value,
+                    'interaction_pattern': p.interaction_pattern.value,
+                    'technical_expertise': p.technical_expertise,
+                    'collaboration_tendency': p.collaboration_tendency,
+                    'change_frequency': p.change_frequency,
+                    'preferred_project_types': p.preferred_project_types,
+                    'typical_goals': p.typical_goals,
+                    'common_tech_stack': p.common_tech_stack
+                } for p in self.simulation_profiles
+            ],
+            'simulation_history': [
+                {
+                    **session,
+                    # Convert datetime objects to ISO strings
+                    'timestamp': session.get('timestamp', datetime.datetime.now()).isoformat()
+                    if hasattr(session.get('timestamp'), 'isoformat')
+                    else str(session.get('timestamp', ''))
+                } for session in self.simulation_history
+            ],
+            'analytics': self.get_simulation_analytics()
+        }
+
+        try:
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(export_data, f, indent=2, default=str)
+            return filename
+        except Exception as e:
+            print(f"Error exporting simulation data: {e}")
+            return ""
+
+    def load_custom_profiles(self, profiles_file: str) -> bool:
+        """Load custom user profiles from JSON file"""
+        try:
+            with open(profiles_file, 'r', encoding='utf-8') as f:
+                profiles_data = json.load(f)
+
+            custom_profiles = []
+            for profile_data in profiles_data:
+                profile = UserSimulationProfile(
+                    user_id=profile_data['user_id'],
+                    personality=UserPersonality(profile_data['personality']),
+                    interaction_pattern=InteractionPattern(profile_data['interaction_pattern']),
+                    technical_expertise=profile_data.get('technical_expertise', 5),
+                    collaboration_tendency=profile_data.get('collaboration_tendency', 0.5),
+                    change_frequency=profile_data.get('change_frequency', 0.3),
+                    response_time_range=tuple(profile_data.get('response_time_range', [1, 5])),
+                    preferred_project_types=profile_data.get('preferred_project_types', []),
+                    typical_goals=profile_data.get('typical_goals', []),
+                    common_tech_stack=profile_data.get('common_tech_stack', [])
+                )
+                custom_profiles.append(profile)
+
+            self.simulation_profiles.extend(custom_profiles)
+            return True
+
+        except Exception as e:
+            print(f"Error loading custom profiles: {e}")
+            return False
+
+
+def run_simulation_demo():
+    """Demonstration of how to use the UserSimulationAgent"""
+    print("🎭 Socratic RAG User Simulation Demo")
+    print("=" * 50)
+
+    # This would normally be your actual orchestrator
+    class MockOrchestrator:
+        def __init__(self):
+            self.database = MockDatabase()
+
+        def process_request(self, agent_type, request):
+            # Mock responses for demonstration
+            if agent_type == 'project_manager' and request.get('action') == 'create_project':
+                return {
+                    'status': 'success',
+                    'project': MockProject(request.get('project_name', 'test_project'))
+                }
+            return {'status': 'success', 'conflicts': [], 'question': 'What are your goals?'}
+
+    class MockDatabase:
+        def save_user(self, user):
+            return True
+
+    class MockProject:
+        def __init__(self, name):
+            self.name = name
+            self.project_id = str(uuid.uuid4())
+            self.requirements = []
+            self.tech_stack = []
+            self.collaborators = []
+            self.phase = 'discovery'
+
+    # Create simulation agent
+    orchestrator = MockOrchestrator()
+    sim_agent = UserSimulationAgent(orchestrator)
+
+    # Run single user simulation
+    print("\n📊 Running single user simulation...")
+    novice_profile = sim_agent.simulation_profiles[0]  # novice_alice
+
+    scenario = {
+        'type': 'new_project',
+        'complexity': 'beginner',
+        'domain': 'web_development'
+    }
+
+    sim_id = sim_agent.start_simulation(novice_profile, scenario)
+    session_log = sim_agent.simulate_user_session(sim_id, max_interactions=10)
+
+    print(f"Session completed with {len(session_log['interactions'])} interactions")
+    print(f"Conflicts encountered: {session_log['conflicts_encountered']}")
+
+    # Run multi-user scenario
+    print("\n🤝 Running multi-user scenario...")
+    participants = ['novice_alice', 'architect_bob', 'teamlead_carol']
+    scenario_result = sim_agent.run_multi_user_scenario('collaborative_project', participants)
+
+    print(f"Multi-user scenario completed with {len(scenario_result['interactions'])} total interactions")
+
+    # Generate analytics
+    print("\n📈 Simulation Analytics:")
+    analytics = sim_agent.get_simulation_analytics()
+    for key, value in analytics.items():
+        if key != 'error':
+            print(f"  {key}: {value}")
+
+    # Export data
+    filename = sim_agent.export_simulation_data()
+    if filename:
+        print(f"\n💾 Simulation data exported to: {filename}")
+
+    print("\n✅ Demo completed successfully!")
+
+
+if __name__ == "__main__":
+    run_simulation_demo()
