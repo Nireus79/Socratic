@@ -1115,7 +1115,8 @@ class VectorDatabase:
             pass  # Entry doesn't exist, proceed with adding
 
         if not entry.embedding:
-            entry.embedding = self.embedding_model.encode(entry.content).tolist()
+            embedding_result = self.embedding_model.encode(entry.content)
+            entry.embedding = embedding_result.tolist() if hasattr(embedding_result, 'tolist') else embedding_result
 
         try:
             self.collection.add(

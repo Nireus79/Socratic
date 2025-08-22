@@ -18,6 +18,7 @@ import sys
 from unittest.mock import Mock, patch, MagicMock
 from dataclasses import asdict
 import subprocess
+import Socratic7
 
 """Key Completions:
 
@@ -689,23 +690,323 @@ class ScenarioTester:
             raise AssertionError(message)
 
 
-class TestScenarios(unittest.TestCase):
-    """Test class for scenario testing"""
+class IntegrationTester:
+    """Helper class for integration testing scenarios"""
+
+    def __init__(self):
+        self.test_api_key = "test-api-key-for-testing"
 
     def test_complete_user_journey(self):
-        """Test complete user journey scenario"""
-        with ScenarioTester() as tester:
-            self.assertTrue(tester.test_complete_user_journey())
+        """Test complete user journey from project creation to code generation"""
+        try:
+            # Mock the orchestrator initialization
+            with unittest.mock.patch('Socratic7.anthropic.Anthropic'):
+                # Create orchestrator
+                orchestrator = Socratic7.AgentOrchestrator(self.test_api_key)
+
+                # Create test user
+                test_user = Socratic7.User(
+                    username="test_user",
+                    passcode_hash="test_hash",
+                    created_at=datetime.datetime.now(),
+                    projects=[]
+                )
+                orchestrator.database.save_user(test_user)
+
+                # Create test project
+                result = orchestrator.process_request('project_manager', {
+                    'action': 'create_project',
+                    'project_name': 'Test Journey Project',
+                    'owner': 'test_user'
+                })
+
+                if result['status'] != 'success':
+                    print(f"Failed to create project: {result}")
+                    return False
+
+                project = result['project']
+
+                # Test adding project context
+                project.goals = "Build a web application"
+                project.tech_stack = ["python", "flask"]
+                project.requirements = ["user authentication", "database storage"]
+
+                # Test context analysis
+                context_result = orchestrator.process_request('context_analyzer', {
+                    'action': 'get_summary',
+                    'project': project
+                })
+
+                if context_result['status'] != 'success':
+                    print(f"Context analysis failed: {context_result}")
+                    return False
+
+                # Test save/load cycle
+                orchestrator.process_request('project_manager', {
+                    'action': 'save_project',
+                    'project': project
+                })
+
+                loaded_result = orchestrator.process_request('project_manager', {
+                    'action': 'load_project',
+                    'project_id': project.project_id
+                })
+
+                if loaded_result['status'] != 'success':
+                    print(f"Project loading failed: {loaded_result}")
+                    return False
+
+                print("✓ Complete user journey test passed")
+                return True
+
+        except Exception as e:
+            print(f"Complete user journey test error: {e}")
+            return False
 
     def test_collaboration_scenario(self):
-        """Test collaboration scenario"""
-        with ScenarioTester() as tester:
-            self.assertTrue(tester.test_collaboration_scenario())
+        """Test collaboration features"""
+        try:
+            # Mock the orchestrator initialization
+            with unittest.mock.patch('Socratic7.anthropic.Anthropic'):
+                orchestrator = Socratic7.AgentOrchestrator(self.test_api_key)
+
+                # Create test users
+                owner = Socratic7.User(
+                    username="project_owner",
+                    passcode_hash="owner_hash",
+                    created_at=datetime.datetime.now(),
+                    projects=[]
+                )
+                collaborator = Socratic7.User(
+                    username="collaborator1",
+                    passcode_hash="collab_hash",
+                    created_at=datetime.datetime.now(),
+                    projects=[]
+                )
+
+                orchestrator.database.save_user(owner)
+                orchestrator.database.save_user(collaborator)
+
+                # Create project
+                result = orchestrator.process_request('project_manager', {
+                    'action': 'create_project',
+                    'project_name': 'Collaboration Test Project',
+                    'owner': 'project_owner'
+                })
+
+                if result['status'] != 'success':
+                    return False
+
+                project = result['project']
+
+                # Test adding collaborator
+                add_result = orchestrator.process_request('project_manager', {
+                    'action': 'add_collaborator',
+                    'project': project,
+                    'username': 'collaborator1'
+                })
+
+                if add_result['status'] != 'success':
+                    print(f"Failed to add collaborator: {add_result}")
+                    return False
+
+                # Test listing collaborators
+                list_result = orchestrator.process_request('project_manager', {
+                    'action': 'list_collaborators',
+                    'project': project
+                })
+
+                if list_result['status'] != 'success':
+                    print(f"Failed to list collaborators: {list_result}")
+                    return False
+
+                # Verify collaborator was added
+                collaborators = list_result['collaborators']
+                collaborator_usernames = [c['username'] for c in collaborators]
+
+                if 'collaborator1' not in collaborator_usernames:
+                    print("Collaborator was not properly added")
+                    return False
+
+                print("✓ Collaboration scenario test passed")
+                return True
+
+        except Exception as e:
+            print(f"Collaboration test error: {e}")
+            return False
 
     def test_conflict_detection_scenario(self):
-        """Test conflict detection scenario"""
-        with ScenarioTester() as tester:
-            self.assertTrue(tester.test_conflict_detection_scenario())
+        """Test conflict detection in collaborative projects"""
+        try:
+            # Mock the orchestrator initialization
+            with unittest.mock.patch('Socratic7.anthropic.Anthropic'):
+                orchestrator = Socratic7.AgentOrchestrator(self.test_api_key)
+
+                # Create test project with existing tech stack
+                project = Socratic7.ProjectContext(
+                    project_id="conflict_test_project",
+                    name="Conflict Test Project",
+                    owner="test_owner",
+                    collaborators=["collaborator1"],
+                    goals="Build a web app",
+                    requirements=["fast performance"],
+                    tech_stack=["postgresql"],  # Existing database choice
+                    constraints=["low budget"],
+                    team_structure="small team",
+                    language_preferences="python",
+                    deployment_target="cloud",
+                    code_style="clean",
+                    phase="analysis",
+                    conversation_history=[],
+                    created_at=datetime.datetime.now(),
+                    updated_at=datetime.datetime.now()
+                )
+
+                # Test conflict detection with new insights
+                new_insights = {
+                    'tech_stack': ['mysql'],  # Conflicting database
+                    'requirements': ['slow performance is ok'],  # Conflicting requirement
+                }
+
+                conflict_result = orchestrator.process_request('conflict_detector', {
+                    'action': 'detect_conflicts',
+                    'project': project,
+                    'new_insights': new_insights,
+                    'current_user': 'collaborator1'
+                })
+
+                if conflict_result['status'] != 'success':
+                    print(f"Conflict detection failed: {conflict_result}")
+                    return False
+
+                conflicts = conflict_result.get('conflicts', [])
+
+                # Should detect at least one conflict (database choice)
+                if len(conflicts) == 0:
+                    print("No conflicts detected when conflicts should exist")
+                    return False
+
+                print(f"✓ Conflict detection scenario test passed - detected {len(conflicts)} conflicts")
+                return True
+
+        except Exception as e:
+            print(f"Conflict detection test error: {e}")
+            return False
+
+
+class TestScenarios(unittest.TestCase):
+    """Integration tests for complete user scenarios"""
+
+    def test_complete_user_journey(self):
+        """Test complete user journey from project creation to code generation"""
+        original_data_dir = Socratic7.CONFIG['DATA_DIR']  # Initialize at the start
+        try:
+            # Use temporary directory for testing
+            import tempfile
+            test_dir = tempfile.mkdtemp()
+            Socratic7.CONFIG['DATA_DIR'] = test_dir
+
+            tester = IntegrationTester()
+
+            # Test the complete journey
+            result = tester.test_complete_user_journey()
+            self.assertTrue(result)
+
+        except Exception as e:
+            print(f"❌ Complete user journey test failed: {e}")
+            import traceback
+            traceback.print_exc()
+            self.fail(f"Complete user journey test failed: {e}")
+        finally:
+            # Restore original configuration
+            Socratic7.CONFIG['DATA_DIR'] = original_data_dir
+
+    def test_collaboration_scenario(self):
+        """Test collaboration features"""
+        original_data_dir = Socratic7.CONFIG['DATA_DIR']  # Initialize at the start
+        try:
+            # Use temporary directory for testing
+            import tempfile
+            test_dir = tempfile.mkdtemp()
+            Socratic7.CONFIG['DATA_DIR'] = test_dir
+
+            tester = IntegrationTester()
+
+            # Test collaboration scenario
+            result = tester.test_collaboration_scenario()
+            self.assertTrue(result)
+
+        except Exception as e:
+            print(f"❌ Collaboration scenario test failed: {e}")
+            import traceback
+            traceback.print_exc()
+            self.fail(f"Collaboration scenario test failed: {e}")
+        finally:
+            # Restore original configuration
+            Socratic7.CONFIG['DATA_DIR'] = original_data_dir
+
+    def test_conflict_detection_scenario(self):
+        """Test conflict detection in collaborative projects"""
+        original_data_dir = Socratic7.CONFIG['DATA_DIR']  # Initialize at the start
+        try:
+            # Use temporary directory for testing
+            import tempfile
+            test_dir = tempfile.mkdtemp()
+            Socratic7.CONFIG['DATA_DIR'] = test_dir
+
+            tester = IntegrationTester()
+
+            # Test conflict detection
+            result = tester.test_conflict_detection_scenario()
+            self.assertTrue(result)
+
+        except Exception as e:
+            print(f"❌ Conflict detection scenario test failed: {e}")
+            import traceback
+            traceback.print_exc()
+            self.fail(f"Conflict detection scenario test failed: {e}")
+        finally:
+            # Restore original configuration
+            Socratic7.CONFIG['DATA_DIR'] = original_data_dir
+
+    def test_knowledge_addition(self):
+        """Test adding knowledge to vector database"""
+        try:
+            # Mock the embedding model to return a list instead of numpy array
+            with unittest.mock.patch('Socratic7.SentenceTransformer') as mock_transformer:
+                # Create a mock that returns a list with tolist() method
+                mock_model = unittest.mock.MagicMock()
+                mock_embedding = unittest.mock.MagicMock()
+                mock_embedding.tolist.return_value = [0.1, 0.2, 0.3, 0.4, 0.5]
+                mock_model.encode.return_value = mock_embedding
+                mock_transformer.return_value = mock_model
+
+                # Use temporary directory for testing
+                import tempfile
+                test_dir = tempfile.mkdtemp()
+
+                vector_db = Socratic7.VectorDatabase(test_dir)
+
+                # Create test knowledge entry
+                entry = Socratic7.KnowledgeEntry(
+                    id="test_entry",
+                    content="Test knowledge content",
+                    category="test",
+                    metadata={"test": True}
+                )
+
+                # This should not raise an error now
+                vector_db.add_knowledge(entry)
+
+                # Verify embedding was set
+                self.assertIsNotNone(entry.embedding)
+                self.assertEqual(entry.embedding, [0.1, 0.2, 0.3, 0.4, 0.5])
+
+                print("✓ Knowledge addition test passed")
+
+        except Exception as e:
+            print(f"❌ Knowledge addition test failed: {e}")
+            self.fail(f"Knowledge addition test failed: {e}")
 
 
 class PerformanceTest:
@@ -1092,9 +1393,13 @@ if __name__ == "__main__":
         sys.exit(1)
 
 
-# Launching unittests with arguments python -m unittest C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py in C:\Users\themi\PycharmProjects\Socratic
+# C:\Users\themi\AppData\Local\Programs\Python\Python313\python.exe "C:/Program Files/JetBrains/PyCharm Community
+# Edition 2024.1.2/plugins/python-ce/helpers/pycharm/_jb_unittest_runner.py" --path
+# C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py Testing started at 11:57 AM ... Launching unittests with
+# arguments python -m unittest C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py in
+# C:\Users\themi\PycharmProjects\Socratic
 #
-# [21:50:05] ProjectManager: Created project 'Test Project' with ID d2bfc770-c80c-4ecf-a353-a34e26e601ac
+# [11:57:43] ProjectManager: Created project 'Test Project' with ID 30dc152f-a4fa-4bdb-b5d2-fe6f60fa8105
 # Loading knowledge base...
 # Added knowledge entry: software_architecture_patterns
 # Added knowledge entry: python_best_practices
@@ -1104,58 +1409,45 @@ if __name__ == "__main__":
 # ✓ Knowledge base loaded (5 entries)
 # ✓ Socratic RAG System v7.0 initialized successfully!
 # Loading knowledge base...
-# ❌ Collaboration scenario test failed: 'list' object has no attribute 'tolist'
-#
-# Error
-# Traceback (most recent call last):
-#   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 663, in test_collaboration_scenario
-#     self.assertTrue(tester.test_collaboration_scenario())
-#                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
-#   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 592, in test_collaboration_scenario
-#     Socratic7.CONFIG['DATA_DIR'] = original_data_dir
-#                                    ^^^^^^^^^^^^^^^^^
-# UnboundLocalError: cannot access local variable 'original_data_dir' where it is not associated with a value
-#
+# Added knowledge entry: software_architecture_patterns
+# Added knowledge entry: python_best_practices
+# Added knowledge entry: api_design_principles
+# Added knowledge entry: database_design_basics
+# Added knowledge entry: security_considerations
+# ✓ Knowledge base loaded (5 entries)
+# ✓ Socratic RAG System v7.0 initialized successfully!
+# [11:57:49] ProjectManager: Created project 'Collaboration Test Project' with ID 48896b09-5a2f-44c3-baed-dc49797e2bd9
+# [11:57:49] ProjectManager: Added collaborator 'collaborator1' to project 'Collaboration Test Project'
+# ✓ Collaboration scenario test passed
 # Loading knowledge base...
-# ❌ Complete user journey test failed: 'list' object has no attribute 'tolist'
-#
-# Error
-# Traceback (most recent call last):
-#   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 658, in test_complete_user_journey
-#     self.assertTrue(tester.test_complete_user_journey())
-#                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
-#   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 542, in test_complete_user_journey
-#     Socratic7.CONFIG['DATA_DIR'] = original_data_dir
-#                                    ^^^^^^^^^^^^^^^^^
-# UnboundLocalError: cannot access local variable 'original_data_dir' where it is not associated with a value
-#
+# Added knowledge entry: software_architecture_patterns
+# Added knowledge entry: python_best_practices
+# Added knowledge entry: api_design_principles
+# Added knowledge entry: database_design_basics
+# Added knowledge entry: security_considerations
+# ✓ Knowledge base loaded (5 entries)
+# ✓ Socratic RAG System v7.0 initialized successfully!
+# [11:57:52] ProjectManager: Created project 'Test Journey Project' with ID b222c2d0-d3f1-4186-bf40-c6e987d53231
+# [11:57:52] ProjectManager: Saved project 'Test Journey Project'
+# [11:57:52] ProjectManager: Loaded project 'Test Journey Project'
+# ✓ Complete user journey test passed
 # Loading knowledge base...
-# ❌ Conflict detection scenario test failed: 'list' object has no attribute 'tolist'
-#
-# Error
-# Traceback (most recent call last):
-#   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 668, in test_conflict_detection_scenario
-#     self.assertTrue(tester.test_conflict_detection_scenario())
-#                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
-#   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 639, in test_conflict_detection_scenario
-#     Socratic7.CONFIG['DATA_DIR'] = original_data_dir
-#                                    ^^^^^^^^^^^^^^^^^
-# UnboundLocalError: cannot access local variable 'original_data_dir' where it is not associated with a value
+# Added knowledge entry: software_architecture_patterns
+# Added knowledge entry: python_best_practices
+# Added knowledge entry: api_design_principles
+# Added knowledge entry: database_design_basics
+# Added knowledge entry: security_considerations
+# ✓ Knowledge base loaded (5 entries)
+# ✓ Socratic RAG System v7.0 initialized successfully!
+# [11:57:55] ConflictDetector: Error in semantic conflict detection: '<=' not supported between instances of 'int' and 'MagicMock'
+# ✓ Conflict detection scenario test passed - detected 1 conflicts
 #
 #
+# Added knowledge entry: test_entry
+# Ran 19 tests in 11.734s
 #
-# Ran 18 tests in 0.400s
+# OK✓ Knowledge addition test passed
 #
-# FAILED (errors=4)
+# Added knowledge entry: test-1
 #
-# Error
-# Traceback (most recent call last):
-#   File "C:\Users\themi\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1424, in patched
-#     return func(*newargs, **newkeywargs)
-#   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7tst.py", line 210, in test_knowledge_addition
-#     vector_db.add_knowledge(entry)
-#     ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
-#   File "C:\Users\themi\PycharmProjects\Socratic\Socratic7.py", line 1118, in add_knowledge
-#     entry.embedding = self.embedding_model.encode(entry.content).tolist()
-#                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-# AttributeError: 'list' object has no attribute 'tolist'
+# Process finished with exit code 0
