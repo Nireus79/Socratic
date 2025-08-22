@@ -17,6 +17,7 @@ import numpy as np
 from colorama import init, Fore, Back, Style
 import mimetypes
 from pathlib import Path
+
 # from docx import Document as DocxDocument
 
 # Third-party imports
@@ -1536,8 +1537,7 @@ class ProjectDatabase:
             return ProjectContext(**data)
         return None
 
-    def get_user_projects(self, username: str) -> List[Dict]:
-        """Get all projects for a user"""
+    def get_user_projects(self, username: str, include_archived: bool = False) -> List[Dict]:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
@@ -1554,13 +1554,20 @@ class ProjectDatabase:
                 if isinstance(project_data.get('updated_at'), str):
                     project_data['updated_at'] = self._deserialize_datetime(project_data['updated_at'])
 
+                # Skip archived projects unless requested
+                if project_data.get('is_archived', False) and not include_archived:
+                    continue
+
                 # Check if user is owner or collaborator
                 if (project_data['owner'] == username or
                         username in project_data.get('collaborators', [])):
+                    status = "archived" if project_data.get('is_archived', False) else "active"
+
                     projects.append({
                         'project_id': project_id,
                         'name': project_data['name'],
                         'phase': project_data['phase'],
+                        'status': status,  # ADD THIS LINE
                         'updated_at': project_data['updated_at'].strftime("%Y-%m-%d %H:%M:%S") if isinstance(
                             project_data['updated_at'], datetime.datetime) else str(project_data['updated_at'])
                     })
@@ -1780,46 +1787,6 @@ class ProjectDatabase:
         except Exception as e:
             print(f"Error permanently deleting project: {e}")
             return False
-
-    def get_user_projects(self, username: str, include_archived: bool = False) -> List[Dict]:
-        """Get all projects for a user - MODIFY EXISTING METHOD"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-
-        cursor.execute('SELECT project_id, data FROM projects')
-        results = cursor.fetchall()
-        conn.close()
-
-        projects = []
-        for project_id, data in results:
-            try:
-                project_data = pickle.loads(data)
-
-                # Handle datetime deserialization if needed
-                if isinstance(project_data.get('updated_at'), str):
-                    project_data['updated_at'] = self._deserialize_datetime(project_data['updated_at'])
-
-                # Skip archived projects unless requested
-                if project_data.get('is_archived', False) and not include_archived:
-                    continue
-
-                # Check if user is owner or collaborator
-                if (project_data['owner'] == username or
-                        username in project_data.get('collaborators', [])):
-                    status = "archived" if project_data.get('is_archived', False) else "active"
-
-                    projects.append({
-                        'project_id': project_id,
-                        'name': project_data['name'],
-                        'phase': project_data['phase'],
-                        'status': status,  # ADD THIS LINE
-                        'updated_at': project_data['updated_at'].strftime("%Y-%m-%d %H:%M:%S") if isinstance(
-                            project_data['updated_at'], datetime.datetime) else str(project_data['updated_at'])
-                    })
-            except Exception as e:
-                print(f"Warning: Could not load project {project_id}: {e}")
-
-        return projects
 
     def get_archived_items(self, item_type: str) -> List[Dict]:
         """Get all archived users or projects"""
