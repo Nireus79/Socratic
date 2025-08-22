@@ -4,10 +4,16 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7 files">
+    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7 lower">
+      <change afterPath="$PROJECT_DIR$/socratic_data/vector_db/51fa9101-4c77-4d6e-8e72-ed57b8debfec/length.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Socratic7.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic7.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/e03dcd69-599c-4c56-8194-b746e5173e62/length.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/e03dcd69-599c-4c56-8194-b746e5173e62/length.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/socratic_data/projects.db" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/projects.db" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/chroma.sqlite3" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/chroma.sqlite3" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/e03dcd69-599c-4c56-8194-b746e5173e62/data_level0.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/51fa9101-4c77-4d6e-8e72-ed57b8debfec/data_level0.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/e03dcd69-599c-4c56-8194-b746e5173e62/header.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/51fa9101-4c77-4d6e-8e72-ed57b8debfec/header.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/e03dcd69-599c-4c56-8194-b746e5173e62/length.bin" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/e03dcd69-599c-4c56-8194-b746e5173e62/link_lists.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/51fa9101-4c77-4d6e-8e72-ed57b8debfec/link_lists.bin" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -168,14 +174,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1750504324591</updated>
-    </task>
-    <task id="LOCAL-00070" summary="7.1">
-      <option name="closed" value="true" />
-      <created>1755585058562</created>
-      <option name="number" value="00070" />
-      <option name="presentableId" value="LOCAL-00070" />
-      <option name="project" value="LOCAL" />
-      <updated>1755585058562</updated>
     </task>
     <task id="LOCAL-00071" summary="7.1">
       <option name="closed" value="true" />
@@ -561,12 +559,19 @@
       <option name="project" value="LOCAL" />
       <updated>1755891112455</updated>
     </task>
-    <option name="localTasksCounter" value="119" />
+    <task id="LOCAL-00119" summary="7 lower">
+      <option name="closed" value="true" />
+      <created>1755891880349</created>
+      <option name="number" value="00119" />
+      <option name="presentableId" value="LOCAL-00119" />
+      <option name="project" value="LOCAL" />
+      <updated>1755891880350</updated>
+    </task>
+    <option name="localTasksCounter" value="120" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <option name="ADD_EXTERNAL_FILES_SILENTLY" value="true" />
-    <MESSAGE value="collaborative_socratic" />
     <MESSAGE value="Socratic 3" />
     <MESSAGE value="claude-sonnet-4-20250514" />
     <MESSAGE value="Socratic 4" />
@@ -591,6 +596,7 @@
     <MESSAGE value="7 testing" />
     <MESSAGE value="7 User simulator" />
     <MESSAGE value="7 files" />
-    <option name="LAST_COMMIT_MESSAGE" value="7 files" />
+    <MESSAGE value="7 lower" />
+    <option name="LAST_COMMIT_MESSAGE" value="7 lower" />
   </component>
 </project>

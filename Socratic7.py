@@ -17,6 +17,7 @@ import numpy as np
 from colorama import init, Fore, Back, Style
 import mimetypes
 from pathlib import Path
+# from docx import Document as DocxDocument
 
 # Third-party imports
 try:
@@ -44,11 +45,11 @@ except ImportError:
     print("PyPDF2 not found. Install with: pip install PyPDF2")
     PyPDF2 = None
 
-try:
-    from docx import Document as DocxDocument
-except ImportError:
-    print("python-docx not found. Install with: pip install python-docx")
-    DocxDocument = None
+# try:
+#     from docx import Document as DocxDocument
+# except ImportError:
+#     print("python-docx not found. Install with: pip install python-docx")
+#     DocxDocument = None
 
 init(autoreset=True)
 
@@ -2282,7 +2283,7 @@ class DocumentProcessor:
             '.pdf': self._process_pdf,
             '.txt': self._process_text,
             '.md': self._process_text,
-            '.docx': self._process_docx,
+            # '.docx': self._process_docx,
             '.py': self._process_text,
             '.js': self._process_text,
             '.html': self._process_text,
@@ -2426,23 +2427,23 @@ class DocumentProcessor:
 
         return text.strip()
 
-    def _process_docx(self, file_path: Path) -> str:
-        """Extract text from Word document"""
-        if not DocxDocument:
-            raise ImportError("python-docx not available")
-
-        try:
-            doc = DocxDocument(file_path)
-            paragraphs = []
-
-            for paragraph in doc.paragraphs:
-                if paragraph.text.strip():
-                    paragraphs.append(paragraph.text.strip())
-
-            return "\n".join(paragraphs)
-
-        except Exception as e:
-            raise Exception(f"Error reading Word document: {str(e)}")
+    # def _process_docx(self, file_path: Path) -> str:
+    #     """Extract text from Word document"""
+    #     if not DocxDocument:
+    #         raise ImportError("python-docx not available")
+    #
+    #     try:
+    #         doc = DocxDocument(file_path)
+    #         paragraphs = []
+    #
+    #         for paragraph in doc.paragraphs:
+    #             if paragraph.text.strip():
+    #                 paragraphs.append(paragraph.text.strip())
+    #
+    #         return "\n".join(paragraphs)
+    #
+    #     except Exception as e:
+    #         raise Exception(f"Error reading Word document: {str(e)}")
 
     def _process_text(self, file_path: Path) -> str:
         """Process plain text files"""
