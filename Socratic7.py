@@ -15,6 +15,8 @@ import threading
 import time
 import numpy as np
 from colorama import init, Fore, Back, Style
+import mimetypes
+from pathlib import Path
 
 # Third-party imports
 try:
@@ -35,6 +37,18 @@ try:
 except ImportError:
     print("Sentence Transformers not found. Install with: pip install sentence-transformers")
     exit(1)
+
+try:
+    import PyPDF2
+except ImportError:
+    print("PyPDF2 not found. Install with: pip install PyPDF2")
+    PyPDF2 = None
+
+try:
+    from docx import Document as DocxDocument
+except ImportError:
+    print("python-docx not found. Install with: pip install python-docx")
+    DocxDocument = None
 
 init(autoreset=True)
 
@@ -1737,6 +1751,278 @@ class ClaudeClient:
                                             "aspect individually.")
 
 
+class DocumentProcessor:
+    """Handles processing of various document formats"""
+
+    def __init__(self, orchestrator: 'AgentOrchestrator'):
+        self.orchestrator = orchestrator
+        self.supported_formats = {
+            '.pdf': self._process_pdf,
+            '.txt': self._process_text,
+            '.md': self._process_text,
+            '.docx': self._process_docx,
+            '.py': self._process_text,
+            '.js': self._process_text,
+            '.html': self._process_text,
+            '.css': self._process_text,
+            '.json': self._process_text,
+            '.xml': self._process_text,
+            '.csv': self._process_text,
+            '.yml': self._process_text,
+            '.yaml': self._process_text
+        }
+
+    def process_file(self, file_path: str, project_id: str = None) -> Dict[str, Any]:
+        """Process a file and add to knowledge base"""
+        try:
+            path = Path(file_path)
+
+            if not path.exists():
+                return {'status': 'error', 'message': f'File not found: {file_path}'}
+
+            if not path.is_file():
+                return {'status': 'error', 'message': f'Path is not a file: {file_path}'}
+
+            # Get file extension
+            extension = path.suffix.lower()
+
+            if extension not in self.supported_formats:
+                return {'status': 'error', 'message': f'Unsupported file format: {extension}'}
+
+            # Process the file
+            processor = self.supported_formats[extension]
+            content = processor(path)
+
+            if not content:
+                return {'status': 'error', 'message': 'No content extracted from file'}
+
+            # Chunk the content
+            chunks = self._chunk_content(content, path.name)
+
+            # Add chunks to knowledge base
+            added_entries = []
+            for i, chunk in enumerate(chunks):
+                entry_id = f"{path.stem}_{i}_{uuid.uuid4().hex[:8]}"
+
+                metadata = {
+                    'source_file': str(path),
+                    'file_type': extension,
+                    'chunk_index': i,
+                    'total_chunks': len(chunks),
+                    'project_id': project_id,
+                    'imported_at': datetime.datetime.now().isoformat()
+                }
+
+                entry = KnowledgeEntry(
+                    id=entry_id,
+                    content=chunk,
+                    category=f"document_{extension[1:]}",  # Remove the dot
+                    metadata=metadata
+                )
+
+                self.orchestrator.vector_db.add_knowledge(entry)
+                added_entries.append(entry_id)
+
+            return {
+                'status': 'success',
+                'entries_added': len(added_entries),
+                'entry_ids': added_entries,
+                'file_name': path.name
+            }
+
+        except Exception as e:
+            return {'status': 'error', 'message': f'Error processing file: {str(e)}'}
+
+    def process_directory(self, directory_path: str, project_id: str = None, recursive: bool = True) -> Dict[str, Any]:
+        """Process all supported files in a directory"""
+        try:
+            path = Path(directory_path)
+
+            if not path.exists():
+                return {'status': 'error', 'message': f'Directory not found: {directory_path}'}
+
+            if not path.is_dir():
+                return {'status': 'error', 'message': f'Path is not a directory: {directory_path}'}
+
+            # Find all supported files
+            pattern = "**/*" if recursive else "*"
+            all_files = list(path.glob(pattern))
+
+            supported_files = [f for f in all_files
+                               if f.is_file() and f.suffix.lower() in self.supported_formats]
+
+            if not supported_files:
+                return {'status': 'error', 'message': 'No supported files found in directory'}
+
+            # Process each file
+            results = {
+                'processed_files': [],
+                'failed_files': [],
+                'total_entries': 0
+            }
+
+            for file_path in supported_files:
+                print(f"{Fore.YELLOW}Processing: {file_path.name}")
+                result = self.process_file(str(file_path), project_id)
+
+                if result['status'] == 'success':
+                    results['processed_files'].append({
+                        'file': str(file_path),
+                        'entries': result['entries_added']
+                    })
+                    results['total_entries'] += result['entries_added']
+                else:
+                    results['failed_files'].append({
+                        'file': str(file_path),
+                        'error': result['message']
+                    })
+
+            return {
+                'status': 'success',
+                'summary': results,
+                'message': f"Processed {len(results['processed_files'])} files, {results['total_entries']} entries added"
+            }
+
+        except Exception as e:
+            return {'status': 'error', 'message': f'Error processing directory: {str(e)}'}
+
+    def _process_pdf(self, file_path: Path) -> str:
+        """Extract text from PDF file"""
+        if not PyPDF2:
+            raise ImportError("PyPDF2 not available")
+
+        text = ""
+        try:
+            with open(file_path, 'rb') as file:
+                pdf_reader = PyPDF2.PdfReader(file)
+
+                for page in pdf_reader.pages:
+                    text += page.extract_text() + "\n"
+
+        except Exception as e:
+            raise Exception(f"Error reading PDF: {str(e)}")
+
+        return text.strip()
+
+    def _process_docx(self, file_path: Path) -> str:
+        """Extract text from Word document"""
+        if not DocxDocument:
+            raise ImportError("python-docx not available")
+
+        try:
+            doc = DocxDocument(file_path)
+            paragraphs = []
+
+            for paragraph in doc.paragraphs:
+                if paragraph.text.strip():
+                    paragraphs.append(paragraph.text.strip())
+
+            return "\n".join(paragraphs)
+
+        except Exception as e:
+            raise Exception(f"Error reading Word document: {str(e)}")
+
+    def _process_text(self, file_path: Path) -> str:
+        """Process plain text files"""
+        try:
+            # Try different encodings
+            encodings = ['utf-8', 'utf-8-sig', 'latin1', 'cp1252']
+
+            for encoding in encodings:
+                try:
+                    with open(file_path, 'r', encoding=encoding) as file:
+                        return file.read()
+                except UnicodeDecodeError:
+                    continue
+
+            # If all encodings fail, read as binary and decode with errors='ignore'
+            with open(file_path, 'rb') as file:
+                return file.read().decode('utf-8', errors='ignore')
+
+        except Exception as e:
+            raise Exception(f"Error reading text file: {str(e)}")
+
+    def _chunk_content(self, content: str, filename: str, max_chunk_size: int = 1500) -> List[str]:
+        """Split content into manageable chunks"""
+        if len(content) <= max_chunk_size:
+            return [content]
+
+        chunks = []
+
+        # Split by paragraphs first
+        paragraphs = content.split('\n\n')
+        current_chunk = ""
+
+        for paragraph in paragraphs:
+            # If adding this paragraph would exceed chunk size
+            if len(current_chunk) + len(paragraph) > max_chunk_size:
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
+                    current_chunk = paragraph
+                else:
+                    # Paragraph itself is too long, split by sentences
+                    sentences = paragraph.split('. ')
+                    for sentence in sentences:
+                        if len(current_chunk) + len(sentence) > max_chunk_size:
+                            if current_chunk:
+                                chunks.append(current_chunk.strip())
+                                current_chunk = sentence
+                            else:
+                                # Sentence is too long, hard split
+                                while len(sentence) > max_chunk_size:
+                                    chunks.append(sentence[:max_chunk_size])
+                                    sentence = sentence[max_chunk_size:]
+                                current_chunk = sentence
+                        else:
+                            current_chunk += sentence + ". "
+            else:
+                current_chunk += paragraph + "\n\n"
+
+        if current_chunk.strip():
+            chunks.append(current_chunk.strip())
+
+        return chunks
+
+
+class DocumentAgent(Agent):
+    def __init__(self, orchestrator):
+        super().__init__("DocumentAgent", orchestrator)
+        self.processor = DocumentProcessor(orchestrator)
+
+    def process(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        action = request.get('action')
+
+        if action == 'import_file':
+            return self._import_file(request)
+        elif action == 'import_directory':
+            return self._import_directory(request)
+        elif action == 'list_documents':
+            return self._list_documents(request)
+
+        return {'status': 'error', 'message': 'Unknown action'}
+
+    def _import_file(self, request: Dict) -> Dict:
+        file_path = request.get('file_path')
+        project_id = request.get('project_id')
+
+        return self.processor.process_file(file_path, project_id)
+
+    def _import_directory(self, request: Dict) -> Dict:
+        directory_path = request.get('directory_path')
+        project_id = request.get('project_id')
+        recursive = request.get('recursive', True)
+
+        return self.processor.process_directory(directory_path, project_id, recursive)
+
+    def _list_documents(self, request: Dict) -> Dict:
+        """List imported documents"""
+        project_id = request.get('project_id')
+
+        # This would require querying the vector database for document entries
+        # Implementation depends on how you want to structure the query
+        return {'status': 'success', 'documents': []}
+
+
 # Agent Orchestrator
 class AgentOrchestrator:
     def __init__(self, api_key: str):
@@ -1766,6 +2052,7 @@ class AgentOrchestrator:
         self.code_generator = CodeGeneratorAgent(self)
         self.system_monitor = SystemMonitorAgent(self)
         self.conflict_detector = ConflictDetectorAgent(self)
+        self.document_agent = DocumentAgent(self)
 
     def _load_knowledge_base(self):
         """Load default knowledge base if not already loaded"""
@@ -1833,7 +2120,8 @@ class AgentOrchestrator:
             'context_analyzer': self.context_analyzer,
             'code_generator': self.code_generator,
             'system_monitor': self.system_monitor,
-            'conflict_detector': self.conflict_detector  # ADD THIS LINE
+            'conflict_detector': self.conflict_detector,
+            'document_agent': self.document_agent
         }
 
         agent = agents.get(agent_name)
@@ -1981,6 +2269,92 @@ class SocraticRAGSystem:
         print(f"{Fore.GREEN}✓ Account created successfully! Welcome, {username}!")
         return True
 
+    def _import_documents(self):
+        """Import documents into knowledge base"""
+        print(f"\n{Fore.CYAN}Document Import")
+
+        print(f"\n{Fore.YELLOW}Options:")
+        print("1. Import single file")
+        print("2. Import directory")
+        print("3. Back to main menu")
+
+        choice = input(f"{Fore.WHITE}Choose option (1-3): ").strip()
+
+        if choice == '1':
+            self._import_single_file()
+        elif choice == '2':
+            self._import_directory_ui()
+        elif choice == '3':
+            return
+        else:
+            print(f"{Fore.RED}Invalid choice.")
+
+    def _import_single_file(self):
+        """Import a single file"""
+        file_path = input(f"{Fore.WHITE}Enter file path: ").strip()
+        if not file_path:
+            print(f"{Fore.RED}File path cannot be empty.")
+            return
+
+        # Ask if they want to link to current project
+        project_id = None
+        if self.current_project:
+            link_choice = input(f"{Fore.CYAN}Link to current project '{self.current_project.name}'? (y/n): ").lower()
+            if link_choice == 'y':
+                project_id = self.current_project.project_id
+
+        print(f"{Fore.YELLOW}Processing file...")
+        result = self.orchestrator.process_request('document_agent', {
+            'action': 'import_file',
+            'file_path': file_path,
+            'project_id': project_id
+        })
+
+        if result['status'] == 'success':
+            print(f"{Fore.GREEN}✓ Successfully imported '{result['file_name']}'")
+            print(f"{Fore.WHITE}Added {result['entries_added']} knowledge entries")
+        else:
+            print(f"{Fore.RED}Error: {result['message']}")
+
+    def _import_directory_ui(self):
+        """Import all files from a directory"""
+        directory_path = input(f"{Fore.WHITE}Enter directory path: ").strip()
+        if not directory_path:
+            print(f"{Fore.RED}Directory path cannot be empty.")
+            return
+
+        recursive_choice = input(f"{Fore.CYAN}Include subdirectories? (y/n): ").lower()
+        recursive = recursive_choice == 'y'
+
+        # Ask if they want to link to current project
+        project_id = None
+        if self.current_project:
+            link_choice = input(f"{Fore.CYAN}Link to current project '{self.current_project.name}'? (y/n): ").lower()
+            if link_choice == 'y':
+                project_id = self.current_project.project_id
+
+        print(f"{Fore.YELLOW}Processing directory...")
+        result = self.orchestrator.process_request('document_agent', {
+            'action': 'import_directory',
+            'directory_path': directory_path,
+            'project_id': project_id,
+            'recursive': recursive
+        })
+
+        if result['status'] == 'success':
+            print(f"{Fore.GREEN}✓ {result['message']}")
+            summary = result['summary']
+            print(f"{Fore.WHITE}Processed files: {len(summary['processed_files'])}")
+            print(f"Failed files: {len(summary['failed_files'])}")
+            print(f"Total entries added: {summary['total_entries']}")
+
+            if summary['failed_files']:
+                print(f"\n{Fore.YELLOW}Failed files:")
+                for failed in summary['failed_files']:
+                    print(f"  - {failed['file']}: {failed['error']}")
+        else:
+            print(f"{Fore.RED}Error: {result['message']}")
+
     def _main_loop(self):
         """Main application loop"""
         while True:
@@ -1991,17 +2365,17 @@ class SocraticRAGSystem:
                 if self.current_project:
                     print(f"Current Project: {self.current_project.name} ({self.current_project.phase})")
 
-                print(f"\n{Fore.YELLOW}Options:")
                 print("1. Create new project")
                 print("2. Load existing project")
                 print("3. Continue current project")
                 print("4. Generate code")
                 print("5. Manage collaborators")
-                print("6. View system status")
-                print("7. Switch user")
-                print("8. Exit")
+                print("6. Import documents")  # ADD THIS LINE
+                print("7. View system status")
+                print("8. Switch user")
+                print("9. Exit")
 
-                choice = input(f"{Fore.WHITE}Choose option (1-8): ").strip()
+                choice = input(f"{Fore.WHITE}Choose option (1-9): ").strip()
 
                 if choice == '1':
                     self._create_project()
@@ -2022,12 +2396,14 @@ class SocraticRAGSystem:
                         self._manage_collaborators()
                     else:
                         print(f"{Fore.RED}No current project loaded.")
-                elif choice == '6':
-                    self._show_system_status()
+                elif choice == '6':  # ADD THIS BLOCK
+                    self._import_documents()
                 elif choice == '7':
+                    self._show_system_status()
+                elif choice == '8':
                     if self._handle_user_authentication():
                         self.current_project = None
-                elif choice == '8':
+                elif choice == '9':
                     print(f"{Fore.GREEN}           Thank you for using Socratic RAG System")
                     print(f"{Fore.GREEN}..τω Ασκληπιώ οφείλομεν αλετρυόνα, απόδοτε και μη αμελήσετε..")
                     break
@@ -2035,7 +2411,7 @@ class SocraticRAGSystem:
                     print(f"{Fore.RED}Invalid choice. Please try again.")
 
             except KeyboardInterrupt:
-                print(f"\n{Fore.YELLOW}Use option 7 to exit properly.")
+                print(f"\n{Fore.YELLOW}Use option 9 to exit properly.")
             except Exception as e:
                 print(f"{Fore.RED}Error: {e}")
 

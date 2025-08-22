@@ -5,14 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7 User simulator">
-      <change afterPath="$PROJECT_DIR$/socratic_data/vector_db/e03dcd69-599c-4c56-8194-b746e5173e62/length.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/projects.db" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/projects.db" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/chroma.sqlite3" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/chroma.sqlite3" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/e0883f54-6f38-4be4-a3c0-14ae4b903ed6/data_level0.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/e03dcd69-599c-4c56-8194-b746e5173e62/data_level0.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/e0883f54-6f38-4be4-a3c0-14ae4b903ed6/header.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/e03dcd69-599c-4c56-8194-b746e5173e62/header.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/e0883f54-6f38-4be4-a3c0-14ae4b903ed6/length.bin" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/e0883f54-6f38-4be4-a3c0-14ae4b903ed6/link_lists.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/e03dcd69-599c-4c56-8194-b746e5173e62/link_lists.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Socratic7.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic7.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -173,14 +167,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1750504324591</updated>
-    </task>
-    <task id="LOCAL-00067" summary="7 dynamic">
-      <option name="closed" value="true" />
-      <created>1754814353559</created>
-      <option name="number" value="00067" />
-      <option name="presentableId" value="LOCAL-00067" />
-      <option name="project" value="LOCAL" />
-      <updated>1754814353560</updated>
     </task>
     <task id="LOCAL-00068" summary="7 dynamic">
       <option name="closed" value="true" />
@@ -566,7 +552,15 @@
       <option name="project" value="LOCAL" />
       <updated>1755867895515</updated>
     </task>
-    <option name="localTasksCounter" value="116" />
+    <task id="LOCAL-00116" summary="7 User simulator">
+      <option name="closed" value="true" />
+      <created>1755888517462</created>
+      <option name="number" value="00116" />
+      <option name="presentableId" value="LOCAL-00116" />
+      <option name="project" value="LOCAL" />
+      <updated>1755888517462</updated>
+    </task>
+    <option name="localTasksCounter" value="117" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
