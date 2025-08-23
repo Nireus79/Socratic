@@ -5,8 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7 tst">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Socratic7tst.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic7tst.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/socratic_data/projects.db" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/projects.db" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/51fa9101-4c77-4d6e-8e72-ed57b8debfec/length.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/51fa9101-4c77-4d6e-8e72-ed57b8debfec/length.bin" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -80,7 +80,7 @@
       <recent name="C:\Users\themi\PycharmProjects\Socratic" />
     </key>
   </component>
-  <component name="RunManager" selected="Python tests.Python tests in Socratic7tst.py">
+  <component name="RunManager" selected="Python.Socratic7">
     <configuration name="Socratic7" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="Socratic" />
       <option name="ENV_FILES" value="" />
@@ -141,14 +141,14 @@
       <method v="2" />
     </configuration>
     <list>
-      <item itemvalue="Python.main" />
       <item itemvalue="Python.Socratic7" />
+      <item itemvalue="Python.main" />
       <item itemvalue="Python tests.Python tests in Socratic7tst.py" />
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Python tests.Python tests in Socratic7tst.py" />
         <item itemvalue="Python.Socratic7" />
+        <item itemvalue="Python tests.Python tests in Socratic7tst.py" />
       </list>
     </recent_temporary>
   </component>
@@ -167,14 +167,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1750504324591</updated>
-    </task>
-    <task id="LOCAL-00082" summary="7 new">
-      <option name="closed" value="true" />
-      <created>1755633111476</created>
-      <option name="number" value="00082" />
-      <option name="presentableId" value="LOCAL-00082" />
-      <option name="project" value="LOCAL" />
-      <updated>1755633111480</updated>
     </task>
     <task id="LOCAL-00083" summary="7 new">
       <option name="closed" value="true" />
@@ -560,7 +552,15 @@
       <option name="project" value="LOCAL" />
       <updated>1755907442901</updated>
     </task>
-    <option name="localTasksCounter" value="131" />
+    <task id="LOCAL-00131" summary="7 tst">
+      <option name="closed" value="true" />
+      <created>1755943707860</created>
+      <option name="number" value="00131" />
+      <option name="presentableId" value="LOCAL-00131" />
+      <option name="project" value="LOCAL" />
+      <updated>1755943707860</updated>
+    </task>
+    <option name="localTasksCounter" value="132" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
