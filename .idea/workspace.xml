@@ -4,7 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7 tst">
+    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7 sim">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Socratic7.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic7.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pst7.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProductSeekerSocraticGen.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/socratic_data/projects.db" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/projects.db" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/51fa9101-4c77-4d6e-8e72-ed57b8debfec/length.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/51fa9101-4c77-4d6e-8e72-ed57b8debfec/length.bin" afterDir="false" />
     </list>
@@ -167,14 +170,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1750504324591</updated>
-    </task>
-    <task id="LOCAL-00083" summary="7 new">
-      <option name="closed" value="true" />
-      <created>1755633815576</created>
-      <option name="number" value="00083" />
-      <option name="presentableId" value="LOCAL-00083" />
-      <option name="project" value="LOCAL" />
-      <updated>1755633815576</updated>
     </task>
     <task id="LOCAL-00084" summary="7 new">
       <option name="closed" value="true" />
@@ -560,12 +555,19 @@
       <option name="project" value="LOCAL" />
       <updated>1755943707860</updated>
     </task>
-    <option name="localTasksCounter" value="132" />
+    <task id="LOCAL-00132" summary="7 sim">
+      <option name="closed" value="true" />
+      <created>1755958489584</created>
+      <option name="number" value="00132" />
+      <option name="presentableId" value="LOCAL-00132" />
+      <option name="project" value="LOCAL" />
+      <updated>1755958489585</updated>
+    </task>
+    <option name="localTasksCounter" value="133" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <option name="ADD_EXTERNAL_FILES_SILENTLY" value="true" />
-    <MESSAGE value="claude-sonnet-4-20250514" />
     <MESSAGE value="Socratic 4" />
     <MESSAGE value="Socratic 5" />
     <MESSAGE value="Read me" />
@@ -590,6 +592,7 @@
     <MESSAGE value="7 lower" />
     <MESSAGE value="7" />
     <MESSAGE value="7 tst" />
-    <option name="LAST_COMMIT_MESSAGE" value="7 tst" />
+    <MESSAGE value="7 sim" />
+    <option name="LAST_COMMIT_MESSAGE" value="7 sim" />
   </component>
 </project>

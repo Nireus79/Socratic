@@ -2630,6 +2630,7 @@ class SocraticRAGSystem:
         self.current_user = None
         self.current_project = None
         self.session_start = datetime.datetime.now()
+        # self.setup_enhanced_database()
 
     def start(self):
         """Start the Socratic RAG System"""
@@ -3210,6 +3211,363 @@ class SocraticRAGSystem:
 
         except ValueError:
             print(f"{Fore.RED}Invalid input.")
+
+    # def add_project_note(self, note_type, title, content):
+    #     """Add a note to the current project"""
+    #     if not self.current_project:
+    #         return False
+    #
+    #     try:
+    #         cursor = self.conn.cursor()
+    #         cursor.execute("""
+    #             INSERT INTO project_notes (project_name, note_type, title, content)
+    #             VALUES (?, ?, ?, ?)
+    #         """, (self.current_project, note_type, title, content))
+    #         self.conn.commit()
+    #         return True
+    #     except Exception as e:
+    #         print(f"Error adding note: {e}")
+    #         return False
+    #
+    # def update_project_progress(self, percentage):
+    #     """Update project progress percentage"""
+    #     if not self.current_project:
+    #         return False
+    #
+    #     try:
+    #         cursor = self.conn.cursor()
+    #         cursor.execute("""
+    #             UPDATE projects
+    #             SET progress_percentage = ?, updated_at = CURRENT_TIMESTAMP
+    #             WHERE name = ?
+    #         """, (percentage, self.current_project))
+    #         self.conn.commit()
+    #         return True
+    #     except Exception as e:
+    #         print(f"Error updating progress: {e}")
+    #         return False
+    #
+    # def set_project_status(self, status):
+    #     """Update project status (active, completed, on-hold, archived)"""
+    #     if not self.current_project:
+    #         return False
+    #
+    #     valid_statuses = ['active', 'completed', 'on-hold', 'archived']
+    #     if status not in valid_statuses:
+    #         print(f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
+    #         return False
+    #
+    #     try:
+    #         cursor = self.conn.cursor()
+    #         cursor.execute("""
+    #             UPDATE projects
+    #             SET status = ?, updated_at = CURRENT_TIMESTAMP
+    #             WHERE name = ?
+    #         """, (status, self.current_project))
+    #         self.conn.commit()
+    #         return True
+    #     except Exception as e:
+    #         print(f"Error updating status: {e}")
+    #         return False
+    #
+    # def generate_conversation_summary(self, limit=10):
+    #     """Generate a summary of recent conversations using AI"""
+    #     if not self.current_project:
+    #         return None
+    #
+    #     try:
+    #         cursor = self.conn.cursor()
+    #         cursor.execute("""
+    #             SELECT role, content FROM conversations
+    #             WHERE project_name = ?
+    #             ORDER BY timestamp DESC LIMIT ?
+    #         """, (self.current_project, limit))
+    #
+    #         conversations = cursor.fetchall()
+    #         if not conversations:
+    #             return "No conversations found."
+    #
+    #         # Format conversations for summarization
+    #         conv_text = ""
+    #         for role, content in reversed(conversations):  # Reverse to get chronological order
+    #             conv_text += f"{role.upper()}: {content}\n\n"
+    #
+    #         # If you have access to an AI model, you can generate a summary here
+    #         # For now, return a simple truncated version
+    #         if len(conv_text) > 500:
+    #             return conv_text[:500] + "...\n\n[Summary truncated - full conversation history available in exports]"
+    #
+    #         return conv_text
+    #
+    #     except Exception as e:
+    #         print(f"Error generating summary: {e}")
+    #         return None
+    #
+    # def search_project_conversations(self, query):
+    #     """Search through project conversations"""
+    #     if not self.current_project:
+    #         return []
+    #
+    #     try:
+    #         cursor = self.conn.cursor()
+    #         cursor.execute("""
+    #             SELECT timestamp, role, content FROM conversations
+    #             WHERE project_name = ? AND content LIKE ?
+    #             ORDER BY timestamp DESC
+    #         """, (self.current_project, f"%{query}%"))
+    #
+    #         results = cursor.fetchall()
+    #         return results
+    #
+    #     except Exception as e:
+    #         print(f"Error searching conversations: {e}")
+    #         return []
+    #
+    # def get_project_statistics(self):
+    #     """Get comprehensive project statistics"""
+    #     if not self.current_project:
+    #         return None
+    #
+    #     try:
+    #         cursor = self.conn.cursor()
+    #         stats = {}
+    #
+    #         # Basic counts
+    #         cursor.execute("SELECT COUNT(*) FROM conversations WHERE project_name = ?", (self.current_project,))
+    #         stats['total_conversations'] = cursor.fetchone()[0]
+    #
+    #         cursor.execute("SELECT COUNT(*) FROM knowledge_base WHERE project_name = ?", (self.current_project,))
+    #         stats['knowledge_base_entries'] = cursor.fetchone()[0]
+    #
+    #         # Date range
+    #         cursor.execute("""
+    #             SELECT MIN(timestamp), MAX(timestamp)
+    #             FROM conversations WHERE project_name = ?
+    #         """, (self.current_project,))
+    #         min_date, max_date = cursor.fetchone()
+    #         stats['date_range'] = {'start': min_date, 'end': max_date}
+    #
+    #         # Activity by day of week
+    #         cursor.execute("""
+    #             SELECT strftime('%w', timestamp) as day_of_week, COUNT(*)
+    #             FROM conversations WHERE project_name = ?
+    #             GROUP BY strftime('%w', timestamp)
+    #         """, (self.current_project,))
+    #         stats['activity_by_weekday'] = dict(cursor.fetchall())
+    #
+    #         return stats
+    #
+    #     except Exception as e:
+    #         print(f"Error getting statistics: {e}")
+    #         return None
+    #
+    # def setup_enhanced_database(self):
+    #     """Enhanced database setup with additional project tracking fields"""
+    #     cursor = self.conn.cursor()
+    #
+    #     # Check if new columns exist, add them if they don't
+    #     try:
+    #         cursor.execute("SELECT status FROM projects LIMIT 1")
+    #     except:
+    #         # Add status column
+    #         cursor.execute("ALTER TABLE projects ADD COLUMN status TEXT DEFAULT 'active'")
+    #
+    #     try:
+    #         cursor.execute("SELECT priority FROM projects LIMIT 1")
+    #     except:
+    #         # Add priority column
+    #         cursor.execute("ALTER TABLE projects ADD COLUMN priority TEXT DEFAULT 'medium'")
+    #
+    #     try:
+    #         cursor.execute("SELECT tags FROM projects LIMIT 1")
+    #     except:
+    #         # Add tags column for categorization
+    #         cursor.execute("ALTER TABLE projects ADD COLUMN tags TEXT")
+    #
+    #     try:
+    #         cursor.execute("SELECT progress_percentage FROM projects LIMIT 1")
+    #     except:
+    #         # Add progress tracking
+    #         cursor.execute("ALTER TABLE projects ADD COLUMN progress_percentage INTEGER DEFAULT 0")
+    #
+    #     # Create project milestones table if it doesn't exist
+    #     cursor.execute('''
+    #         CREATE TABLE IF NOT EXISTS project_milestones (
+    #             id INTEGER PRIMARY KEY AUTOINCREMENT,
+    #             project_name TEXT,
+    #             milestone_name TEXT,
+    #             description TEXT,
+    #             target_date TEXT,
+    #             completed_date TEXT,
+    #             status TEXT DEFAULT 'pending',
+    #             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    #             FOREIGN KEY (project_name) REFERENCES projects (name)
+    #         )
+    #     ''')
+    #
+    #     # Create project notes table for additional tracking
+    #     cursor.execute('''
+    #         CREATE TABLE IF NOT EXISTS project_notes (
+    #             id INTEGER PRIMARY KEY AUTOINCREMENT,
+    #             project_name TEXT,
+    #             note_type TEXT,  -- 'insight', 'todo', 'decision', etc.
+    #             title TEXT,
+    #             content TEXT,
+    #             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    #             FOREIGN KEY (project_name) REFERENCES projects (name)
+    #         )
+    #     ''')
+    #
+    #     self.conn.commit()
+    #
+    # def add_project_note(self, note_type, title, content):
+    #     """Add a note to the current project"""
+    #     if not self.current_project:
+    #         return False
+    #
+    #     try:
+    #         cursor = self.conn.cursor()
+    #         cursor.execute("""
+    #             INSERT INTO project_notes (project_name, note_type, title, content)
+    #             VALUES (?, ?, ?, ?)
+    #         """, (self.current_project, note_type, title, content))
+    #         self.conn.commit()
+    #         return True
+    #     except Exception as e:
+    #         print(f"Error adding note: {e}")
+    #         return False
+    #
+    # def update_project_progress(self, percentage):
+    #     """Update project progress percentage"""
+    #     if not self.current_project:
+    #         return False
+    #
+    #     try:
+    #         cursor = self.conn.cursor()
+    #         cursor.execute("""
+    #             UPDATE projects
+    #             SET progress_percentage = ?, updated_at = CURRENT_TIMESTAMP
+    #             WHERE name = ?
+    #         """, (percentage, self.current_project))
+    #         self.conn.commit()
+    #         return True
+    #     except Exception as e:
+    #         print(f"Error updating progress: {e}")
+    #         return False
+    #
+    # def set_project_status(self, status):
+    #     """Update project status (active, completed, on-hold, archived)"""
+    #     if not self.current_project:
+    #         return False
+    #
+    #     valid_statuses = ['active', 'completed', 'on-hold', 'archived']
+    #     if status not in valid_statuses:
+    #         print(f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
+    #         return False
+    #
+    #     try:
+    #         cursor = self.conn.cursor()
+    #         cursor.execute("""
+    #             UPDATE projects
+    #             SET status = ?, updated_at = CURRENT_TIMESTAMP
+    #             WHERE name = ?
+    #         """, (status, self.current_project))
+    #         self.conn.commit()
+    #         return True
+    #     except Exception as e:
+    #         print(f"Error updating status: {e}")
+    #         return False
+    #
+    # def generate_conversation_summary(self, limit=10):
+    #     """Generate a summary of recent conversations using AI"""
+    #     if not self.current_project:
+    #         return None
+    #
+    #     try:
+    #         cursor = self.conn.cursor()
+    #         cursor.execute("""
+    #             SELECT role, content FROM conversations
+    #             WHERE project_name = ?
+    #             ORDER BY timestamp DESC LIMIT ?
+    #         """, (self.current_project, limit))
+    #
+    #         conversations = cursor.fetchall()
+    #         if not conversations:
+    #             return "No conversations found."
+    #
+    #         # Format conversations for summarization
+    #         conv_text = ""
+    #         for role, content in reversed(conversations):  # Reverse to get chronological order
+    #             conv_text += f"{role.upper()}: {content}\n\n"
+    #
+    #         # If you have access to an AI model, you can generate a summary here
+    #         # For now, return a simple truncated version
+    #         if len(conv_text) > 500:
+    #             return conv_text[:500] + "...\n\n[Summary truncated - full conversation history available in exports]"
+    #
+    #         return conv_text
+    #
+    #     except Exception as e:
+    #         print(f"Error generating summary: {e}")
+    #         return None
+    #
+    # def search_project_conversations(self, query):
+    #     """Search through project conversations"""
+    #     if not self.current_project:
+    #         return []
+    #
+    #     try:
+    #         cursor = self.conn.cursor()
+    #         cursor.execute("""
+    #             SELECT timestamp, role, content FROM conversations
+    #             WHERE project_name = ? AND content LIKE ?
+    #             ORDER BY timestamp DESC
+    #         """, (self.current_project, f"%{query}%"))
+    #
+    #         results = cursor.fetchall()
+    #         return results
+    #
+    #     except Exception as e:
+    #         print(f"Error searching conversations: {e}")
+    #         return []
+    #
+    # def get_project_statistics(self):
+    #     """Get comprehensive project statistics"""
+    #     if not self.current_project:
+    #         return None
+    #
+    #     try:
+    #         cursor = self.conn.cursor()
+    #         stats = {}
+    #
+    #         # Basic counts
+    #         cursor.execute("SELECT COUNT(*) FROM conversations WHERE project_name = ?", (self.current_project,))
+    #         stats['total_conversations'] = cursor.fetchone()[0]
+    #
+    #         cursor.execute("SELECT COUNT(*) FROM knowledge_base WHERE project_name = ?", (self.current_project,))
+    #         stats['knowledge_base_entries'] = cursor.fetchone()[0]
+    #
+    #         # Date range
+    #         cursor.execute("""
+    #             SELECT MIN(timestamp), MAX(timestamp)
+    #             FROM conversations WHERE project_name = ?
+    #         """, (self.current_project,))
+    #         min_date, max_date = cursor.fetchone()
+    #         stats['date_range'] = {'start': min_date, 'end': max_date}
+    #
+    #         # Activity by day of week
+    #         cursor.execute("""
+    #             SELECT strftime('%w', timestamp) as day_of_week, COUNT(*)
+    #             FROM conversations WHERE project_name = ?
+    #             GROUP BY strftime('%w', timestamp)
+    #         """, (self.current_project,))
+    #         stats['activity_by_weekday'] = dict(cursor.fetchall())
+    #
+    #         return stats
+    #
+    #     except Exception as e:
+    #         print(f"Error getting statistics: {e}")
+    #         return None
 
     def _main_loop(self):
         """Main application loop"""
