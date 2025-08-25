@@ -4,10 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7 sim">
+    <list default="true" id="9c0a24f6-88df-45f4-a045-4369a7f0a44b" name="Changes" comment="7 sum">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Socratic7.py" beforeDir="false" afterPath="$PROJECT_DIR$/Socratic7.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pst7.py" beforeDir="false" afterPath="$PROJECT_DIR$/ProductSeekerSocraticGen.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/socratic_data/projects.db" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/projects.db" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/socratic_data/vector_db/51fa9101-4c77-4d6e-8e72-ed57b8debfec/length.bin" beforeDir="false" afterPath="$PROJECT_DIR$/socratic_data/vector_db/51fa9101-4c77-4d6e-8e72-ed57b8debfec/length.bin" afterDir="false" />
     </list>
@@ -144,8 +143,8 @@
       <method v="2" />
     </configuration>
     <list>
-      <item itemvalue="Python.Socratic7" />
       <item itemvalue="Python.main" />
+      <item itemvalue="Python.Socratic7" />
       <item itemvalue="Python tests.Python tests in Socratic7tst.py" />
     </list>
     <recent_temporary>
@@ -170,14 +169,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1750504324591</updated>
-    </task>
-    <task id="LOCAL-00084" summary="7 new">
-      <option name="closed" value="true" />
-      <created>1755636567104</created>
-      <option name="number" value="00084" />
-      <option name="presentableId" value="LOCAL-00084" />
-      <option name="project" value="LOCAL" />
-      <updated>1755636567104</updated>
     </task>
     <task id="LOCAL-00085" summary="conflicts">
       <option name="closed" value="true" />
@@ -563,12 +554,19 @@
       <option name="project" value="LOCAL" />
       <updated>1755958489585</updated>
     </task>
-    <option name="localTasksCounter" value="133" />
+    <task id="LOCAL-00133" summary="7 sum">
+      <option name="closed" value="true" />
+      <created>1756026066044</created>
+      <option name="number" value="00133" />
+      <option name="presentableId" value="LOCAL-00133" />
+      <option name="project" value="LOCAL" />
+      <updated>1756026066045</updated>
+    </task>
+    <option name="localTasksCounter" value="134" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <option name="ADD_EXTERNAL_FILES_SILENTLY" value="true" />
-    <MESSAGE value="Socratic 4" />
     <MESSAGE value="Socratic 5" />
     <MESSAGE value="Read me" />
     <MESSAGE value="Socratic 5.1" />
@@ -593,6 +591,7 @@
     <MESSAGE value="7" />
     <MESSAGE value="7 tst" />
     <MESSAGE value="7 sim" />
-    <option name="LAST_COMMIT_MESSAGE" value="7 sim" />
+    <MESSAGE value="7 sum" />
+    <option name="LAST_COMMIT_MESSAGE" value="7 sum" />
   </component>
 </project>
